@@ -19,6 +19,12 @@ Etapes rapides :
 4. Laisser Render creer le service web et la base PostgreSQL.
 5. Apres deploiement, ouvrir `/django-admin/` ou `/login/`.
 
+URL Render attendue :
+
+```text
+https://isgi-soutenances.onrender.com
+```
+
 Documentation detaillee : `docs/DEPLOIEMENT.md`.
 
 ## Donnees sensibles

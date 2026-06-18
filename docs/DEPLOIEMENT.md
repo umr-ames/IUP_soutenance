@@ -115,14 +115,14 @@ Etapes :
 2. Dans Render, choisir **New +** puis **Blueprint**.
 3. Connecter le depot GitHub.
 4. Render lit `render.yaml` et propose de creer :
-   - le service web gratuit `iup-soutenance` ;
+   - le service web gratuit `isgi-soutenances` ;
    - la base PostgreSQL gratuite `iup-soutenance-db`.
 5. Lancer la creation.
 
 Apres le premier deploiement, verifier l'URL Render, par exemple :
 
 ```text
-https://iup-soutenance.onrender.com/login/
+https://isgi-soutenances.onrender.com/login/
 ```
 
 En mode gratuit, les fichiers envoyes par les etudiants (`media/`) sont stockes

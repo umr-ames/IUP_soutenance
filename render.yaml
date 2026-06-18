@@ -6,7 +6,7 @@ databases:
 
 services:
   - type: web
-    name: iup-soutenance
+    name: isgi-soutenances
     runtime: python
     plan: free
     buildCommand: "bash build.sh"
