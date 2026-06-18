@@ -151,7 +151,7 @@ if (typeof Chart === 'undefined') {
 <div class="stats-header">
     <div class="stats-header-top">
         <div>
-            <span class="eyebrow">ADMINISTRATION</span>
+            <span class="eyebrow">DÉPARTEMENT DE L'IUP</span>
             <h1>Statistiques</h1>
             <p>
                 {% if active_tab == 'global' %}Vue d'ensemble du suivi des soutenances
@@ -178,34 +178,34 @@ if (typeof Chart === 'undefined') {
     <!-- KPI -->
     <div class="kpi-grid">
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Étudiants officiels</div>
+            <div class="kpi-eyebrow">Étudiants L3</div>
             <div class="kpi-value">{{ total_ref }}</div>
-            <div class="kpi-sub">Liste de référence</div>
+            <div class="kpi-sub">Effectif total</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Comptes créés</div>
+            <div class="kpi-eyebrow">Étudiants inscrits</div>
             <div class="kpi-value" style="color:var(--orange)">{{ total_profiles }}</div>
             <div class="kpi-sub">{{ total_profiles }} inscrits sur {{ total_ref }}</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Sans compte</div>
+            <div class="kpi-eyebrow">Pas encore inscrits</div>
             <div class="kpi-value" style="color:#dc2626">{{ total_sans_compte }}</div>
-            <div class="kpi-sub">Pas encore inscrits</div>
+            <div class="kpi-sub">Étudiants sans compte</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Demandes déposées</div>
+            <div class="kpi-eyebrow">Demandes de soutenance</div>
             <div class="kpi-value">{{ total_demandes }}</div>
-            <div class="kpi-sub">Toutes demandes</div>
+            <div class="kpi-sub">Toutes les demandes reçues</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Demandes acceptées</div>
+            <div class="kpi-eyebrow">Demandes validées</div>
             <div class="kpi-value" style="color:#16a34a">{{ total_acceptees }}</div>
             <div class="kpi-sub">Validées par le département de l'IUP</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Acceptés sans jury</div>
+            <div class="kpi-eyebrow">Validées sans jury</div>
             <div class="kpi-value" style="color:#f59e0b">{{ acceptes_sans_jury_count }}</div>
-            <div class="kpi-sub">En attente d'affectation</div>
+            <div class="kpi-sub">Validées par le département, jury pas encore attribué</div>
         </div>
     </div>
 
@@ -230,7 +230,11 @@ if (typeof Chart === 'undefined') {
             <h3>Répartition par filière</h3>
             <div style="overflow-x:auto;"><table class="stats-table">
                 <thead><tr>
-                    <th>Filière</th><th>Off.</th><th>Ins.</th><th>Sans</th><th>Taux</th>
+                    <th>Filière</th>
+                    <th title="Nombre total d'étudiants L3">Total</th>
+                    <th title="Étudiants inscrits (compte créé)">Inscrits</th>
+                    <th title="Étudiants pas encore inscrits">Non inscrits</th>
+                    <th title="Taux d'inscription">Taux d'inscr.</th>
                 </tr></thead>
                 <tbody>
                 {% for r in filiere_stats %}
@@ -261,7 +265,7 @@ if (typeof Chart === 'undefined') {
 
         <!-- Alertes administratives -->
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Alertes administratives</h3>
+            <h3>Alertes de suivi</h3>
             <div class="alerte-list">
                 {% if not alertes %}
                     <div class="alerte-item info"><span class="alerte-dot"></span>Aucune alerte en cours.</div>
@@ -304,13 +308,15 @@ if (typeof Chart === 'undefined') {
 
     <!-- Synthese par encadrant -->
     <div class="stat-card">
-        <h3>Synthese operationnelle par encadrant</h3>
+        <h3>Synthèse opérationnelle par encadrant</h3>
         <div style="overflow-x:auto;">
         <table class="stats-table">
             <thead><tr>
                 <th>Encadrant</th><th>Total</th>
                 {% for f in filieres %}<th>{{ f }}</th>{% endfor %}
-                <th>Att. enc.</th><th>Att. adm.</th><th>Acceptes</th><th>Sans jury</th><th>Taux</th>
+                <th title="En attente de validation par l'encadrant">Att. encadrant</th>
+                <th title="En attente de validation par le département de l'IUP">Att. département</th>
+                <th>Validées</th><th>Sans jury</th><th>Taux</th>
             </tr></thead>
             <tbody>
             {% for row in synthese_encadrants %}
@@ -388,7 +394,7 @@ if (typeof Chart === 'undefined') {
     <div class="grid-2" style="margin-top:12px;">
         <!-- Equilibre -->
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Equilibre de la charge</h3>
+            <h3>Équilibre de la charge</h3>
             <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
                 <div style="width:140px;height:140px;flex-shrink:0;">
                     <canvas id="chartEquilibre"></canvas>

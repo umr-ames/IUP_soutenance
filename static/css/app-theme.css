@@ -358,7 +358,8 @@ a:hover {
 
 .table-responsive {
     padding: 0 !important;
-    overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .table {
@@ -1138,6 +1139,36 @@ body {
    Responsive
    ========================================================================== */
 
+@media (max-width: 1200px) {
+    .app-main {
+        padding: 14px 16px 40px;
+    }
+
+    .soft-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    .detail-grid,
+    [style*="grid-template-columns: minmax(0, 1.15fr)"],
+    [style*="grid-template-columns: minmax(0, 0.85fr)"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    .soft-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+
+    .auth-card.register-card-wide {
+        max-width: 100%;
+    }
+
+    .chart-wrap {
+        min-height: 0;
+    }
+}
+
 @media (max-width: 720px) {
     .auth-card {
         padding: 26px;
@@ -1149,5 +1180,145 @@ body {
 
     .page-header {
         padding: 20px !important;
+    }
+
+    .table-responsive,
+    .week-grid-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .glass-card .table-responsive,
+    .stat-card .table-responsive,
+    .content-panel .table-responsive {
+        margin: 0 -6px;
+        padding: 0 !important;
+        border-radius: 0 !important;
+        border-left: none !important;
+        border-right: none !important;
+        box-shadow: none !important;
+    }
+
+    .hero-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .hero-actions .btn {
+        flex: 1;
+        text-align: center;
+        justify-content: center;
+    }
+
+    .nav-dropdown-menu {
+        position: static;
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+        box-shadow: none;
+        border: 1px solid var(--line);
+        margin-top: 4px;
+        width: 100%;
+    }
+
+    .form-stack,
+    .auth-form-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .auth-form-grid .full-width {
+        grid-column: 1;
+    }
+
+    .toolbar-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-box {
+        width: 100%;
+    }
+
+    .section-title {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .student-line {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .student-time {
+        align-items: flex-start;
+        text-align: left;
+    }
+
+    .card-actions {
+        justify-content: flex-start;
+    }
+
+    .soft-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stats-header-top {
+        flex-direction: column !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .app-main {
+        padding: 10px 8px 28px;
+    }
+
+    .auth-card {
+        padding: 20px 16px;
+        border-radius: 18px !important;
+    }
+
+    .glass-card,
+    .content-panel,
+    .stat-card {
+        padding: 14px 14px !important;
+        border-radius: 18px !important;
+    }
+
+    .page-header {
+        padding: 16px !important;
+    }
+
+    .soft-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-wrap canvas {
+        max-height: 200px !important;
+    }
+
+    .app-brand-text {
+        display: none;
+    }
+
+    .app-user .btn {
+        padding: 0.4rem 0.7rem;
+        font-size: 0.78rem;
+    }
+
+    .status-stack {
+        gap: 6px;
+    }
+
+    .jury-card {
+        padding: 14px !important;
+    }
+
+    .stats-tab {
+        padding: 7px 14px;
+        font-size: 0.82rem;
+    }
+
+    .workflow-grid {
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
     }
 }

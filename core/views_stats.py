@@ -114,7 +114,7 @@ def _compute_global():
     if pend_prof > 0:
         alertes.append({'level': 'warning', 'msg': f"{pend_prof} demande(s) bloquée(s) chez l'encadrant"})
     if pend_admin > 0:
-        alertes.append({'level': 'warning', 'msg': f"{pend_admin} demande(s) bloquée(s) chez l'administration"})
+        alertes.append({'level': 'warning', 'msg': f"{pend_admin} demande(s) en attente de validation par le département de l'IUP"})
     if acceptes_sans_jury_count > 0:
         alertes.append({'level': 'danger', 'msg': f"{acceptes_sans_jury_count} étudiant(s) accepté(s) sans jury affecté"})
     jurys_brouillon = Jury.objects.filter(is_validated=False).count()
