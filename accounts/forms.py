@@ -1,5 +1,3 @@
-import unicodedata
-
 from django import forms
 from django.contrib.auth import authenticate
 from django.contrib.auth.forms import UserCreationForm
@@ -7,15 +5,6 @@ from django.contrib.auth.forms import UserCreationForm
 from .models import CustomUser
 from students.models import StudentProfile, StudentReference
 from professors.models import ProfessorProfile
-
-
-def normalize_person_name(value):
-    normalized = unicodedata.normalize('NFKD', value or '')
-    normalized = ''.join(
-        character for character in normalized
-        if not unicodedata.combining(character)
-    )
-    return ' '.join(normalized.casefold().split())
 
 
 class PhoneLoginForm(forms.Form):
@@ -77,9 +66,11 @@ class StudentRegisterForm(forms.Form):
     full_name = forms.CharField(
         label="Nom complet",
         max_length=255,
+        required=False,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Votre nom complet officiel'
+            'placeholder': 'Renseigne automatiquement depuis le matricule',
+            'readonly': 'readonly'
         })
     )
 
@@ -176,13 +167,6 @@ class StudentRegisterForm(forms.Form):
             ).first()
 
             if reference:
-                submitted_name = cleaned_data.get('full_name') or ''
-                if normalize_person_name(submitted_name) != normalize_person_name(reference.full_name):
-                    self.add_error(
-                        'full_name',
-                        "Le nom complet ne correspond pas a la liste officielle."
-                    )
-
                 cleaned_data['full_name'] = reference.full_name
                 cleaned_data['filiere'] = reference.filiere
 

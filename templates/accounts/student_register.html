@@ -32,8 +32,8 @@
                     {% endif %}
 
                     <small class="form-help">
-                        Saisissez votre matricule et votre nom complet officiel :
-                        la filière et l'encadrant se complètent automatiquement.
+                        Saisissez votre matricule : le nom, la filière et
+                        l'encadrant se complètent automatiquement.
                     </small>
                 </div>
 
@@ -49,8 +49,8 @@
                 <div class="reference-card not-found" id="referenceCardNotFound">
                     <p class="reference-title">Matricule non reconnu</p>
                     <p class="mb-0 text-muted">
-                        Le matricule ou le nom complet ne correspond pas à la liste
-                        officielle. L'inscription ne pourra pas être validée.
+                        Ce matricule n'est pas dans la liste officielle.
+                        L'inscription ne pourra pas être validée.
                     </p>
                 </div>
 
@@ -194,15 +194,13 @@ function showEncadrantManual() {
 
 function lookupReference() {
     const matricule = matriculeInput ? matriculeInput.value.trim() : '';
-    const fullName = fullNameInput ? fullNameInput.value.trim() : '';
 
-    if (!matricule || !fullName) {
+    if (!matricule) {
         return;
     }
 
     const params = new URLSearchParams({
-        matricule: matricule,
-        full_name: fullName
+        matricule: matricule
     });
 
     fetch(lookupUrl + '?' + params.toString())
@@ -246,10 +244,6 @@ function lookupReference() {
 
 if (matriculeInput) {
     matriculeInput.addEventListener('blur', lookupReference);
-}
-
-if (fullNameInput) {
-    fullNameInput.addEventListener('blur', lookupReference);
 }
 
 </script>

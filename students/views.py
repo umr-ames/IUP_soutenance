@@ -1,5 +1,3 @@
-import unicodedata
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
@@ -11,15 +9,6 @@ from soutenances.forms import PFERequestForm
 from soutenances.models import Deadline, PFERequest
 
 from .models import StudentReference
-
-
-def normalize_person_name(value):
-    normalized = unicodedata.normalize("NFKD", value or "")
-    normalized = "".join(
-        character for character in normalized
-        if not unicodedata.combining(character)
-    )
-    return " ".join(normalized.casefold().split())
 
 
 def get_active_deadline():
@@ -104,17 +93,13 @@ def submit_pfe_request(request):
 
 def lookup_student_reference(request):
     matricule = request.GET.get("matricule", "").strip()
-    full_name = request.GET.get("full_name", "").strip()
 
-    if not matricule or not full_name:
+    if not matricule:
         return JsonResponse({"found": False})
 
     reference = StudentReference.objects.filter(matricule__iexact=matricule).first()
 
-    if (
-        not reference
-        or normalize_person_name(full_name) != normalize_person_name(reference.full_name)
-    ):
+    if not reference:
         return JsonResponse({"found": False})
 
     return JsonResponse({
