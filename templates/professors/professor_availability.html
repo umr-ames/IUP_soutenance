@@ -34,6 +34,47 @@
         width: 90px;
     }
 
+    .day-shortcuts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        margin-top: 6px;
+        justify-content: center;
+    }
+
+    .shortcut-btn {
+        padding: 3px 7px;
+        border-radius: 999px;
+        font-size: 0.63rem;
+        font-weight: 800;
+        border: 1.5px solid rgba(13, 148, 136, 0.28);
+        background: rgba(13, 148, 136, 0.06);
+        color: var(--orange-dark);
+        cursor: pointer;
+        white-space: nowrap;
+        line-height: 1.5;
+        letter-spacing: 0.01em;
+        transition: background 0.14s, border-color 0.14s, color 0.14s;
+    }
+
+    .shortcut-btn:hover {
+        background: rgba(13, 148, 136, 0.14);
+        border-color: rgba(13, 148, 136, 0.5);
+    }
+
+    .shortcut-btn.is-active {
+        background: var(--orange);
+        border-color: transparent;
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(13, 148, 136, 0.28);
+    }
+
+    .shortcut-btn.is-active:hover {
+        background: var(--orange-dark);
+        border-color: transparent;
+        color: #ffffff;
+    }
+
     @media (max-width: 640px) {
         .grid-card {
             padding: 14px;
@@ -109,6 +150,14 @@
                         {% for day in week_days %}
                             <th>
                                 {{ day|date:"D" }}<br>{{ day|date:"d/m" }}
+                                <div class="day-shortcuts">
+                                    <button type="button" class="shortcut-btn"
+                                        data-date="{{ day|date:'Y-m-d' }}" data-key="matin">Matin</button>
+                                    <button type="button" class="shortcut-btn"
+                                        data-date="{{ day|date:'Y-m-d' }}" data-key="apmidi">Après-midi</button>
+                                    <button type="button" class="shortcut-btn"
+                                        data-date="{{ day|date:'Y-m-d' }}" data-key="journee">Journée</button>
+                                </div>
                             </th>
                         {% endfor %}
                     </tr>
@@ -184,4 +233,95 @@
         </table>
     </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var SLOTS = {
+        matin: [9, 10, 11, 12, 13],
+        apmidi: [14, 15, 16, 17, 18],
+        journee: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+    };
+
+    function getCheckbox(date, hour) {
+        return document.querySelector('input[name="slot_' + date + '_' + hour + '"]');
+    }
+
+    function setSlots(date, hours, checked) {
+        hours.forEach(function (hour) {
+            var checkbox = getCheckbox(date, hour);
+            if (checkbox && !checkbox.disabled) {
+                checkbox.checked = checked;
+            }
+        });
+    }
+
+    function allChecked(date, hours) {
+        return hours.every(function (hour) {
+            var checkbox = getCheckbox(date, hour);
+            if (!checkbox || checkbox.disabled) {
+                return true;
+            }
+            return checkbox.checked;
+        });
+    }
+
+    function detectActive(date) {
+        var morning = allChecked(date, SLOTS.matin);
+        var afternoon = allChecked(date, SLOTS.apmidi);
+        if (morning && afternoon) {
+            return 'journee';
+        }
+        if (morning) {
+            return 'matin';
+        }
+        if (afternoon) {
+            return 'apmidi';
+        }
+        return null;
+    }
+
+    function updateButtons(date) {
+        var active = detectActive(date);
+        document.querySelectorAll('.shortcut-btn[data-date="' + date + '"]').forEach(function (button) {
+            button.classList.toggle('is-active', button.dataset.key === active);
+        });
+    }
+
+    function toggleShortcut(date, key) {
+        var current = detectActive(date);
+        if (current === key) {
+            setSlots(date, SLOTS[key], false);
+        } else {
+            if (current) {
+                setSlots(date, SLOTS[current], false);
+            }
+            setSlots(date, SLOTS[key], true);
+        }
+        updateButtons(date);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.shortcut-btn').forEach(function (button) {
+            button.addEventListener('click', function () {
+                toggleShortcut(this.dataset.date, this.dataset.key);
+            });
+        });
+
+        document.querySelectorAll('.week-grid input[type="checkbox"]').forEach(function (checkbox) {
+            checkbox.addEventListener('change', function () {
+                var date = this.name.split('_')[1];
+                updateButtons(date);
+            });
+        });
+
+        var dates = new Set();
+        document.querySelectorAll('.shortcut-btn').forEach(function (button) {
+            dates.add(button.dataset.date);
+        });
+        dates.forEach(updateButtons);
+    });
+})();
+</script>
 {% endblock %}
