@@ -20,7 +20,7 @@ def get_active_deadline():
 def submit_pfe_request(request):
     student = getattr(request.user, "student_profile", None)
     if not student:
-        messages.error(request, "Votre profil etudiant n'est pas encore configure.")
+        messages.error(request, "Votre profil étudiant n'est pas encore configuré.")
         return redirect("student_dashboard")
 
     existing_request = PFERequest.objects.filter(student=student).first()
@@ -32,14 +32,14 @@ def submit_pfe_request(request):
 
     # Bloquer uniquement si une demande non refusée existe déjà
     if existing_request and existing_request.status not in REFUSED_STATUSES:
-        messages.info(request, "Vous avez deja envoye une demande de soutenance.")
+        messages.info(request, "Vous avez déjà envoyé une demande de soutenance.")
         return redirect("student_dashboard")
 
     deadline = get_active_deadline()
     if deadline and deadline.is_closed():
         messages.error(
             request,
-            "La date limite est depassee. Vous ne pouvez plus envoyer une demande."
+            "La date limite est dépassée. Vous ne pouvez plus envoyer une demande."
         )
         return redirect("student_dashboard")
 
@@ -63,7 +63,7 @@ def submit_pfe_request(request):
                 existing_request.save()
                 messages.success(
                     request,
-                    "Votre demande a ete renvoyee avec succes. Elle repart en validation encadrant."
+                    "Votre demande a été renvoyée avec succès. Elle repart en validation encadrant."
                 )
             else:
                 pfe_request = form.save(commit=False)
@@ -71,7 +71,7 @@ def submit_pfe_request(request):
                 pfe_request.save()
                 messages.success(
                     request,
-                    "Votre demande de soutenance a ete envoyee avec succes."
+                    "Votre demande de soutenance a été envoyée avec succès."
                 )
             return redirect("student_dashboard")
     else:

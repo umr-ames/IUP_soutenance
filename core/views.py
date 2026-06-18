@@ -124,7 +124,7 @@ def admin_dashboard(request):
 def professor_dashboard(request):
     professor = getattr(request.user, "professor_profile", None)
     if not professor:
-        messages.warning(request, "Votre profil professeur n'est pas encore configure.")
+        messages.warning(request, "Votre profil professeur n'est pas encore configuré.")
         return render(request, "core/professor_dashboard.html", {
             "professor": None,
         })
@@ -262,15 +262,15 @@ def admin_import_people(request):
             else:
                 messages.success(
                     request,
-                    "Import termine : "
-                    f"{result['created_students']} etudiants crees, "
-                    f"{result['updated_students']} mis a jour, "
-                    f"{result['created_professors']} professeurs crees."
+                    "Import terminé : "
+                    f"{result['created_students']} étudiants créés, "
+                    f"{result['updated_students']} mis à jour, "
+                    f"{result['created_professors']} professeurs créés."
                 )
                 if result["errors"]:
                     messages.warning(
                         request,
-                        f"{len(result['errors'])} ligne(s) ignoree(s)."
+                        f"{len(result['errors'])} ligne(s) ignorée(s)."
                     )
                 return render(request, "core/admin_import.html", {
                     "form": ImportPeopleForm(),
@@ -314,8 +314,8 @@ def admin_import_student_references(request):
             else:
                 messages.success(
                     request,
-                    "Liste officielle importee avec succes. "
-                    "Les professeurs manquants ont ete crees automatiquement."
+                    "Liste officielle importée avec succès. "
+                    "Les professeurs manquants ont été créés automatiquement."
                 )
                 return render(request, "core/admin_import_references.html", {
                     "form": ImportStudentReferencesForm(),

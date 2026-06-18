@@ -383,7 +383,7 @@
             {% if pfe_request.status == 'pending_professor' %}
                 <span class="profile-tag">Décision attendue</span>
             {% elif pfe_request.status == 'pending_admin' %}
-                <span class="profile-tag">Transmise à l’administration</span>
+                <span class="profile-tag">Transmise au département de l'IUP</span>
             {% elif pfe_request.status == 'accepted' %}
                 <span class="profile-tag">Acceptée</span>
             {% else %}
@@ -397,7 +397,7 @@
             <span class="eyebrow">Décision</span>
             <h2>Traitement du dossier</h2>
             <p>
-                Validez le dossier pour l’envoyer à l’administration, ou refusez avec un commentaire clair.
+                Validez le dossier pour l’envoyer au département de l'IUP, ou refusez avec un commentaire clair.
             </p>
         </div>
 
@@ -405,7 +405,7 @@
             {% if pfe_request.status == 'pending_professor' %}
                 <span class="status-pill pending-professor">En attente encadrant</span>
             {% elif pfe_request.status == 'pending_admin' %}
-                <span class="status-pill pending-admin">En attente administration</span>
+                <span class="status-pill pending-admin">En attente du département de l'IUP</span>
             {% elif pfe_request.status == 'accepted' %}
                 <span class="status-pill accepted">Acceptée</span>
             {% elif pfe_request.status == 'refused_by_professor' or pfe_request.status == 'refused_by_admin' %}
@@ -608,7 +608,7 @@
                 <div class="timeline-step">
                     <div class="timeline-number">3</div>
                     <div>
-                        <strong>Administration</strong>
+                        <strong>Département de l'IUP</strong>
                         <span>
                             {% if pfe_request.admin_reviewed_at %}
                                 {{ pfe_request.admin_reviewed_at|date:"d/m/Y H:i" }}
@@ -622,7 +622,7 @@
 
             {% if pfe_request.admin_comment %}
                 <div class="comment-box">
-                    <strong>Commentaire administration</strong>
+                    <strong>Commentaire du département de l'IUP</strong>
                     <p>{{ pfe_request.admin_comment }}</p>
                 </div>
             {% endif %}

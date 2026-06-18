@@ -389,7 +389,7 @@ def professor_request_detail(request, pk):
 
                 messages.success(
                     request,
-                    "La demande a été validée et envoyée à l'administration."
+                    "La demande a été validée et envoyée au département de l'IUP."
                 )
 
                 return redirect("professor_requests")

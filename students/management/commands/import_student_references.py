@@ -170,19 +170,19 @@ class Command(BaseCommand):
         ).values_list("encadrant_name", flat=True).distinct().count()
 
         # ---- Rapport ----
-        self.stdout.write(self.style.SUCCESS("Import termine."))
+        self.stdout.write(self.style.SUCCESS("Import terminé."))
         self.stdout.write(f"Lignes lues dans le fichier : {total_rows}")
-        self.stdout.write(f"StudentReference crees : {created}")
-        self.stdout.write(f"StudentReference mis a jour : {updated}")
-        self.stdout.write(f"Lignes ignorees (vides ou sans matricule) : {ignored}")
+        self.stdout.write(f"StudentReference créés : {created}")
+        self.stdout.write(f"StudentReference mis à jour : {updated}")
+        self.stdout.write(f"Lignes ignorées (vides ou sans matricule) : {ignored}")
         self.stdout.write(f"Erreurs : {len(errors)}")
-        self.stdout.write(f"Matricules dupliques dans le fichier : {len(duplicate_matricules)}")
+        self.stdout.write(f"Matricules dupliqués dans le fichier : {len(duplicate_matricules)}")
         if duplicate_matricules:
             self.stdout.write("  -> " + ", ".join(duplicate_matricules))
         self.stdout.write(f"Matricules avec nom vide : {len(empty_name)}")
         if empty_name:
             self.stdout.write("  -> " + ", ".join(empty_name))
-        self.stdout.write(f"Matricules avec filiere vide : {len(empty_filiere)}")
+        self.stdout.write(f"Matricules avec filière vide : {len(empty_filiere)}")
         if empty_filiere:
             self.stdout.write("  -> " + ", ".join(empty_filiere))
         self.stdout.write(f"Matricules avec encadrant vide : {len(empty_encadrant)}")
@@ -190,25 +190,25 @@ class Command(BaseCommand):
             self.stdout.write("  -> " + ", ".join(empty_encadrant))
 
         self.stdout.write("")
-        self.stdout.write(f"Total StudentReference en base apres import : {total_in_db}")
+        self.stdout.write(f"Total StudentReference en base après import : {total_in_db}")
         self.stdout.write(f"Encadrants distincts en base : {distinct_encadrants_in_db}")
-        self.stdout.write(f"ProfessorProfile crees : {len(professors_created)}")
+        self.stdout.write(f"ProfessorProfile créés : {len(professors_created)}")
         if professors_created:
             self.stdout.write("  -> " + ", ".join(professors_created))
-        self.stdout.write(f"ProfessorProfile deja existants (reutilises) : {professors_existing}")
+        self.stdout.write(f"ProfessorProfile déjà existants (réutilisés) : {professors_existing}")
 
         self.stdout.write("")
         self.stdout.write(
-            f"References presentes avant l'import mais absentes du nouveau fichier : "
+            f"Références présentes avant l'import mais absentes du nouveau fichier : "
             f"{len(missing_matricules)}"
         )
         self.stdout.write(
-            f"  -> liees a un compte/demande (NON supprimees, signalees) : {len(missing_linked)}"
+            f"  -> liées à un compte/demande (NON supprimées, signalées) : {len(missing_linked)}"
         )
         if missing_linked:
             self.stdout.write("     " + ", ".join(missing_linked))
         self.stdout.write(
-            f"  -> non liees, supprimables en securite si besoin (NON supprimees automatiquement) : "
+            f"  -> non liées, supprimables en sécurité si besoin (NON supprimées automatiquement) : "
             f"{len(missing_unlinked)}"
         )
         if missing_unlinked:
@@ -236,7 +236,7 @@ class Command(BaseCommand):
             reader = csv.DictReader(file)
 
             if not reader.fieldnames:
-                raise CommandError("Le fichier CSV est vide ou sans en-tete.")
+                raise CommandError("Le fichier CSV est vide ou sans en-tête.")
 
             normalized_fieldnames = {
                 name: COLUMN_ALIASES.get(self.normalize_header(name))

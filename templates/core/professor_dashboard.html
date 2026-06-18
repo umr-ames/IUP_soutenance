@@ -146,6 +146,7 @@
         <div>
             <span class="eyebrow">Espace professeur</span>
             <h1>{{ professor.full_name }}</h1>
+            <p class="page-header-meta">{{ INSTITUTION_DEPARTMENT }} — ISGI · {{ ACADEMIC_YEAR }}</p>
         </div>
 
         <a class="btn btn-primary" href="{% url 'professor_evaluations' %}">

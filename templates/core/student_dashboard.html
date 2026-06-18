@@ -181,6 +181,7 @@
         <div class="student-header-id">
             <div class="student-avatar-sm">{{ student.full_name|slice:":1"|upper }}</div>
             <div>
+                <span class="eyebrow">{{ INSTITUTION_DEPARTMENT }} — ISGI · {{ ACADEMIC_YEAR }}</span>
                 <h1>{{ student.full_name }}</h1>
                 <div class="student-meta-row">
                     <span class="student-meta-chip"><span class="meta-label">Matricule</span> {{ student.matricule }}</span>
@@ -235,7 +236,7 @@
                         {% if pfe_request.professor_reviewed_at %}✓{% else %}2{% endif %} Encadrant
                     </span>
                     <span class="mini-step {% if pfe_request.admin_reviewed_at %}done{% endif %}">
-                        {% if pfe_request.admin_reviewed_at %}✓{% else %}3{% endif %} Administration
+                        {% if pfe_request.admin_reviewed_at %}✓{% else %}3{% endif %} Département de l'IUP
                     </span>
                 </div>
             {% endif %}
@@ -269,7 +270,7 @@
             {% endif %}
             {% if pfe_request.admin_comment %}
                 <div class="comment-box danger">
-                    <strong>Commentaire administration</strong>
+                    <strong>Commentaire du département de l'IUP</strong>
                     <p class="mb-0">{{ pfe_request.admin_comment }}</p>
                 </div>
             {% endif %}

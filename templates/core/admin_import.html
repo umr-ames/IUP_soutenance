@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Import etudiants{% endblock %}
+{% block title %}Import étudiants{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div>
-        <h1>Import etudiants/professeurs</h1>
-        <p>Creation sans doublons a partir de matricule, nom complet, filiere et encadrant.</p>
+        <h1>Import étudiants/professeurs</h1>
+        <p>Création sans doublons à partir de matricule, nom complet, filière et encadrant.</p>
     </div>
 </div>
 
@@ -25,14 +25,14 @@
 
 {% if result %}
     <section class="stat-grid">
-        <div class="stat-card"><span>Etudiants crees</span><strong>{{ result.created_students }}</strong></div>
-        <div class="stat-card"><span>Etudiants mis a jour</span><strong>{{ result.updated_students }}</strong></div>
-        <div class="stat-card"><span>Professeurs crees</span><strong>{{ result.created_professors }}</strong></div>
+        <div class="stat-card"><span>Étudiants créés</span><strong>{{ result.created_students }}</strong></div>
+        <div class="stat-card"><span>Étudiants mis à jour</span><strong>{{ result.updated_students }}</strong></div>
+        <div class="stat-card"><span>Professeurs créés</span><strong>{{ result.created_professors }}</strong></div>
     </section>
 
     {% if result.errors %}
         <section class="content-panel">
-            <h2>Lignes ignorees</h2>
+            <h2>Lignes ignorées</h2>
             <div class="table-responsive">
                 <table class="table mb-0">
                     <thead><tr><th>Ligne</th><th>Erreur</th></tr></thead>

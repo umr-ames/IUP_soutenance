@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Accueil administration{% endblock %}
+{% block title %}Accueil — Département de l'IUP{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -156,8 +156,9 @@
 {% block content %}
 <div class="page-header">
     <div>
-        <span class="eyebrow">Administration</span>
+        <span class="eyebrow">Département de l'IUP</span>
         <h1>Tableau de bord</h1>
+        <p class="page-header-meta">{{ INSTITUTION_DEPARTMENT }} — ISGI · {{ ACADEMIC_YEAR }}</p>
     </div>
 
     <a href="{% url 'admin_pfe_requests' %}" class="btn btn-primary">
@@ -169,7 +170,7 @@
     <div class="kpi-card">
         <div class="kpi-label">Demandes en attente</div>
         <div class="kpi-value">{{ stats.pending_professor_requests|add:stats.pending_admin_requests }}</div>
-        <div class="kpi-sub">{{ stats.pending_professor_requests }} encadrant · {{ stats.pending_admin_requests }} administration</div>
+        <div class="kpi-sub">{{ stats.pending_professor_requests }} encadrant · {{ stats.pending_admin_requests }} département de l'IUP</div>
     </div>
 
     <div class="kpi-card">
