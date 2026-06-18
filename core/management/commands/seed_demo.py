@@ -171,16 +171,16 @@ class Command(BaseCommand):
         downloads = Path.home() / "Downloads"
         documents = [
             (
-                "Autorisation de soutenance unifiee",
+                "Autorisation de soutenance unifiée",
                 DocumentTemplate.TYPE_STUDENT_REQUEST,
-                "Formulaire d'autorisation a remplir avant depot.",
+                "Formulaire d'autorisation à remplir avant dépôt.",
                 downloads / "Autorisation soutenance_unifiee.pdf",
                 downloads / "Autorisation soutenance_unifiee.pdf",
             ),
             (
-                "Fiche d'evaluation de soutenance",
+                "Fiche d'évaluation de soutenance",
                 DocumentTemplate.TYPE_EVALUATION,
-                "Document officiel base sur 3 criteres.",
+                "Document officiel basé sur 3 critères.",
                 downloads / "fiche_evaluation_soutenance.pdf",
                 downloads / "fiche_evaluation_soutenance.docx",
             ),

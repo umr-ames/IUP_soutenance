@@ -155,7 +155,7 @@ def prepare_lines(title, lines):
 
     if len(prepared) <= 3:
         prepared.append({
-            "text": "Aucune donnee disponible.",
+            "text": "Aucune donnée disponible.",
             "font": FONT_NORMAL,
             "size": 10,
             "spacing_after": 4,
@@ -187,7 +187,7 @@ def paginate(prepared_lines):
         pages.append(current_page)
 
     return pages or [[{
-        "text": "Aucune donnee disponible.",
+        "text": "Aucune donnée disponible.",
         "font": FONT_NORMAL,
         "size": 10,
         "spacing_after": 4,
@@ -345,12 +345,12 @@ def is_section_title(line):
 
     keywords = [
         "Informations",
-        "Etudiant",
+        "Étudiant",
         "Jury",
         "Planning",
-        "Evaluations",
-        "Resultat",
-        "Decision",
+        "Évaluations",
+        "Résultat",
+        "Décision",
         "Signatures",
     ]
 

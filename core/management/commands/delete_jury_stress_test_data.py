@@ -144,7 +144,7 @@ class Command(BaseCommand):
             ))
             return
 
-        self.stdout.write(self.style.SUCCESS("Donnees TESTSTRESS supprimees :"))
+        self.stdout.write(self.style.SUCCESS("Données TESTSTRESS supprimées :"))
         self.stdout.write(f"  Professeurs (comptes)      : {total['prof_user']}")
         self.stdout.write(f"  Professeurs (profils)      : {total['prof_profile']}")
         self.stdout.write(f"  Disponibilités             : {total['avail']}")
@@ -154,7 +154,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  PFERequest                 : {total['pfe']}")
         self.stdout.write(f"  JuryStudent                : {total['jury_student']}")
         self.stdout.write(f"  DefenseSchedule            : {total['schedule']}")
-        self.stdout.write(f"  Evaluation                 : {total['eval']}")
+        self.stdout.write(f"  Évaluation                 : {total['eval']}")
         self.stdout.write(f"  Result                     : {total['result']}")
         self.stdout.write(f"  JuryMember                 : {total['jury_member']}")
         self.stdout.write(f"  Jury                       : {total['jury']}")

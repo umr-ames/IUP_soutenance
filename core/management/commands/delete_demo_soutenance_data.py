@@ -28,10 +28,10 @@ DEMO_PROFESSOR_NAMES = [
 
 class Command(BaseCommand):
     help = (
-        "Supprime uniquement les donnees creees par create_demo_soutenance_data "
+        "Supprime uniquement les données créées par create_demo_soutenance_data "
         "(comptes *.demo, matricules DEMO0001-3, leurs demandes PFE, jurys, "
-        "evaluations, resultats et disponibilites associees). "
-        "Relancable sans risque : ne touche a aucune autre donnee."
+        "évaluations, résultats et disponibilités associées). "
+        "Relançable sans risque : ne touche à aucune autre donnée."
     )
 
     @transaction.atomic
@@ -41,10 +41,10 @@ class Command(BaseCommand):
         student_profiles = StudentProfile.objects.filter(matricule__in=DEMO_MATRICULES)
         student_user_ids = list(student_profiles.values_list("user_id", flat=True))
 
-        # Jurys generes pour ces etudiants demo : doivent etre supprimes
+        # Jurys générés pour ces étudiants démo : doivent être supprimés
         # explicitement (Jury n'est pas un enfant de StudentProfile, donc le
         # cascade ne le supprime pas), sinon JuryMember.professor (PROTECT)
-        # empeche ensuite la suppression des ProfessorProfile demo.
+        # empêche ensuite la suppression des ProfessorProfile démo.
         demo_juries = Jury.objects.filter(
             students__student__matricule__in=DEMO_MATRICULES
         ).distinct()
@@ -60,14 +60,14 @@ class Command(BaseCommand):
         counts["StudentProfile (demo)"] = student_profiles.count()
         student_profiles.delete()
 
-        # A ce stade, les JuryStudent associes ont disparu (cascade). On ne
-        # supprime que les jurys identifies plus haut qui sont desormais
-        # vides (aucun etudiant restant), par securite si un jury melangeait
-        # un jour des etudiants demo et reels.
+        # À ce stade, les JuryStudent associés ont disparu (cascade). On ne
+        # supprime que les jurys identifiés plus haut qui sont désormais
+        # vides (aucun étudiant restant), par sécurité si un jury mélangeait
+        # un jour des étudiants démo et réels.
         empty_demo_juries = Jury.objects.filter(
             id__in=demo_jury_ids, students__isnull=True
         )
-        counts["Jury (demo, devenus vides, supprimes)"] = empty_demo_juries.count()
+        counts["Jury (démo, devenus vides, supprimés)"] = empty_demo_juries.count()
         empty_demo_juries.delete()
 
         counts["StudentReference (demo)"] = StudentReference.objects.filter(
@@ -101,6 +101,6 @@ class Command(BaseCommand):
         counts["CustomUser (demo, leftover by id)"] = leftover_users.count()
         leftover_users.delete()
 
-        self.stdout.write(self.style.SUCCESS("Nettoyage des donnees demo termine."))
+        self.stdout.write(self.style.SUCCESS("Nettoyage des données démo terminé."))
         for name, count in counts.items():
-            self.stdout.write(f"{name}: {count} supprime(s)")
+            self.stdout.write(f"{name}: {count} supprimé(s)")

@@ -23,12 +23,12 @@ HEADER_KEYWORDS = {"matricule", "nom complet", "filiere", "filière", "encadrant
 
 class Command(BaseCommand):
     help = (
-        "Importe la liste officielle des etudiants (matricule, full_name, filiere, "
+        "Importe la liste officielle des étudiants (matricule, full_name, filière, "
         "encadrant_name) depuis un fichier CSV ou XLSX vers StudentReference. "
-        "Pour les fichiers XLSX, la ligne d'en-tete est detectee automatiquement "
-        "(des lignes de titre peuvent precede l'en-tete). "
-        "Colonnes acceptees (insensibles a la casse) : "
-        "matricule/Matricule, full_name/'Nom complet', filiere/Filiere/Filière, "
+        "Pour les fichiers XLSX, la ligne d'en-tête est détectée automatiquement "
+        "(des lignes de titre peuvent précéder l'en-tête). "
+        "Colonnes acceptées (insensibles à la casse) : "
+        "matricule/Matricule, full_name/'Nom complet', filiere/Filière, "
         "encadrant_name/Encadrant."
     )
 
@@ -45,11 +45,11 @@ class Command(BaseCommand):
             rows = self.read_csv_rows(file_path)
         else:
             raise CommandError(
-                f"Format non supporte : '{extension}'. Utilisez un fichier .csv ou .xlsx."
+                f"Format non supporté : '{extension}'. Utilisez un fichier .csv ou .xlsx."
             )
 
         # Snapshot de l'ancienne base avant toute modification, pour le
-        # rapport de synchronisation (references absentes du nouveau fichier,
+        # rapport de synchronisation (références absentes du nouveau fichier,
         # encadrants qui disparaissent de la liste officielle).
         old_matricules = set(
             StudentReference.objects.values_list("matricule", flat=True)
@@ -125,7 +125,7 @@ class Command(BaseCommand):
             else:
                 updated += 1
 
-        # Professeurs : creer les ProfessorProfile manquants pour les
+        # Professeurs : créer les ProfessorProfile manquants pour les
         # nouveaux encadrants, sans jamais supprimer de profil existant.
         existing_professor_names = {
             name.strip().lower()
@@ -144,9 +144,9 @@ class Command(BaseCommand):
             professors_created.append(encadrant_name)
             existing_professor_names.add(encadrant_name.strip().lower())
 
-        # Synchronisation prudente : references presentes avant l'import mais
+        # Synchronisation prudente : références présentes avant l'import mais
         # absentes du nouveau fichier. On ne supprime jamais automatiquement,
-        # on signale seulement, en distinguant celles liees a un compte reel.
+        # on signale seulement, en distinguant celles liées à un compte réel.
         missing_matricules = sorted(old_matricules - new_matricules)
         missing_linked = []
         missing_unlinked = []
@@ -259,7 +259,7 @@ class Command(BaseCommand):
             import openpyxl
         except ImportError as exc:
             raise CommandError(
-                "La bibliotheque 'openpyxl' est requise pour lire les fichiers .xlsx. "
+                "La bibliothèque 'openpyxl' est requise pour lire les fichiers .xlsx. "
                 f"Erreur : {exc}"
             )
 
@@ -289,8 +289,8 @@ class Command(BaseCommand):
 
         if header_row_index is None:
             raise CommandError(
-                "Impossible de detecter la ligne d'en-tete (Matricule, Nom complet, "
-                "Filiere, Encadrant) dans les 20 premieres lignes du fichier."
+                "Impossible de détecter la ligne d'en-tête (Matricule, Nom complet, "
+                "Filière, Encadrant) dans les 20 premières lignes du fichier."
             )
 
         rows = []

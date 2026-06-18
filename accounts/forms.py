@@ -115,7 +115,7 @@ class StudentRegisterForm(forms.Form):
         max_length=255,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Ex: Mauritel, Banque Populaire, Ministere...'
+            'placeholder': 'Ex: Mauritel, Banque Populaire, Ministère...'
         })
     )
 

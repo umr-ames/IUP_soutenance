@@ -134,7 +134,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  PFERequest                 : {total['pfe']}")
         self.stdout.write(f"  JuryStudent                : {total['jury_student']}")
         self.stdout.write(f"  DefenseSchedule            : {total['schedule']}")
-        self.stdout.write(f"  Evaluation                 : {total['eval']}")
+        self.stdout.write(f"  Évaluation                 : {total['eval']}")
         self.stdout.write(f"  Result                     : {total['result']}")
         self.stdout.write(f"  JuryMember                 : {total['jury_member']}")
         self.stdout.write(f"  Jury                       : {total['jury']}")

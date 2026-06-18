@@ -110,7 +110,7 @@ if (typeof Chart === 'undefined') {
 .repart-bar { display:flex; height:8px; border-radius:999px; overflow:hidden; min-width:80px; gap:1px; }
 .rb-seg { height:100%; }
 
-/* ── Priorite badges ─────────────────────────────────────────────────────── */
+/* ── Priorité badges ─────────────────────────────────────────────────────── */
 .badge-prio-haute   { background:rgba(220,38,38,.1);  color:#b91c1c; padding:3px 9px; border-radius:999px; font-size:.75rem; font-weight:850; }
 .badge-prio-normale { background:rgba(13,148,136,.1); color:#0d9488; padding:3px 9px; border-radius:999px; font-size:.75rem; font-weight:850; }
 
@@ -154,19 +154,19 @@ if (typeof Chart === 'undefined') {
             <span class="eyebrow">ADMINISTRATION</span>
             <h1>Statistiques</h1>
             <p>
-                {% if active_tab == 'global' %}Vue d'ensemble du suivi de soutenance
+                {% if active_tab == 'global' %}Vue d'ensemble du suivi des soutenances
                 {% elif active_tab == 'encadrants' %}Analyse des encadrants et de la charge de supervision
-                {% elif active_tab == 'entreprises' %}Analyse des entreprises et de la repartition des etudiants
-                {% else %}Resultats des soutenances par specialite et composante
+                {% elif active_tab == 'entreprises' %}Analyse des entreprises et de la répartition des étudiants
+                {% else %}Résultats des soutenances par spécialité et par composante
                 {% endif %}
             </p>
         </div>
     </div>
     <div class="stats-tabs">
-        <button class="stats-tab {% if active_tab == 'global' %}active{% endif %}" data-tab="global">Statistique global</button>
+        <button class="stats-tab {% if active_tab == 'global' %}active{% endif %}" data-tab="global">Statistiques globales</button>
         <button class="stats-tab {% if active_tab == 'encadrants' %}active{% endif %}" data-tab="encadrants">Encadrant</button>
         <button class="stats-tab {% if active_tab == 'entreprises' %}active{% endif %}" data-tab="entreprises">Entreprise</button>
-        <button class="stats-tab {% if active_tab == 'resultats' %}active{% endif %}" data-tab="resultats">Resultats</button>
+        <button class="stats-tab {% if active_tab == 'resultats' %}active{% endif %}" data-tab="resultats">Résultats</button>
     </div>
 </div>
 
@@ -178,12 +178,12 @@ if (typeof Chart === 'undefined') {
     <!-- KPI -->
     <div class="kpi-grid">
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Etudiants officiels</div>
+            <div class="kpi-eyebrow">Étudiants officiels</div>
             <div class="kpi-value">{{ total_ref }}</div>
-            <div class="kpi-sub">Liste de reference</div>
+            <div class="kpi-sub">Liste de référence</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Comptes crees</div>
+            <div class="kpi-eyebrow">Comptes créés</div>
             <div class="kpi-value" style="color:var(--orange)">{{ total_profiles }}</div>
             <div class="kpi-sub">{{ total_profiles }} inscrits sur {{ total_ref }}</div>
         </div>
@@ -193,17 +193,17 @@ if (typeof Chart === 'undefined') {
             <div class="kpi-sub">Pas encore inscrits</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Demandes deposees</div>
+            <div class="kpi-eyebrow">Demandes déposées</div>
             <div class="kpi-value">{{ total_demandes }}</div>
             <div class="kpi-sub">Toutes demandes</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Demandes acceptees</div>
+            <div class="kpi-eyebrow">Demandes acceptées</div>
             <div class="kpi-value" style="color:#16a34a">{{ total_acceptees }}</div>
-            <div class="kpi-sub">Validees par admin</div>
+            <div class="kpi-sub">Validées par le département de l'IUP</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Acceptes sans jury</div>
+            <div class="kpi-eyebrow">Acceptés sans jury</div>
             <div class="kpi-value" style="color:#f59e0b">{{ acceptes_sans_jury_count }}</div>
             <div class="kpi-sub">En attente d'affectation</div>
         </div>
@@ -225,12 +225,12 @@ if (typeof Chart === 'undefined') {
     </div>
 
     <div class="grid-3">
-        <!-- Repartition par filiere -->
+        <!-- Répartition par filière -->
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Repartition par filiere</h3>
+            <h3>Répartition par filière</h3>
             <div style="overflow-x:auto;"><table class="stats-table">
                 <thead><tr>
-                    <th>Filiere</th><th>Off.</th><th>Ins.</th><th>Sans</th><th>Taux</th>
+                    <th>Filière</th><th>Off.</th><th>Ins.</th><th>Sans</th><th>Taux</th>
                 </tr></thead>
                 <tbody>
                 {% for r in filiere_stats %}
@@ -275,12 +275,12 @@ if (typeof Chart === 'undefined') {
         </div>
     </div>
 
-    <!-- Acceptes sans jury -->
+    <!-- Acceptés sans jury -->
     {% if acceptes_sans_jury_list %}
     <div class="stat-card">
-        <h3>Etudiants acceptes sans jury</h3>
+        <h3>Étudiants acceptés sans jury</h3>
         <div style="overflow-x:auto;"><table class="stats-table">
-            <thead><tr><th>Etudiant</th><th>Filiere</th><th>Encadrant</th><th>Anciennete</th><th>Priorite</th></tr></thead>
+            <thead><tr><th>Étudiant</th><th>Filière</th><th>Encadrant</th><th>Ancienneté</th><th>Priorité</th></tr></thead>
             <tbody>
             {% for row in acceptes_sans_jury_list %}
             <tr>
@@ -330,7 +330,7 @@ if (typeof Chart === 'undefined') {
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="14" style="color:var(--muted);text-align:center;padding:20px;">Aucune donnee disponible.</td></tr>
+            <tr><td colspan="14" style="color:var(--muted);text-align:center;padding:20px;">Aucune donnée disponible.</td></tr>
             {% endfor %}
             </tbody>
         </table>
@@ -349,20 +349,20 @@ if (typeof Chart === 'undefined') {
         <div class="kpi-card">
             <div class="kpi-eyebrow">Encadrants actifs</div>
             <div class="kpi-value" style="color:var(--orange)">{{ enc_actifs_count }}</div>
-            <div class="kpi-sub">Avec au moins 1 etudiant</div>
+            <div class="kpi-sub">Avec au moins 1 étudiant</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-eyebrow">Charge moyenne</div>
             <div class="kpi-value">{{ enc_charge_moyenne }}</div>
-            <div class="kpi-sub">Etudiants par encadrant</div>
+            <div class="kpi-sub">Étudiants par encadrant</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Encadrant le plus sollicite</div>
+            <div class="kpi-eyebrow">Encadrant le plus sollicité</div>
             <div class="kpi-value" style="font-size:1.1rem;line-height:1.2;">{{ enc_top_prof_name }}</div>
-            <div class="kpi-sub">{{ enc_top_prof_count }} etudiants suivis</div>
+            <div class="kpi-sub">{{ enc_top_prof_count }} étudiants suivis</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Specialite la plus encadree</div>
+            <div class="kpi-eyebrow">Spécialité la plus encadrée</div>
             <div class="kpi-value" style="color:var(--orange)">{{ enc_spec_dominante }}</div>
             <div class="kpi-sub">{{ enc_spec_pct }}% des encadrements</div>
         </div>
@@ -371,14 +371,14 @@ if (typeof Chart === 'undefined') {
     <div class="grid-2">
         <!-- Top encadrants bar chart — limité au top 8 dans le JS -->
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Top encadrants par nombre d'etudiants suivis</h3>
+            <h3>Top encadrants par nombre d'étudiants suivis</h3>
             <div style="position:relative;height:240px;">
                 <canvas id="chartTopEncadrants"></canvas>
             </div>
         </div>
-        <!-- Repartition par specialite stacked — top 8 dans le JS -->
+        <!-- Répartition par spécialité stacked — top 8 dans le JS -->
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Repartition des etudiants suivis par specialite</h3>
+            <h3>Répartition des étudiants suivis par spécialité</h3>
             <div style="position:relative;height:240px;">
                 <canvas id="chartSpecEncadrants"></canvas>
             </div>
@@ -405,9 +405,9 @@ if (typeof Chart === 'undefined') {
                 </div>
             </div>
         </div>
-        <!-- Couverture par specialite — top 15 -->
+        <!-- Couverture par spécialité — top 15 -->
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Couverture par specialite</h3>
+            <h3>Couverture par spécialité</h3>
             <div style="overflow-x:auto;">
             <table class="stats-table" style="font-size:0.8rem;">
                 <thead><tr>
@@ -427,7 +427,7 @@ if (typeof Chart === 'undefined') {
                     {% endfor %}
                 </tr>
                 {% empty %}
-                <tr><td colspan="8" style="color:var(--muted);text-align:center;padding:16px;">Aucune donnee.</td></tr>
+                <tr><td colspan="8" style="color:var(--muted);text-align:center;padding:16px;">Aucune donnée.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
@@ -435,13 +435,13 @@ if (typeof Chart === 'undefined') {
         </div>
     </div>
 
-    <!-- Tableau detail encadrants — TOUS les encadrants ({{ enc_rows_all_count }}) -->
+    <!-- Tableau détail encadrants — TOUS les encadrants ({{ enc_rows_all_count }}) -->
     <div class="stat-card" style="margin-top:12px;">
-        <h3>Detail des encadrants <span style="font-weight:600;font-size:.82rem;color:var(--muted);">({{ enc_rows_all_count }} encadrants)</span></h3>
+        <h3>Détail des encadrants <span style="font-weight:600;font-size:.82rem;color:var(--muted);">({{ enc_rows_all_count }} encadrants)</span></h3>
         <div style="overflow-x:auto;">
         <table class="stats-table">
             <thead><tr>
-                <th>Encadrant</th><th>Total</th><th>Specialite dominante</th><th>Repartition</th><th>Charge</th>
+                <th>Encadrant</th><th>Total</th><th>Spécialité dominante</th><th>Répartition</th><th>Charge</th>
             </tr></thead>
             <tbody>
             {% for row in enc_rows_all %}
@@ -489,26 +489,26 @@ if (typeof Chart === 'undefined') {
             <div class="kpi-sub">Entreprises distinctes</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Etudiants rattaches</div>
+            <div class="kpi-eyebrow">Étudiants rattachés</div>
             <div class="kpi-value">{{ ent_total_rattaches }}</div>
-            <div class="kpi-sub">Avec entreprise renseignee</div>
+            <div class="kpi-sub">Avec entreprise renseignée</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Entreprise la plus representee</div>
+            <div class="kpi-eyebrow">Entreprise la plus représentée</div>
             <div class="kpi-value" style="font-size:1.1rem;line-height:1.2;">{{ ent_top_name }}</div>
-            <div class="kpi-sub">{{ ent_top_count }} etudiants ({{ ent_top_pct }}%)</div>
+            <div class="kpi-sub">{{ ent_top_count }} étudiants ({{ ent_top_pct }}%)</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Specialite dominante</div>
+            <div class="kpi-eyebrow">Spécialité dominante</div>
             <div class="kpi-value" style="color:var(--orange)">{{ ent_spec_dom }}</div>
-            <div class="kpi-sub">{{ ent_spec_dom_pct }}% des etudiants</div>
+            <div class="kpi-sub">{{ ent_spec_dom_pct }}% des étudiants</div>
         </div>
     </div>
 
     {% if ent_nb == 0 %}
     <div class="stat-card" style="text-align:center;padding:32px;">
         <p style="color:var(--muted);font-size:1rem;">
-            Aucune entreprise renseignee. Le champ <strong>Entreprise</strong> est disponible dans les profils etudiants.
+            Aucune entreprise renseignée. Le champ <strong>Entreprise</strong> est disponible dans les profils étudiants.
         </p>
     </div>
     {% else %}
@@ -516,19 +516,19 @@ if (typeof Chart === 'undefined') {
     <!-- Ligne 1 : 3 graphiques -->
     <div class="grid-3">
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Repartition des etudiants par entreprise</h3>
+            <h3>Répartition des étudiants par entreprise</h3>
             <div style="position:relative;height:220px;">
                 <canvas id="chartEntBar"></canvas>
             </div>
         </div>
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Repartition des specialites par entreprise</h3>
+            <h3>Répartition des spécialités par entreprise</h3>
             <div style="position:relative;height:220px;">
                 <canvas id="chartEntStacked"></canvas>
             </div>
         </div>
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Top entreprises les plus representees</h3>
+            <h3>Top entreprises les plus représentées</h3>
             <div style="position:relative;height:220px;">
                 <canvas id="chartEntTop"></canvas>
             </div>
@@ -539,20 +539,20 @@ if (typeof Chart === 'undefined') {
     <div class="grid-2" style="margin-top:12px;">
         <!-- Moyenne par entreprise -->
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Moyenne des etudiants par entreprise</h3>
+            <h3>Moyenne des étudiants par entreprise</h3>
             {% if ent_avg_labels_json != '[]' %}
             <div style="position:relative;height:200px;">
                 <canvas id="chartEntAvg"></canvas>
             </div>
             {% else %}
             <p style="color:var(--muted);font-size:.87rem;padding:16px 0;">
-                Aucun resultat publie disponible pour l'instant.
+                Aucun résultat publié disponible pour l'instant.
             </p>
             {% endif %}
         </div>
-        <!-- Tableau croise Entreprise x Specialite -->
+        <!-- Tableau croisé Entreprise x Spécialité -->
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>Entreprise x Specialite <span style="font-size:.8rem;color:var(--muted);font-weight:600;">(nb d'etudiants)</span></h3>
+            <h3>Entreprise x Spécialité <span style="font-size:.8rem;color:var(--muted);font-weight:600;">(nb d'étudiants)</span></h3>
             <div style="overflow-x:auto;">
             <table class="stats-table" style="font-size:.8rem;">
                 <thead><tr>
@@ -574,7 +574,7 @@ if (typeof Chart === 'undefined') {
                     <td style="text-align:center;font-weight:900;color:var(--orange)">{{ row.total }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="9" style="color:var(--muted);text-align:center;padding:14px;">Aucune donnee.</td></tr>
+                <tr><td colspan="9" style="color:var(--muted);text-align:center;padding:14px;">Aucune donnée.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
@@ -584,12 +584,12 @@ if (typeof Chart === 'undefined') {
 
     <!-- Dernier : Tableau détail toutes les entreprises -->
     <div class="stat-card" style="margin-top:12px;">
-        <h3>Detail des entreprises <span style="font-weight:600;font-size:.82rem;color:var(--muted);">({{ ent_rows_all_count }} entreprises)</span></h3>
+        <h3>Détail des entreprises <span style="font-weight:600;font-size:.82rem;color:var(--muted);">({{ ent_rows_all_count }} entreprises)</span></h3>
         <div style="overflow-x:auto;">
         <table class="stats-table">
             <thead><tr>
-                <th>Entreprise</th><th>Nb etudiants</th><th>Specialite dominante</th>
-                <th>Repartition</th><th>Moy. generale</th><th>Soutenances</th>
+                <th>Entreprise</th><th>Nb étudiants</th><th>Spécialité dominante</th>
+                <th>Répartition</th><th>Moy. générale</th><th>Soutenances</th>
             </tr></thead>
             <tbody>
             {% for row in ent_rows_all %}
@@ -612,7 +612,7 @@ if (typeof Chart === 'undefined') {
                 <td>{{ row.soutenances }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:20px;">Aucune donnee.</td></tr>
+            <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:20px;">Aucune donnée.</td></tr>
             {% endfor %}
             </tbody>
         </table>
@@ -630,17 +630,17 @@ if (typeof Chart === 'undefined') {
     <!-- KPI -->
     <div class="kpi-grid">
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Moyenne generale des soutenances</div>
+            <div class="kpi-eyebrow">Moyenne générale des soutenances</div>
             <div class="kpi-value" style="color:var(--orange)">{{ res_global_avg }} / 20</div>
-            <div class="kpi-sub">Sur {{ res_total }} soutenances publiees</div>
+            <div class="kpi-sub">Sur {{ res_total }} soutenances publiées</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Specialite la plus performante</div>
+            <div class="kpi-eyebrow">Spécialité la plus performante</div>
             <div class="kpi-value" style="color:var(--orange)">{{ res_best_filiere }}</div>
             <div class="kpi-sub">Moyenne : {{ res_best_avg }} / 20</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Taux de reussite global</div>
+            <div class="kpi-eyebrow">Taux de réussite global</div>
             <div class="kpi-value" style="color:#16a34a">{{ res_taux_reussite }} %</div>
             <div class="kpi-sub">{{ res_passed }} / {{ res_total }} soutenances</div>
         </div>
@@ -653,26 +653,26 @@ if (typeof Chart === 'undefined') {
 
     {% if res_total == 0 %}
     <div class="stat-card" style="text-align:center;padding:32px;">
-        <p style="color:var(--muted);">Aucun resultat publie pour le moment.</p>
+        <p style="color:var(--muted);">Aucun résultat publié pour le moment.</p>
     </div>
     {% else %}
 
     <!-- Ligne 1 : 3 graphiques côte à côte -->
     <div class="grid-3">
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>1) Moyennes finales par specialite</h3>
+            <h3>1) Moyennes finales par spécialité</h3>
             <div style="position:relative;height:210px;">
                 <canvas id="chartResMoyennes"></canvas>
             </div>
         </div>
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>2) Moyennes des composantes par specialite</h3>
+            <h3>2) Moyennes des composantes par spécialité</h3>
             <div style="position:relative;height:210px;">
                 <canvas id="chartResComposantes"></canvas>
             </div>
         </div>
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>3) Repartition des mentions par specialite</h3>
+            <h3>3) Répartition des mentions par spécialité</h3>
             <div style="position:relative;height:210px;">
                 <canvas id="chartResMentions"></canvas>
             </div>
@@ -683,27 +683,27 @@ if (typeof Chart === 'undefined') {
     <div class="grid-2" style="margin-top:12px;">
         <!-- 4 Ecarts -->
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>4) Analyse des ecarts <span style="font-size:.78rem;color:var(--muted);font-weight:600;">(ecart type des notes finales)</span></h3>
+            <h3>4) Analyse des écarts <span style="font-size:.78rem;color:var(--muted);font-weight:600;">(écart type des notes finales)</span></h3>
             <div style="position:relative;height:200px;">
                 <canvas id="chartResEcarts"></canvas>
             </div>
             <div style="margin-top:10px;padding:10px 12px;background:rgba(13,148,136,0.06);border:1px solid rgba(13,148,136,0.14);border-radius:10px;display:flex;gap:8px;align-items:flex-start;">
                 <span style="font-size:.9rem;color:#0d9488;flex-shrink:0;margin-top:1px;">ⓘ</span>
                 <p style="font-size:.77rem;color:var(--muted);margin:0;line-height:1.5;">
-                    Plus l'ecart type est faible, plus les notes sont homogenes au sein de la specialite. Un ecart eleve indique une plus grande dispersion des resultats.
+                    Plus l'écart type est faible, plus les notes sont homogènes au sein de la spécialité. Un écart élevé indique une plus grande dispersion des résultats.
                 </p>
             </div>
         </div>
-        <!-- 5 Tableau detail par specialite -->
+        <!-- 5 Tableau détail par spécialité -->
         <div class="stat-card" style="margin-bottom:0;">
-            <h3>5) Detail des resultats par specialite</h3>
+            <h3>5) Détail des résultats par spécialité</h3>
             <div style="overflow-x:auto;">
             <table class="stats-table" style="font-size:.82rem;">
                 <thead><tr>
-                    <th>Specialite</th>
+                    <th>Spécialité</th>
                     <th>Moy. finale</th>
                     <th>Rapport</th>
-                    <th>Pres.</th>
+                    <th>Prés.</th>
                     <th>Quest.</th>
                     <th>Taux</th>
                     <th>Mention</th>
@@ -799,7 +799,7 @@ tabs.forEach(function(tab) {
         type: 'bar',
         data: {
             labels: labels,
-            datasets: [{ label: "Etudiants suivis", data: data, backgroundColor: '#0d9488', borderRadius: 5 }]
+            datasets: [{ label: "Étudiants suivis", data: data, backgroundColor: '#0d9488', borderRadius: 5 }]
         },
         options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -812,7 +812,7 @@ tabs.forEach(function(tab) {
     });
 })();
 
-// ── Chart: Repartition specialites par encadrant (stacked bar) — top 8 ───
+// ── Chart: Répartition spécialités par encadrant (stacked bar) — top 8 ───
 (function() {
     const el = document.getElementById('chartSpecEncadrants');
     if (!el) return;
@@ -861,7 +861,7 @@ tabs.forEach(function(tab) {
         type: 'bar',
         data: {
             labels: labels,
-            datasets: [{ label: "Etudiants", data: data, backgroundColor: '#0d9488', borderRadius: 5 }]
+            datasets: [{ label: "Étudiants", data: data, backgroundColor: '#0d9488', borderRadius: 5 }]
         },
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -871,7 +871,7 @@ tabs.forEach(function(tab) {
     });
 })();
 
-// ── Chart: Entreprises stacked specialites ────────────────────────────────
+// ── Chart: Entreprises stacked spécialités ────────────────────────────────
 (function() {
     const el = document.getElementById('chartEntStacked');
     if (!el) return;
@@ -901,7 +901,7 @@ tabs.forEach(function(tab) {
         type: 'bar',
         data: {
             labels: labels,
-            datasets: [{ label: "Etudiants", data: data, backgroundColor: '#0d9488', borderRadius: 5 }]
+            datasets: [{ label: "Étudiants", data: data, backgroundColor: '#0d9488', borderRadius: 5 }]
         },
         options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -911,7 +911,7 @@ tabs.forEach(function(tab) {
     });
 })();
 
-// ── Chart: Moyenne des etudiants par entreprise (line) ───────────────────
+// ── Chart: Moyenne des étudiants par entreprise (line) ───────────────────
 (function() {
     const el = document.getElementById('chartEntAvg');
     if (!el) return;
@@ -947,7 +947,7 @@ tabs.forEach(function(tab) {
     });
 })();
 
-// ── Chart: Resultats moyennes finales ────────────────────────────────────
+// ── Chart: Résultats moyennes finales ────────────────────────────────────
 (function() {
     const el = document.getElementById('chartResMoyennes');
     if (!el) return;
@@ -965,7 +965,7 @@ tabs.forEach(function(tab) {
     });
 })();
 
-// ── Chart: Resultats composantes ─────────────────────────────────────────
+// ── Chart: Résultats composantes ─────────────────────────────────────────
 (function() {
     const el = document.getElementById('chartResComposantes');
     if (!el) return;
@@ -975,7 +975,7 @@ tabs.forEach(function(tab) {
             labels: FILIERES,
             datasets: [
                 { label: "Rapport",      data: {{ res_bar_rapport_json|safe }}, backgroundColor: '#0d9488', borderRadius: 3 },
-                { label: "Presentation", data: {{ res_bar_pres_json|safe }},   backgroundColor: '#3b82f6', borderRadius: 3 },
+                { label: "Présentation", data: {{ res_bar_pres_json|safe }},   backgroundColor: '#3b82f6', borderRadius: 3 },
                 { label: "Questions",    data: {{ res_bar_quest_json|safe }},   backgroundColor: '#f59e0b', borderRadius: 3 }
             ]
         },
@@ -987,7 +987,7 @@ tabs.forEach(function(tab) {
     });
 })();
 
-// ── Chart: Mentions par specialite (barres horiz. empilees 100%) ─────────
+// ── Chart: Mentions par spécialité (barres horiz. empilées 100%) ─────────
 (function() {
     const el = document.getElementById('chartResMentions');
     if (!el) return;
@@ -1006,7 +1006,7 @@ tabs.forEach(function(tab) {
     });
 })();
 
-// ── Chart: Ecart type (line) ─────────────────────────────────────────────
+// ── Chart: Écart type (line) ─────────────────────────────────────────────
 (function() {
     const el = document.getElementById('chartResEcarts');
     if (!el) return;
@@ -1014,7 +1014,7 @@ tabs.forEach(function(tab) {
         type: 'line',
         data: {
             labels: FILIERES,
-            datasets: [{ label: "Ecart type (/20)", data: {{ res_bar_std_json|safe }},
+            datasets: [{ label: "Écart type (/20)", data: {{ res_bar_std_json|safe }},
                 borderColor: '#0d9488', backgroundColor: 'rgba(13,148,136,.1)',
                 tension: 0.35, fill: true, pointBackgroundColor: '#0d9488', pointRadius: 5 }]
         },

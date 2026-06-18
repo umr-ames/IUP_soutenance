@@ -1643,16 +1643,16 @@ def export_juries_pdf(request):
     )
 
     for jury in juries:
-        lines.append("JURY:")
-        lines.append(f"Nom du jury: {jury.name}")
-        lines.append(f"Date de soutenance: {format_date(jury.defense_date)}")
-        lines.append(f"Jury valide: {yes_no(jury.is_validated)}")
-        lines.append("Membres:")
+        lines.append("JURY :")
+        lines.append(f"Nom du jury : {jury.name}")
+        lines.append(f"Date de soutenance : {format_date(jury.defense_date)}")
+        lines.append(f"Jury validé : {yes_no(jury.is_validated)}")
+        lines.append("Membres :")
 
         for member in jury.members.all():
             lines.append(f"- {member.professor.full_name}")
 
-        lines.append("Etudiants affectes:")
+        lines.append("Étudiants affectés :")
 
         if jury.students.exists():
             for assignment in jury.students.all():
@@ -1666,11 +1666,11 @@ def export_juries_pdf(request):
                     f"- {assignment.student.matricule} | "
                     f"{assignment.student.full_name} | "
                     f"{assignment.student.filiere or '-'} | "
-                    f"Encadrant: {assignment.student.encadrant.full_name} | "
-                    f"Président: {president_name}"
+                    f"Encadrant : {assignment.student.encadrant.full_name} | "
+                    f"Président : {president_name}"
                 )
         else:
-            lines.append("- Aucun etudiant affecte")
+            lines.append("- Aucun étudiant affecté")
 
         lines.append("-----")
 
@@ -1708,7 +1708,7 @@ def export_planning_pdf(request):
             f"{schedule.jury_student.jury.name} | "
             f"{schedule.jury_student.student.matricule} | "
             f"{schedule.jury_student.student.full_name} | "
-            f"Président: {president_name}"
+            f"Président : {president_name}"
         )
 
     return simple_pdf_response(
@@ -1732,23 +1732,23 @@ def export_results_pdf(request):
     )
 
     for result in results:
-        status = "publie" if result.is_published else "non publie"
+        status = "publié" if result.is_published else "non publié"
         alert = "oui" if result.has_note_gap_alert else "non"
 
         lines.append(
             f"{result.jury_student.student.matricule} | "
             f"{result.jury_student.student.full_name} | "
             f"{result.jury_student.jury.name} | "
-            f"Moyenne: {decimal_text(result.average)} /20 | "
-            f"Ecart: {decimal_text(result.note_gap_value)} | "
-            f"Alerte: {alert} | "
-            f"Publication: {status}"
+            f"Moyenne : {decimal_text(result.average)} /20 | "
+            f"Écart : {decimal_text(result.note_gap_value)} | "
+            f"Alerte : {alert} | "
+            f"Publication : {status}"
         )
 
     return simple_pdf_response(
-        "Liste des resultats",
+        "Liste des résultats",
         lines,
-        "resultats.pdf",
+        "résultats.pdf",
     )
 
 
@@ -1795,85 +1795,85 @@ def export_student_pv_pdf(request, pk):
 
     lines = []
 
-    lines.append("INFORMATIONS ETUDIANT:")
-    lines.append(f"Nom complet: {student.full_name}")
-    lines.append(f"Matricule: {student.matricule}")
-    lines.append(f"Filiere: {student.filiere or '-'}")
-    lines.append(f"Telephone: {student.user.phone_number or '-'}")
-    lines.append(f"Encadrant: {student.encadrant.full_name}")
-    lines.append(f"Président de soutenance: {president_name}")
+    lines.append("INFORMATIONS ÉTUDIANT :")
+    lines.append(f"Nom complet : {student.full_name}")
+    lines.append(f"Matricule : {student.matricule}")
+    lines.append(f"Filière : {student.filiere or '-'}")
+    lines.append(f"Téléphone : {student.user.phone_number or '-'}")
+    lines.append(f"Encadrant : {student.encadrant.full_name}")
+    lines.append(f"Président de soutenance : {president_name}")
     lines.append("")
 
-    lines.append("DEMANDE DE SOUTENANCE:")
+    lines.append("DEMANDE DE SOUTENANCE :")
     if pfe_request:
-        lines.append(f"Statut de la demande: {pfe_request.get_status_display()}")
-        lines.append(f"Date de depot: {format_datetime(pfe_request.submitted_at)}")
-        lines.append(f"Validation encadrant: {format_datetime(pfe_request.professor_reviewed_at)}")
-        lines.append(f"Validation departement de l'IUP: {format_datetime(pfe_request.admin_reviewed_at)}")
+        lines.append(f"Statut de la demande : {pfe_request.get_status_display()}")
+        lines.append(f"Date de dépôt : {format_datetime(pfe_request.submitted_at)}")
+        lines.append(f"Validation encadrant : {format_datetime(pfe_request.professor_reviewed_at)}")
+        lines.append(f"Validation département de l'IUP : {format_datetime(pfe_request.admin_reviewed_at)}")
 
         if pfe_request.professor_comment:
-            lines.append(f"Commentaire encadrant: {pfe_request.professor_comment}")
+            lines.append(f"Commentaire encadrant : {pfe_request.professor_comment}")
 
         if pfe_request.admin_comment:
-            lines.append(f"Commentaire departement de l'IUP: {pfe_request.admin_comment}")
+            lines.append(f"Commentaire département de l'IUP : {pfe_request.admin_comment}")
     else:
-        lines.append("Aucune demande trouvee.")
+        lines.append("Aucune demande trouvée.")
     lines.append("")
 
-    lines.append("JURY ET PLANNING:")
-    lines.append(f"Jury: {jury.name}")
-    lines.append(f"Date de soutenance: {format_date(jury.defense_date)}")
+    lines.append("JURY ET PLANNING :")
+    lines.append(f"Jury : {jury.name}")
+    lines.append(f"Date de soutenance : {format_date(jury.defense_date)}")
 
     if schedule:
         lines.append(
-            f"Horaire: {format_time(schedule.start_time)} - {format_time(schedule.end_time)}"
+            f"Horaire : {format_time(schedule.start_time)} - {format_time(schedule.end_time)}"
         )
     else:
-        lines.append("Horaire: non planifie")
+        lines.append("Horaire : non planifié")
 
-    lines.append("Membres du jury:")
+    lines.append("Membres du jury :")
     for member_name in members:
         lines.append(f"- {member_name}")
     lines.append("")
 
-    lines.append("EVALUATIONS:")
+    lines.append("ÉVALUATIONS :")
     if evaluations:
         for evaluation in evaluations:
-            statut = "envoyee" if evaluation.is_submitted else "brouillon"
+            statut = "envoyée" if evaluation.is_submitted else "brouillon"
 
-            lines.append(f"Professeur: {evaluation.professor.full_name}")
-            lines.append(f"  Rapport: {decimal_text(evaluation.rapport_note)} /20 | Coef 0.30")
-            lines.append(f"  Presentation: {decimal_text(evaluation.presentation_note)} /20 | Coef 0.30")
-            lines.append(f"  Reponses aux questions: {decimal_text(evaluation.questions_note)} /20 | Coef 0.40")
-            lines.append(f"  Note finale professeur: {decimal_text(evaluation.final_note)} /20")
-            lines.append(f"  Statut: {statut}")
+            lines.append(f"Professeur : {evaluation.professor.full_name}")
+            lines.append(f"  Rapport : {decimal_text(evaluation.rapport_note)} /20 | Coef. 0.30")
+            lines.append(f"  Présentation : {decimal_text(evaluation.presentation_note)} /20 | Coef. 0.30")
+            lines.append(f"  Réponses aux questions : {decimal_text(evaluation.questions_note)} /20 | Coef. 0.40")
+            lines.append(f"  Note finale professeur : {decimal_text(evaluation.final_note)} /20")
+            lines.append(f"  Statut : {statut}")
     else:
-        lines.append("Aucune evaluation enregistree.")
+        lines.append("Aucune évaluation enregistrée.")
     lines.append("")
 
-    lines.append("RESULTAT FINAL:")
+    lines.append("RÉSULTAT FINAL :")
     if result:
-        lines.append(f"Moyenne finale: {decimal_text(result.average)} /20")
-        lines.append(f"Ecart entre notes: {decimal_text(result.note_gap_value)}")
-        lines.append(f"Alerte ecart >= 3: {yes_no(result.has_note_gap_alert)}")
-        lines.append(f"Resultat publie: {yes_no(result.is_published)}")
-        lines.append(f"Date de publication: {format_datetime(result.published_at)}")
+        lines.append(f"Moyenne finale : {decimal_text(result.average)} /20")
+        lines.append(f"Écart entre notes : {decimal_text(result.note_gap_value)}")
+        lines.append(f"Alerte écart >= 3 : {yes_no(result.has_note_gap_alert)}")
+        lines.append(f"Résultat publié : {yes_no(result.is_published)}")
+        lines.append(f"Date de publication : {format_datetime(result.published_at)}")
     else:
-        lines.append("Resultat non calcule.")
+        lines.append("Résultat non calculé.")
     lines.append("")
 
-    lines.append("DECISION:")
+    lines.append("DÉCISION :")
     if result and result.is_published:
-        lines.append("Decision: resultat valide et publie par le departement de l'IUP.")
+        lines.append("Décision : résultat validé et publié par le département de l'IUP.")
     else:
-        lines.append("Decision: en attente de publication par le departement de l'IUP.")
+        lines.append("Décision : en attente de publication par le département de l'IUP.")
     lines.append("")
 
-    lines.append("SIGNATURES:")
-    lines.append(f"Président de soutenance ({president_name}): ______________________________")
-    lines.append("Membre du jury: _________________________________")
-    lines.append("Membre du jury: _________________________________")
-    lines.append("Departement de l'IUP: _________________________________")
+    lines.append("SIGNATURES :")
+    lines.append(f"Président de soutenance ({president_name}) : ______________________________")
+    lines.append("Membre du jury : _________________________________")
+    lines.append("Membre du jury : _________________________________")
+    lines.append("Département de l'IUP : _________________________________")
 
     return simple_pdf_response(
         f"PV de soutenance - {student.full_name}",

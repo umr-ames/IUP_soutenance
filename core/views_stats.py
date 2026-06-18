@@ -23,7 +23,7 @@ def _mention(avg):
     if avg >= 18:
         return 'Excellent'
     if avg >= 16:
-        return 'Tres bien'
+        return 'Très bien'
     if avg >= 14:
         return 'Bien'
     if avg >= 12:
@@ -37,7 +37,7 @@ def _mention_display(avg):
     if avg >= 18:
         return 'Excellent'
     if avg >= 16:
-        return 'Tres bien'
+        return 'Très bien'
     if avg >= 14:
         return 'Bien'
     if avg >= 12:
@@ -49,10 +49,10 @@ def _charge_label(count):
     if count <= 3:
         return 'Faible'
     if count <= 6:
-        return 'Moderee'
+        return 'Modérée'
     if count <= 9:
-        return 'Elevee'
-    return 'Tres elevee'
+        return 'Élevée'
+    return 'Très élevée'
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -82,13 +82,13 @@ def _compute_global():
     base = total_ref if total_ref > 0 else 1
     workflow = [
         {'label': 'Liste officielle',    'count': total_ref,        'pct': 100},
-        {'label': 'Compte cree',         'count': total_profiles,   'pct': round(total_profiles / base * 100, 1)},
-        {'label': 'Demande deposee',     'count': total_demandes,   'pct': round(total_demandes / base * 100, 1)},
+        {'label': 'Compte créé',         'count': total_profiles,   'pct': round(total_profiles / base * 100, 1)},
+        {'label': 'Demande déposée',     'count': total_demandes,   'pct': round(total_demandes / base * 100, 1)},
         {'label': 'Valid. encadrant',    'count': val_encadrant,    'pct': round(val_encadrant / base * 100, 1)},
-        {'label': 'Valid. admin',        'count': total_acceptees,  'pct': round(total_acceptees / base * 100, 1)},
-        {'label': 'Jury affecte',        'count': jury_count,       'pct': round(jury_count / base * 100, 1)},
+        {'label': 'Valid. IUP',          'count': total_acceptees,  'pct': round(total_acceptees / base * 100, 1)},
+        {'label': 'Jury affecté',        'count': jury_count,       'pct': round(jury_count / base * 100, 1)},
         {'label': 'Planning',            'count': schedule_count,   'pct': round(schedule_count / base * 100, 1)},
-        {'label': 'Resultat publie',     'count': result_published, 'pct': round(result_published / base * 100, 1)},
+        {'label': 'Résultat publié',     'count': result_published, 'pct': round(result_published / base * 100, 1)},
     ]
 
     filiere_stats = []
@@ -104,28 +104,28 @@ def _compute_global():
     pend_admin = PFERequest.objects.filter(status='pending_admin').count()
     refusee = PFERequest.objects.filter(status__in=['refused_by_professor', 'refused_by_admin']).count()
 
-    statut_labels = ['Non deposee', 'Att. encadrant', 'Att. admin', 'Acceptee', 'Refusee']
+    statut_labels = ['Non déposée', 'Att. encadrant', 'Att. IUP', 'Acceptée', 'Refusée']
     statut_values = [non_deposee, pend_prof, pend_admin, total_acceptees, refusee]
     statut_total = sum(statut_values)
 
     alertes = []
     if total_sans_compte > 0:
-        alertes.append({'level': 'warning', 'msg': f"{total_sans_compte} etudiant(s) officiel(s) sans compte cree"})
+        alertes.append({'level': 'warning', 'msg': f"{total_sans_compte} étudiant(s) officiel(s) sans compte créé"})
     if pend_prof > 0:
-        alertes.append({'level': 'warning', 'msg': f"{pend_prof} demande(s) bloquee(s) chez l'encadrant"})
+        alertes.append({'level': 'warning', 'msg': f"{pend_prof} demande(s) bloquée(s) chez l'encadrant"})
     if pend_admin > 0:
-        alertes.append({'level': 'warning', 'msg': f"{pend_admin} demande(s) bloquee(s) chez l'administration"})
+        alertes.append({'level': 'warning', 'msg': f"{pend_admin} demande(s) bloquée(s) chez l'administration"})
     if acceptes_sans_jury_count > 0:
-        alertes.append({'level': 'danger', 'msg': f"{acceptes_sans_jury_count} etudiant(s) accepte(s) sans jury affecte"})
+        alertes.append({'level': 'danger', 'msg': f"{acceptes_sans_jury_count} étudiant(s) accepté(s) sans jury affecté"})
     jurys_brouillon = Jury.objects.filter(is_validated=False).count()
     if jurys_brouillon > 0:
-        alertes.append({'level': 'info', 'msg': f"{jurys_brouillon} jury(s) brouillon non publie(s)"})
+        alertes.append({'level': 'info', 'msg': f"{jurys_brouillon} jury(s) brouillon non publié(s)"})
     sans_planning = JuryStudent.objects.filter(schedule__isnull=True).count()
     if sans_planning > 0:
-        alertes.append({'level': 'info', 'msg': f"{sans_planning} soutenance(s) sans planning defini"})
+        alertes.append({'level': 'info', 'msg': f"{sans_planning} soutenance(s) sans planning défini"})
     res_non_pub = Result.objects.filter(is_published=False, average__isnull=False).count()
     if res_non_pub > 0:
-        alertes.append({'level': 'info', 'msg': f"{res_non_pub} resultat(s) calcule(s) non publie(s)"})
+        alertes.append({'level': 'info', 'msg': f"{res_non_pub} résultat(s) calculé(s) non publié(s)"})
 
     acceptes_sans_jury_list = []
     for sp in StudentProfile.objects.filter(id__in=list(sans_jury_ids)).select_related('encadrant').prefetch_related('pfe_request')[:20]:
@@ -303,10 +303,10 @@ def _compute_encadrants():
 
     total_profs = sum(buckets)
     equilibre = [
-        {'label': '1 - 3 etudiants', 'count': buckets[0], 'pct': round(buckets[0] / total_profs * 100) if total_profs else 0},
-        {'label': '4 - 6 etudiants', 'count': buckets[1], 'pct': round(buckets[1] / total_profs * 100) if total_profs else 0},
-        {'label': '7 - 9 etudiants', 'count': buckets[2], 'pct': round(buckets[2] / total_profs * 100) if total_profs else 0},
-        {'label': '10+ etudiants',   'count': buckets[3], 'pct': round(buckets[3] / total_profs * 100) if total_profs else 0},
+        {'label': '1 - 3 étudiants', 'count': buckets[0], 'pct': round(buckets[0] / total_profs * 100) if total_profs else 0},
+        {'label': '4 - 6 étudiants', 'count': buckets[1], 'pct': round(buckets[1] / total_profs * 100) if total_profs else 0},
+        {'label': '7 - 9 étudiants', 'count': buckets[2], 'pct': round(buckets[2] / total_profs * 100) if total_profs else 0},
+        {'label': '10+ étudiants',   'count': buckets[3], 'pct': round(buckets[3] / total_profs * 100) if total_profs else 0},
     ]
 
     filiere_colors = ['#0d9488', '#6ee7b7', '#3b82f6', '#a78bfa', '#fb923c', '#f472b6']
@@ -354,7 +354,7 @@ def _compute_entreprises():
     nb_entreprises = len(ent_agg)
 
     top = ent_agg[0] if ent_agg else None
-    top_ent_name = top['entreprise'] if top else 'Non renseignee'
+    top_ent_name = top['entreprise'] if top else 'Non renseignée'
     top_ent_count = top['count'] if top else 0
     top_ent_pct = round(top_ent_count / total_rattaches * 100, 1) if total_rattaches else 0
 
@@ -481,7 +481,7 @@ def _compute_entreprises():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Tab: Resultats
+#  Tab: Résultats
 # ─────────────────────────────────────────────────────────────────────────────
 def _compute_resultats():
     # Exclure les PFE déclarés non soutenables — pas de résultat valide
@@ -501,11 +501,11 @@ def _compute_resultats():
     avg_r_global = all_evals.aggregate(a=Avg('rapport_note'))['a'] or 0
     avg_p_global = all_evals.aggregate(a=Avg('presentation_note'))['a'] or 0
     avg_q_global = all_evals.aggregate(a=Avg('questions_note'))['a'] or 0
-    comp_map = {'Rapport': float(avg_r_global), 'Presentation': float(avg_p_global), 'Questions': float(avg_q_global)}
+    comp_map = {'Rapport': float(avg_r_global), 'Présentation': float(avg_p_global), 'Questions': float(avg_q_global)}
     best_comp = max(comp_map, key=comp_map.get) if any(comp_map.values()) else '-'
     best_comp_avg = round(comp_map.get(best_comp, 0), 2)
 
-    MENTION_KEYS = ['Excellent', 'Tres bien', 'Bien', 'Passable', 'Insuffisant']
+    MENTION_KEYS = ['Excellent', 'Très bien', 'Bien', 'Passable', 'Insuffisant']
     MENTION_COLORS = ['#0d9488', '#6ee7b7', '#84cc16', '#fb923c', '#ef4444']
 
     filiere_data = []
@@ -554,7 +554,7 @@ def _compute_resultats():
         else:
             std = 0
 
-        mc = {'Excellent': 0, 'Tres bien': 0, 'Bien': 0, 'Passable': 0, 'Insuffisant': 0}
+        mc = {'Excellent': 0, 'Très bien': 0, 'Bien': 0, 'Passable': 0, 'Insuffisant': 0}
         for r in f_results:
             if r.average is None:
                 continue
@@ -562,7 +562,7 @@ def _compute_resultats():
             if a >= 18:
                 mc['Excellent'] += 1
             elif a >= 16:
-                mc['Tres bien'] += 1
+                mc['Très bien'] += 1
             elif a >= 14:
                 mc['Bien'] += 1
             elif a >= 12:

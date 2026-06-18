@@ -7,8 +7,8 @@ class DocumentTemplate(models.Model):
     TYPE_OTHER = 'other'
 
     TYPE_CHOICES = [
-        (TYPE_STUDENT_REQUEST, 'Template demande etudiant'),
-        (TYPE_EVALUATION, 'Fiche evaluation'),
+        (TYPE_STUDENT_REQUEST, "Modèle de demande étudiant"),
+        (TYPE_EVALUATION, "Fiche d'évaluation"),
         (TYPE_OTHER, 'Autre'),
     ]
 

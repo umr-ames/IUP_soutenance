@@ -16,12 +16,12 @@ def normalize(name):
 class Command(BaseCommand):
     help = (
         "Synchronise ProfessorProfile avec la liste officielle des encadrants "
-        "presente dans StudentReference.encadrant_name. Supprime tout "
-        "ProfessorProfile qui n'encadre aucun etudiant dans la liste officielle "
-        "actuelle (et son compte utilisateur lie, ses disponibilites). "
-        "Ne supprime jamais un professeur lie a un jury ou une evaluation : "
-        "ces cas sont signales et ignores pour ne pas casser la base. "
-        "Relancable sans risque : la deuxieme execution ne supprime rien."
+        "présente dans StudentReference.encadrant_name. Supprime tout "
+        "ProfessorProfile qui n'encadre aucun étudiant dans la liste officielle "
+        "actuelle (et son compte utilisateur lié, ses disponibilités). "
+        "Ne supprime jamais un professeur lié à un jury ou une évaluation : "
+        "ces cas sont signalés et ignorés pour ne pas casser la base. "
+        "Relançable sans risque : la deuxième exécution ne supprime rien."
     )
 
     @transaction.atomic
@@ -86,36 +86,36 @@ class Command(BaseCommand):
         total_after = ProfessorProfile.objects.count()
         distinct_official_count = len(distinct_official)
 
-        self.stdout.write(self.style.SUCCESS("Synchronisation terminee."))
+        self.stdout.write(self.style.SUCCESS("Synchronisation terminée."))
         self.stdout.write(f"Encadrants distincts officiels (StudentReference) : {distinct_official_count}")
         self.stdout.write(f"ProfessorProfile avant : {total_before}")
-        self.stdout.write(f"ProfessorProfile apres : {total_after}")
-        self.stdout.write(f"Conserves (encadrent reellement) : {len(to_keep)}")
-        self.stdout.write(f"Supprimes : {len(removed_names)}")
+        self.stdout.write(f"ProfessorProfile après : {total_after}")
+        self.stdout.write(f"Conservés (encadrent réellement) : {len(to_keep)}")
+        self.stdout.write(f"Supprimés : {len(removed_names)}")
         if removed_names:
             self.stdout.write("  -> " + ", ".join(removed_names))
-        self.stdout.write(f"Comptes utilisateurs professeurs supprimes : {removed_user_count}")
+        self.stdout.write(f"Comptes utilisateurs professeurs supprimés : {removed_user_count}")
 
         if blocked:
             self.stdout.write(
                 self.style.WARNING(
-                    f"{len(blocked)} professeur(s) hors liste officielle mais NON supprime(s) "
-                    "car lie(s) a des donnees actives :"
+                    f"{len(blocked)} professeur(s) hors liste officielle mais NON supprimé(s) "
+                    "car lié(s) à des données actives :"
                 )
             )
             for entry in blocked:
                 self.stdout.write(
                     f"  -> {entry['professor'].full_name} : "
                     f"{entry['jury_links']} jury(s), "
-                    f"{entry['evaluation_links']} evaluation(s), "
-                    f"{entry['supervised']} etudiant(s) encadre(s)"
+                    f"{entry['evaluation_links']} évaluation(s), "
+                    f"{entry['supervised']} étudiant(s) encadré(s)"
                 )
 
         if distinct_official_count != total_after:
             self.stdout.write(
                 self.style.WARNING(
                     f"Anomalie : {distinct_official_count} encadrants officiels distincts mais "
-                    f"{total_after} ProfessorProfile en base. Verifiez les professeurs bloques "
-                    "ci-dessus ou un ecart de nom (espaces, casse, accents) non normalise."
+                    f"{total_after} ProfessorProfile en base. Vérifiez les professeurs bloqués "
+                    "ci-dessus ou un écart de nom (espaces, casse, accents) non normalisé."
                 )
             )

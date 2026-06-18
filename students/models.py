@@ -49,7 +49,7 @@ class StudentProfile(models.Model):
 
 
 class StudentReference(models.Model):
-    """Liste officielle pré-importée (CSV) utilisée pour auto-completer l'inscription."""
+    """Liste officielle pré-importée (CSV) utilisée pour auto-compléter l'inscription."""
 
     matricule = models.CharField(max_length=50, unique=True)
     full_name = models.CharField(max_length=255)

@@ -450,7 +450,7 @@ def import_people_rows(rows):
         if not all([matricule, full_name, filiere, encadrant_name]):
             result["errors"].append({
                 "line": row.get("_line"),
-                "message": "matricule, nom complet, filiere ou encadrant manquant",
+                "message": "matricule, nom complet, filière ou encadrant manquant",
             })
             continue
 

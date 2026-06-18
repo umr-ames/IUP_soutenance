@@ -124,7 +124,7 @@ class Command(BaseCommand):
                 username  = f"demoenc.student{num_str}"
                 email     = f"demoenc.student{num_str}@iup.local"
                 matricule = f"DEMOENC{num_str.zfill(3)}"
-                full_name = f"DEMOENC Etudiant {num_str} (Enc {letter})"
+                full_name = f"DEMOENC Étudiant {num_str} (Enc {letter})"
 
                 # StudentReference
                 StudentReference.objects.update_or_create(
@@ -239,7 +239,7 @@ class Command(BaseCommand):
             self.stdout.write(f"  demoenc.student{i:02d}@iup.local")
 
         self.stdout.write("")
-        self.stdout.write("DISPONIBILITES AUJOURD'HUI")
+        self.stdout.write("DISPONIBILITÉS AUJOURD'HUI")
         self.stdout.write(f"  {today}  16h30-17h30  -> Prof A B C D E F  (tous)")
         self.stdout.write(f"  {today}  17h30-18h30  -> Prof A C D E")
         self.stdout.write(f"  {today}  18h00-19h00  -> Prof B C E F")

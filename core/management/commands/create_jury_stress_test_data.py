@@ -132,7 +132,7 @@ class Command(BaseCommand):
                 username   = f"teststress.student{num_str}"
                 email      = f"teststress.student{num_str}@iup.local"
                 matricule  = f"TESTSTRESS{num_str.zfill(3)}"
-                full_name  = f"TESTSTRESS Etudiant {num_str} (Enc {letter})"
+                full_name  = f"TESTSTRESS Étudiant {num_str} (Enc {letter})"
 
                 # StudentReference pour l'auto-fill à l'inscription
                 StudentReference.objects.update_or_create(
@@ -208,34 +208,34 @@ class Command(BaseCommand):
         day_after    = today + timedelta(days=2)
         day_plus_3   = today + timedelta(days=3)
 
-        self.stdout.write(self.style.SUCCESS("\nDonnees TESTSTRESS pretes.\n"))
+        self.stdout.write(self.style.SUCCESS("\nDonnées TESTSTRESS prêtes.\n"))
         self.stdout.write("-" * 60)
         self.stdout.write("COMPTES PROFESSEURS")
         for data in STRESS_PROFESSORS:
             self.stdout.write(f"  {data['email']}  /  {STRESS_PASSWORD}")
 
         self.stdout.write("")
-        self.stdout.write("COMPTES ETUDIANTS  (mot de passe : Test@2026)")
+        self.stdout.write("COMPTES ÉTUDIANTS  (mot de passe : Test@2026)")
         for i in range(1, student_num + 1):
             self.stdout.write(f"  teststress.student{i:02d}@iup.local")
 
         self.stdout.write("")
-        self.stdout.write("DISPONIBILITES")
-        self.stdout.write(f"  Creneau 1 -- {tomorrow}  09h-11h  -- A B C D E F  (2 jurys simultanes possibles)")
-        self.stdout.write(f"  Creneau 2 -- {tomorrow}  14h-16h  -- A D G")
-        self.stdout.write(f"  Creneau 3 -- {day_after}  09h-12h  -- B E H")
-        self.stdout.write(f"  Creneau 4 -- {day_after}  14h-17h  -- A C D")
-        self.stdout.write(f"  Creneau 5 -- {day_plus_3}  09h-11h  -- B F G")
+        self.stdout.write("DISPONIBILITÉS")
+        self.stdout.write(f"  Créneau 1 -- {tomorrow}  09h-11h  -- A B C D E F  (2 jurys simultanés possibles)")
+        self.stdout.write(f"  Créneau 2 -- {tomorrow}  14h-16h  -- A D G")
+        self.stdout.write(f"  Créneau 3 -- {day_after}  09h-12h  -- B E H")
+        self.stdout.write(f"  Créneau 4 -- {day_after}  14h-17h  -- A C D")
+        self.stdout.write(f"  Créneau 5 -- {day_plus_3}  09h-11h  -- B F G")
 
         self.stdout.write("")
-        self.stdout.write("ETAPES MANUELLES A EFFECTUER")
+        self.stdout.write("ÉTAPES MANUELLES À EFFECTUER")
         self.stdout.write("  1. Connexion professeur -> valider chaque demande (pending_professor)")
         self.stdout.write("  2. Connexion admin -> accepter les demandes (pending_admin)")
-        self.stdout.write("  3. Admin -> Generer automatiquement les jurys")
+        self.stdout.write("  3. Admin -> Générer automatiquement les jurys")
         self.stdout.write("  4. Admin -> Publier les jurys")
-        self.stdout.write("  5. Connexion professeur-president -> demarrer la soutenance")
+        self.stdout.write("  5. Connexion professeur-président -> démarrer la soutenance")
         self.stdout.write("  6. Professeurs -> saisir les notes")
-        self.stdout.write("  7. Admin -> publier les resultats")
+        self.stdout.write("  7. Admin -> publier les résultats")
         self.stdout.write("-" * 60)
         self.stdout.write("")
         self.stdout.write("Pour nettoyer : python manage.py delete_jury_stress_test_data")

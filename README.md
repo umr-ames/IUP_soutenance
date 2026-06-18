@@ -1,23 +1,23 @@
 # IUP Soutenance
 
 Plateforme Django de gestion des soutenances IUP : inscriptions, demandes PFE,
-validation encadrant/administration, jurys, planning, evaluations et resultats.
+validation encadrant/administration, jurys, planning, évaluations et résultats.
 
-## Deploiement Render
+## Déploiement Render
 
-Le projet est prepare pour Render avec :
+Le projet est préparé pour Render avec :
 
 - `render.yaml` : service web et PostgreSQL ;
 - `build.sh` : installation, `collectstatic`, migrations ;
 - `gunicorn`, `dj-database-url`, `psycopg` et `whitenoise` dans `requirements.txt`.
 
-Etapes rapides :
+Étapes rapides :
 
-1. Creer le depot sur GitHub.
+1. Créer le dépôt sur GitHub.
 2. Dans Render : **New +** -> **Blueprint**.
-3. Selectionner ce depot.
-4. Laisser Render creer le service web et la base PostgreSQL.
-5. Apres deploiement, ouvrir `/django-admin/` ou `/login/`.
+3. Sélectionner ce dépôt.
+4. Laisser Render créer le service web et la base PostgreSQL.
+5. Après déploiement, ouvrir `/django-admin/` ou `/login/`.
 
 URL Render attendue :
 
@@ -25,12 +25,12 @@ URL Render attendue :
 https://isgi-soutenances.onrender.com
 ```
 
-Documentation detaillee : `docs/DEPLOIEMENT.md`.
+Documentation détaillée : `docs/DEPLOIEMENT.md`.
 
-## Donnees sensibles
+## Données sensibles
 
 Ne pas committer `.env`, `db.sqlite3`, `media/`, `backups/`, `venv/` ni les
-fichiers reels d'import etudiants. Ils sont ignores par `.gitignore`.
+fichiers réels d'import étudiants. Ils sont ignorés par `.gitignore`.
 
 ## Mode production Render
 
@@ -38,4 +38,4 @@ Le Blueprint utilise une configuration stable :
 
 - web service `starter` ;
 - PostgreSQL `basic-256mb` ;
-- disque persistant 1 GB pour les fichiers uploades dans `media/`.
+- disque persistant 1 GB pour les fichiers uploadés dans `media/`.
