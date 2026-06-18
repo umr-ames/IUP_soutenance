@@ -1,63 +1,77 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Connexion - IUP{% endblock %}
+{% block title %}Connexion - ISGI{% endblock %}
 
 {% block content %}
-<div class="auth-wrapper">
-    <div class="auth-card">
-        <div class="auth-brand">
-            <div class="auth-brand-mark">
-                <img src="{% static 'img/logo-isgi.jpeg' %}" alt="ISGI" class="auth-brand-logo">
+<div class="login-split">
+    <div class="login-split-card">
+        <aside class="login-brand-side">
+            <div class="login-brand-head">
+                <span class="login-brand-logo">
+                    <img src="{% static 'img/logo-isgi.jpeg' %}" alt="ISGI">
+                </span>
+                <div class="login-brand-name">
+                    <strong>ISGI</strong>
+                    <span>Institut Supérieur de Génie Industriel</span>
+                </div>
             </div>
-            <div class="auth-brand-text">
+
+            <div class="login-brand-body">
+                <h2>Plateforme de gestion des soutenances PFE</h2>
+                <p>Suivi des demandes, des jurys, des plannings et des résultats du Département de l'IUP.</p>
+            </div>
+
+            <ul class="login-brand-points">
+                <li>Département de l'IUP</li>
+                <li>Année universitaire 2025 / 2026</li>
+            </ul>
+        </aside>
+
+        <div class="login-form-side">
+            <div class="login-form-head">
                 <h1>Connexion</h1>
-                <p class="auth-brand-institution">{{ INSTITUTION_NAME }}</p>
+                <p>Accédez à votre espace personnel.</p>
             </div>
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <form method="post" class="auth-form">
+                {% csrf_token %}
+
+                <div class="form-group mb-3">
+                    {{ form.phone_number }}
+
+                    {% if form.phone_number.errors %}
+                        <div class="form-error">
+                            {{ form.phone_number.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group mb-3">
+                    {{ form.password }}
+
+                    {% if form.password.errors %}
+                        <div class="form-error">
+                            {{ form.password.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <button class="btn btn-primary w-100" type="submit">
+                    Se connecter
+                </button>
+            </form>
+
+            <a href="{% url 'student_register' %}" class="btn btn-light w-100 mt-3">
+                Créer un compte étudiant
+            </a>
         </div>
-
-        <div class="auth-identity">
-            <span>{{ INSTITUTION_DEPARTMENT }}</span>
-            <span>{{ ACADEMIC_YEAR }}</span>
-        </div>
-
-        {% if form.non_field_errors %}
-            <div class="alert alert-danger mt-3">
-                {{ form.non_field_errors }}
-            </div>
-        {% endif %}
-
-        <form method="post" class="auth-form mt-3">
-            {% csrf_token %}
-
-            <div class="form-group mb-3">
-                {{ form.phone_number }}
-
-                {% if form.phone_number.errors %}
-                    <div class="form-error">
-                        {{ form.phone_number.errors }}
-                    </div>
-                {% endif %}
-            </div>
-
-            <div class="form-group mb-3">
-                {{ form.password }}
-
-                {% if form.password.errors %}
-                    <div class="form-error">
-                        {{ form.password.errors }}
-                    </div>
-                {% endif %}
-            </div>
-
-            <button class="btn btn-primary w-100" type="submit">
-                Se connecter
-            </button>
-        </form>
-
-        <a href="{% url 'student_register' %}" class="btn btn-light w-100 mt-3">
-            Créer un compte étudiant
-        </a>
     </div>
 </div>
 {% endblock %}
