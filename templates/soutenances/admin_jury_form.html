@@ -1,0 +1,672 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Administration</span>
+        <h1>{{ title }}</h1>
+        <p>
+            Créez ou modifiez manuellement un jury. Chaque jury doit contenir exactement
+            3 professeurs.
+        </p>
+    </div>
+
+    <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">
+        Retour jurys
+    </a>
+</div>
+
+<div class="stat-grid">
+    <div class="stat-card">
+        <span>Règle jury</span>
+        <strong>3</strong>
+        <small class="text-muted">professeurs</small>
+    </div>
+
+    <div class="stat-card">
+        <span>Encadrant</span>
+        <strong style="font-size: 1.15rem;">Obligatoire</strong>
+        <small class="text-muted">pour chaque étudiant</small>
+    </div>
+
+    <div class="stat-card">
+        <span>Planning</span>
+        <strong>30</strong>
+        <small class="text-muted">minutes par passage</small>
+    </div>
+
+    <div class="stat-card">
+        <span>Conflits</span>
+        <strong style="font-size: 1.15rem;">Bloqués</strong>
+        <small class="text-muted">par le système</small>
+    </div>
+</div>
+
+{% if jury %}
+    <div class="glass-card">
+        <div class="card-header-flex">
+            <div>
+                <span class="eyebrow">Composition actuelle</span>
+                <h3>Membres actuels du jury</h3>
+                <p class="text-muted mb-0">
+                    {% if has_member_slot %}
+                        Créneau utilisé : {{ member_slot_date|date:"l d/m/Y" }} à {{ member_slot_start|time:"H:i" }}
+                    {% elif multiple_member_slots %}
+                        Plusieurs créneaux existent pour les étudiants de ce jury — choisissez-en un ci-dessous
+                        pour filtrer les professeurs disponibles.
+                    {% else %}
+                        Aucun créneau planifié pour le moment. Choisissez d'abord un créneau dans la section
+                        "Encadrant principal détecté" ci-dessous, ou via le planning.
+                    {% endif %}
+                </p>
+            </div>
+
+            {% if current_members_count < 3 %}
+                <span class="status-pill warning">Jury incomplet ({{ current_members_count }}/3)</span>
+            {% else %}
+                <span class="status-pill success">3/3 membres</span>
+            {% endif %}
+        </div>
+
+        {% if multiple_member_slots %}
+            <form method="get" class="mb-3">
+                <label class="form-label">Choisir le créneau à utiliser pour le filtrage</label>
+                <div class="row g-2">
+                    {% for option in member_slot_options %}
+                        <div class="col-md-4">
+                            <label class="week-cell d-flex align-items-center justify-content-start gap-2 p-2" style="height: auto;">
+                                <input type="radio" name="member_slot" value="{{ option.key }}" required>
+                                <span>
+                                    {{ option.date|date:"d/m/Y" }} à {{ option.start_time|time:"H:i" }}
+                                    <small class="text-muted d-block">{{ option.students|join:", " }}</small>
+                                </span>
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-sm btn-outline-primary mt-2">Utiliser ce créneau</button>
+            </form>
+        {% endif %}
+
+        <div class="row g-2">
+            {% for row in member_rows %}
+                <div class="col-md-4">
+                    <div class="timeline-item h-100">
+                        <strong>{{ row.professor.full_name }}</strong>
+
+                        <div class="d-flex flex-wrap gap-1 mt-2">
+                            {% if row.supervised_here %}
+                                <span class="status-pill info">Encadrant de {{ row.supervised_here|join:", " }}</span>
+                            {% else %}
+                                <span class="status-pill muted">Membre</span>
+                            {% endif %}
+
+                            {% if row.is_available_now == True %}
+                                <span class="status-pill success">Disponible à ce créneau</span>
+                            {% elif row.is_available_now == False %}
+                                <span class="status-pill danger">Indisponible à ce créneau</span>
+                            {% endif %}
+                        </div>
+
+                        <form method="post" class="mt-2">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="remove_member">
+                            <input type="hidden" name="professor_id" value="{{ row.professor.id }}">
+                            <button
+                                type="submit"
+                                class="btn btn-sm btn-outline-danger"
+                                data-confirm="Retirer {{ row.professor.full_name }} du jury ? {% if row.supervised_here %}Les étudiants qu'il encadre dans ce jury seront aussi retirés.{% endif %}"
+                            >
+                                Retirer
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="empty-state">Aucun membre dans ce jury.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="glass-card">
+        <div class="card-header-flex">
+            <div>
+                <span class="eyebrow">Compléter le jury</span>
+                <h3>Ajouter un membre disponible</h3>
+                <p class="text-muted mb-0">
+                    {% if has_member_slot %}
+                        Seuls les professeurs disponibles le {{ member_slot_date|date:"d/m/Y" }} à
+                        {{ member_slot_start|time:"H:i" }} sont proposés.
+                    {% else %}
+                        Un créneau doit être déterminé pour proposer des professeurs disponibles.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        {% if not has_member_slot %}
+            <div class="helper-hint empty">Aucun créneau planifié, choisissez d'abord un créneau.</div>
+        {% elif current_members_count >= 3 %}
+            <div class="helper-hint">Le jury contient déjà 3 professeurs.</div>
+        {% elif add_member_form %}
+            {% if addable_count == 0 %}
+                <div class="helper-hint empty">Aucun professeur disponible à ce créneau pour le moment.</div>
+            {% else %}
+                <form method="post" class="row g-2 align-items-end">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_member">
+                    <div class="col-md-8">
+                        {{ add_member_form.professor }}
+                        {% if add_member_form.professor.errors %}
+                            <div class="form-error">{{ add_member_form.professor.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100">Ajouter</button>
+                    </div>
+                </form>
+                <small class="form-help d-block mt-2">{{ addable_count }} professeur(s) disponible(s).</small>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    {% if jury_students %}
+        <div class="glass-card">
+            <div class="card-header-flex">
+                <div>
+                    <span class="eyebrow">Étudiants affectés</span>
+                    <h3>Étudiants de ce jury</h3>
+                </div>
+            </div>
+
+            <div class="row g-2">
+                {% for js in jury_students %}
+                    <div class="col-md-4">
+                        <div class="timeline-item h-100">
+                            <strong>{{ js.student.full_name }}</strong>
+                            <span class="d-block text-muted">Encadrant : {{ js.student.encadrant.full_name }}</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
+    {% if primary_encadrant %}
+        <div class="glass-card">
+            <div class="card-header-flex">
+                <div>
+                    <span class="step-badge">Modification intelligente</span>
+                    <h3 class="mt-2">Encadrant principal détecté</h3>
+                    <p class="text-muted mb-0">
+                        Calculé à partir des {{ students_count }} étudiant(s) déjà affecté(s) à
+                        ce jury : l'encadrant qui en supervise le plus dans ce jury est retenu
+                        (égalité → premier trouvé).
+                    </p>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <span class="status-pill success">{{ primary_encadrant.full_name }}</span>
+                {% for item in encadrant_counts %}
+                    <span class="status-pill info">{{ item.encadrant.full_name }} · {{ item.count }} étudiant(s)</span>
+                {% endfor %}
+            </div>
+
+            {% if no_slots %}
+                <div class="helper-hint empty mt-3">
+                    Aucun créneau disponible (jusqu'au 10/07/2026) pour
+                    {{ primary_encadrant.full_name }}. Demandez-lui de déclarer des
+                    disponibilités, ou utilisez le formulaire manuel ci-dessous.
+                </div>
+            {% else %}
+                <form method="get" class="mt-3">
+                    <label class="form-label">
+                        Créneaux disponibles de {{ primary_encadrant.full_name }}
+                    </label>
+
+                    <div class="row g-2">
+                        {% for slot in slots %}
+                            <div class="col-md-4">
+                                <label class="week-cell d-flex align-items-center justify-content-start gap-2 p-2" style="height: auto;">
+                                    <input
+                                        type="radio"
+                                        name="slot"
+                                        value="{{ slot.key }}"
+                                        {% if slot_key == slot.key %}checked{% endif %}
+                                        required
+                                    >
+                                    <span>{{ slot.date|date:"l d/m" }} — {{ slot.start_time|time:"H:i" }}-{{ slot.end_time|time:"H:i" }}</span>
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary mt-3">
+                        Voir les membres disponibles à ce créneau
+                    </button>
+                </form>
+            {% endif %}
+
+            {% if selected_date and selected_time %}
+                <hr class="my-3">
+
+                <h3>Professeurs disponibles à ce créneau</h3>
+                <p class="text-muted">
+                    Créneau retenu : <strong>{{ selected_date|date:"l d/m/Y" }} à {{ selected_time|time:"H:i" }}</strong>
+                </p>
+
+                {% if not_enough_members %}
+                    <div class="helper-hint empty">
+                        Seulement {{ available_count }} professeur(s) sélectionnable(s) à ce
+                        créneau (3 requis, encadrants obligatoires compris). Choisissez un
+                        autre créneau ci-dessus, ou utilisez le formulaire manuel ci-dessous.
+                    </div>
+                {% else %}
+                    <div class="helper-hint mb-3">
+                        {{ available_count }} professeur(s) sélectionnable(s) à ce créneau
+                        (encadrant(s) obligatoire(s) inclus automatiquement).
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="mode" value="smart">
+                        <input type="hidden" name="slot" value="{{ slot_key }}">
+
+                        {% if smart_members_form.members.errors %}
+                            <div class="alert alert-danger">
+                                {{ smart_members_form.members.errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="row g-2">
+                            {% for checkbox in smart_members_form.members %}
+                                <div class="col-md-4">
+                                    <label class="week-cell d-flex align-items-center justify-content-start gap-2 p-2" style="height: auto;">
+                                        {{ checkbox.tag }}
+                                        <span>
+                                            {{ checkbox.choice_label }}
+                                            {% if checkbox.data.value|stringformat:"s" in mandatory_encadrant_ids_str %}
+                                                <small class="text-muted">(encadrant obligatoire)</small>
+                                            {% endif %}
+                                        </span>
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <small class="form-help d-block mt-2">
+                            Choisissez exactement 3 professeurs au total. Les professeurs
+                            indisponibles à ce créneau n'apparaissent pas dans cette liste.
+                        </small>
+
+                        <button type="submit" class="btn btn-primary mt-3">
+                            Appliquer ce créneau et ces membres
+                        </button>
+                    </form>
+                {% endif %}
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="glass-card">
+            <div class="card-header-flex">
+                <div>
+                    <span class="eyebrow">Modification intelligente</span>
+                    <h3>Aucun encadrant détecté</h3>
+                    <p class="text-muted mb-0">
+                        Ce jury n'a pas encore d'étudiant affecté : impossible de proposer des
+                        créneaux automatiquement. Utilisez le formulaire manuel ci-dessous, ou
+                        affectez d'abord un étudiant depuis la page détail du jury.
+                    </p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="glass-card">
+        <div class="card-header-flex">
+            <div>
+                <span class="eyebrow">Modification manuelle classique</span>
+                <h3>Nom, date, validation et membres au choix</h3>
+                <p class="text-muted mb-0">
+                    Toujours disponible : remplace entièrement le créneau et les membres,
+                    sans filtrage par disponibilité.
+                </p>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+{% if eligible_students %}
+<div class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="step-badge">Étape 0 · Aide au choix</span>
+            <h3 class="mt-2">Étudiant(s) concerné(s)</h3>
+            <p class="text-muted mb-0">
+                Sélectionnez un ou plusieurs étudiants : le système propose alors uniquement
+                les créneaux où leur(s) encadrant(s) sont disponibles, puis filtre les
+                professeurs disponibles à ce créneau pour vous aider à compléter le formulaire
+                ci-dessous. Cette aide ne remplace pas la création réelle du jury : vous
+                affecterez les étudiants après la création, comme d'habitude.
+            </p>
+        </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+        <div class="col-md-6">
+            <label class="form-label">Étudiants acceptés non affectés</label>
+            <select id="helperStudents" class="form-select" multiple size="6">
+                {% for student in eligible_students %}
+                    <option value="{{ student.id }}">
+                        {{ student.full_name }} ({{ student.matricule }}) — Encadrant : {{ student.encadrant.full_name }}
+                    </option>
+                {% endfor %}
+            </select>
+            <small class="form-help">Maintenez CTRL pour en choisir plusieurs.</small>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Créneaux proposés selon l'encadrant</label>
+            <select id="helperSlots" class="form-select" size="6" disabled>
+                <option value="">Sélectionnez d'abord un étudiant...</option>
+            </select>
+
+            <div id="helperHint" class="helper-hint empty mt-2">
+                En attente d'une sélection d'étudiant.
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Étape 1 · Informations</span>
+            <h3>Nom, date et validation</h3>
+            <p class="text-muted mb-0">
+                Choisissez la date de soutenance, ou laissez l'aide ci-dessus la proposer
+                automatiquement selon l'encadrant.
+            </p>
+        </div>
+    </div>
+
+    <form method="post" class="mt-3">
+        {% csrf_token %}
+
+        {% if form.errors %}
+            <div class="alert alert-danger">
+                Veuillez corriger les erreurs du formulaire.
+                <div class="mt-2">
+                    {{ form.errors }}
+                </div>
+            </div>
+        {% endif %}
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="timeline-item h-100">
+                    <label class="form-label">{{ form.name.label }}</label>
+                    {{ form.name }}
+
+                    {% if form.name.errors %}
+                        <div class="form-error">
+                            {{ form.name.errors }}
+                        </div>
+                    {% endif %}
+
+                    <small class="form-help">
+                        Exemple : Jury FINTECH 1 ou Jury intelligent 1.
+                    </small>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="timeline-item h-100">
+                    <label class="form-label">{{ form.defense_date.label }}</label>
+                    {{ form.defense_date }}
+
+                    {% if form.defense_date.errors %}
+                        <div class="form-error">
+                            {{ form.defense_date.errors }}
+                        </div>
+                    {% endif %}
+
+                    <small class="form-help">
+                        Date prévue de soutenance.
+                    </small>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="timeline-item h-100 d-flex flex-column justify-content-center">
+                    <div class="form-check">
+                        {{ form.is_validated }}
+                        <label class="form-check-label" for="{{ form.is_validated.id_for_label }}">
+                            {{ form.is_validated.label }}
+                        </label>
+                    </div>
+
+                    {% if form.is_validated.errors %}
+                        <div class="form-error">
+                            {{ form.is_validated.errors }}
+                        </div>
+                    {% endif %}
+
+                    <small class="form-help mt-2">
+                        Marquez le jury comme validé.
+                    </small>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="timeline-item">
+                    <span class="eyebrow">Étape 2 · Membres</span>
+                    <label class="form-label">{{ form.members.label }}</label>
+
+                    <input
+                        type="text"
+                        id="memberSearch"
+                        class="form-control mb-2"
+                        placeholder="Rechercher un professeur..."
+                    >
+
+                    {{ form.members }}
+
+                    {% if form.members.errors %}
+                        <div class="form-error">
+                            {{ form.members.errors }}
+                        </div>
+                    {% endif %}
+
+                    <small class="form-help d-block mt-2">
+                        Maintenez CTRL pour sélectionner plusieurs professeurs.
+                        Vous devez choisir exactement 3 professeurs.
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 d-flex gap-2 flex-wrap">
+            <button type="submit" class="btn btn-primary">
+                Enregistrer le jury
+            </button>
+
+            <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">
+                Annuler
+            </a>
+        </div>
+    </form>
+</div>
+
+<div class="glass-card mt-4">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Rappel</span>
+            <h3>Après la création du jury</h3>
+            <p class="text-muted mb-0">
+                Vous pourrez affecter des étudiants acceptés. Le système vérifiera que
+                l'encadrant de l'étudiant appartient bien au jury.
+            </p>
+        </div>
+    </div>
+
+    <div class="row g-3 mt-2">
+        <div class="col-md-4">
+            <div class="timeline-item">
+                <strong>1. Créer jury</strong>
+                <span>Choisir nom, date et 3 professeurs.</span>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="timeline-item">
+                <strong>2. Affecter étudiant</strong>
+                <span>Uniquement si demande acceptée et encadrant membre.</span>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="timeline-item">
+                <strong>3. Planning</strong>
+                <span>Générer un créneau de 30 minutes sans conflit professeur.</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const memberSearch = document.getElementById('memberSearch');
+const memberSelect = document.querySelector('select[name="members"]');
+
+if (memberSearch && memberSelect) {
+    memberSearch.addEventListener('input', function () {
+        const filter = this.value.toLowerCase().trim();
+
+        for (let option of memberSelect.options) {
+            const text = option.text.toLowerCase();
+
+            if (!filter) {
+                option.hidden = false;
+            } else {
+                option.hidden = !text.includes(filter);
+            }
+        }
+    });
+}
+
+const helperStudents = document.getElementById('helperStudents');
+const helperSlots = document.getElementById('helperSlots');
+const helperHint = document.getElementById('helperHint');
+const defenseDateInput = document.getElementById('{{ form.defense_date.id_for_label }}');
+const slotsUrl = "{% url 'admin_jury_helper_slots' %}";
+const membersUrl = "{% url 'admin_jury_helper_members' %}";
+
+function setHint(message, isEmpty) {
+    if (!helperHint) {
+        return;
+    }
+
+    helperHint.textContent = message;
+    helperHint.classList.toggle('empty', !!isEmpty);
+}
+
+if (helperStudents && helperSlots) {
+    helperStudents.addEventListener('change', function () {
+        const selectedIds = Array.from(helperStudents.selectedOptions).map(function (opt) {
+            return opt.value;
+        });
+
+        helperSlots.innerHTML = '<option value="">Chargement...</option>';
+        helperSlots.disabled = true;
+
+        if (selectedIds.length === 0) {
+            helperSlots.innerHTML = '<option value="">Sélectionnez d\'abord un étudiant...</option>';
+            setHint('En attente d\'une sélection d\'étudiant.', true);
+            return;
+        }
+
+        const params = new URLSearchParams();
+        selectedIds.forEach(function (id) { params.append('student_id', id); });
+
+        fetch(slotsUrl + '?' + params.toString())
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                helperSlots.innerHTML = '';
+                helperSlots.disabled = false;
+
+                if (!data.slots || data.slots.length === 0) {
+                    helperSlots.innerHTML = '<option value="">Aucun créneau commun disponible</option>';
+                    setHint(
+                        'Aucun créneau ne convient à tous les encadrants sélectionnés ' +
+                        '(' + (data.encadrants || []).map(function (e) { return e.name; }).join(', ') + '). ' +
+                        'Demandez-leur de déclarer plus de disponibilités.',
+                        true
+                    );
+                    return;
+                }
+
+                data.slots.forEach(function (slot) {
+                    const option = document.createElement('option');
+                    option.value = slot.date + '|' + slot.start_time;
+                    option.textContent = slot.label;
+                    helperSlots.appendChild(option);
+                });
+
+                setHint(
+                    data.slots.length + ' créneau(x) disponible(s) selon l\'encadrant ' +
+                    '(' + (data.encadrants || []).map(function (e) { return e.name; }).join(', ') + ').',
+                    false
+                );
+            })
+            .catch(function () {
+                setHint('Erreur lors de la recherche des créneaux.', true);
+            });
+    });
+
+    helperSlots.addEventListener('change', function () {
+        if (!helperSlots.value) {
+            return;
+        }
+
+        const [date, startTime] = helperSlots.value.split('|');
+
+        if (defenseDateInput) {
+            defenseDateInput.value = date;
+        }
+
+        const params = new URLSearchParams({ date: date, start_time: startTime });
+
+        fetch(membersUrl + '?' + params.toString())
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                if (!memberSelect || !data.available_professor_ids) {
+                    return;
+                }
+
+                const availableSet = new Set(data.available_professor_ids.map(String));
+
+                for (const option of memberSelect.options) {
+                    const isAvailable = availableSet.has(option.value);
+                    option.classList.toggle('text-muted', !isAvailable);
+                    option.textContent = option.textContent.replace(' (indisponible à ce créneau)', '');
+
+                    if (!isAvailable) {
+                        option.textContent += ' (indisponible à ce créneau)';
+                    }
+                }
+
+                setHint(
+                    availableSet.size + ' professeur(s) disponible(s) sur ' + data.all_count +
+                    ' à ce créneau précis (' + startTime + '). Les encadrants concernés doivent rester sélectionnés.',
+                    false
+                );
+            })
+            .catch(function () {});
+    });
+}
+</script>
+{% endblock %}

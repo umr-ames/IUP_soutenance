@@ -1,0 +1,32 @@
+from django.urls import path
+
+from . import views
+
+
+urlpatterns = [
+    path("admin/demandes/", views.admin_pfe_requests, name="admin_pfe_requests"),
+    path("admin/demandes/<int:pk>/", views.admin_pfe_request_detail, name="admin_pfe_request_detail"),
+    path("admin/deadline/", views.admin_deadline, name="admin_deadline"),
+    path("admin/jurys/", views.admin_jury_list, name="admin_jury_list"),
+    path("admin/jurys/generate/", views.admin_generate_juries, name="admin_generate_juries"),
+    path("admin/jurys/create/", views.admin_jury_create, name="admin_jury_create"),
+    path("admin/jurys/quick-create/", views.admin_jury_quick_create, name="admin_jury_quick_create"),
+    path("admin/jurys/helper/slots/", views.admin_jury_helper_slots, name="admin_jury_helper_slots"),
+    path("admin/jurys/helper/members/", views.admin_jury_helper_members, name="admin_jury_helper_members"),
+    path("admin/jurys/<int:pk>/", views.admin_jury_detail, name="admin_jury_detail"),
+    path("admin/jurys/<int:pk>/edit/", views.admin_jury_update, name="admin_jury_update"),
+    path("admin/jurys/<int:pk>/delete/", views.admin_jury_delete, name="admin_jury_delete"),
+    path("admin/jurys/<int:pk>/publish/", views.admin_jury_publish, name="admin_jury_publish"),
+    path("admin/jurys/<int:pk>/add-student/", views.admin_jury_add_student, name="admin_jury_add_student"),
+    path("admin/jurys/<int:pk>/students/<int:assignment_pk>/remove/", views.admin_jury_remove_student, name="admin_jury_remove_student"),
+    path("admin/planning/", views.admin_planning, name="admin_planning"),
+    path("admin/planning/generate/", views.admin_generate_planning, name="admin_generate_planning"),
+    path("admin/results/", views.admin_results, name="admin_results"),
+    path("admin/results/<int:pk>/publish/", views.admin_publish_result, name="admin_publish_result"),
+    path("admin/evaluations/<int:pk>/unlock/", views.admin_unlock_evaluation, name="admin_unlock_evaluation"),
+    path("admin/results/publish-all/", views.admin_publish_all_results, name="admin_publish_all_results"),
+    path("admin/exports/jurys.pdf", views.export_juries_pdf, name="export_juries_pdf"),
+    path("admin/exports/planning.pdf", views.export_planning_pdf, name="export_planning_pdf"),
+    path("admin/exports/results.pdf", views.export_results_pdf, name="export_results_pdf"),
+    path("admin/exports/pv/<int:pk>.pdf", views.export_student_pv_pdf, name="export_student_pv_pdf"),
+]

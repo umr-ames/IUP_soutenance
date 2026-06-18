@@ -1,0 +1,627 @@
+{% extends 'base.html' %}
+
+{% block title %}Saisie évaluation{% endblock %}
+
+{% block extra_css %}
+<style>
+    .evaluation-detail-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(310px, 0.85fr);
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .student-evaluation-panel,
+    .final-panel,
+    .evaluation-form-card,
+    .side-card {
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.78);
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px);
+    }
+
+    .student-evaluation-panel {
+        position: relative;
+        overflow: hidden;
+        padding: 28px;
+        background:
+            radial-gradient(circle at 88% 16%, rgba(249, 115, 22, 0.16), transparent 34%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 247, 237, 0.72));
+    }
+
+    .student-main {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+    }
+
+    .student-avatar-large {
+        width: 72px;
+        height: 72px;
+        flex: 0 0 72px;
+        display: grid;
+        place-items: center;
+        border-radius: 26px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        box-shadow: 0 16px 34px rgba(249, 115, 22, 0.22);
+        font-size: 1.7rem;
+        font-weight: 950;
+    }
+
+    .student-title h1 {
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(1.55rem, 2.4vw, 2.35rem);
+        line-height: 1.05;
+        font-weight: 950;
+        letter-spacing: -0.055em;
+    }
+
+    .student-title p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-weight: 700;
+    }
+
+    .student-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+    }
+
+    .student-tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.82rem;
+        font-weight: 880;
+    }
+
+    .final-panel {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 18px;
+    }
+
+    .final-panel h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 1.16rem;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+    }
+
+    .final-panel p {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        font-weight: 650;
+    }
+
+    .final-note-box {
+        min-height: 118px;
+        border-radius: 24px;
+        padding: 18px;
+        color: white;
+        background:
+            radial-gradient(circle at 90% 10%, rgba(255, 255, 255, 0.22), transparent 34%),
+            linear-gradient(135deg, var(--orange), var(--orange-dark));
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        box-shadow: 0 16px 34px rgba(249, 115, 22, 0.22);
+    }
+
+    .final-note-box span {
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 0.82rem;
+        font-weight: 850;
+    }
+
+    .final-note-box strong {
+        margin-top: 7px;
+        color: white;
+        font-size: 2.1rem;
+        line-height: 1;
+        font-weight: 950;
+        letter-spacing: -0.045em;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 36px;
+        width: fit-content;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 930;
+        white-space: nowrap;
+    }
+
+    .status-pill.success {
+        color: #14543a;
+        background: rgba(36, 144, 96, 0.13);
+        border: 1px solid rgba(36, 144, 96, 0.16);
+    }
+
+    .status-pill.info {
+        color: #294f78;
+        background: rgba(79, 120, 167, 0.13);
+        border: 1px solid rgba(79, 120, 167, 0.15);
+    }
+
+    .status-pill.warning {
+        color: #7c3f05;
+        background: rgba(217, 119, 6, 0.14);
+        border: 1px solid rgba(217, 119, 6, 0.16);
+    }
+
+    .evaluation-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
+        gap: 18px;
+        align-items: start;
+    }
+
+    .evaluation-form-card,
+    .side-card {
+        padding: 22px;
+    }
+
+    .card-title-clean {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 16px;
+    }
+
+    .card-title-clean h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 1.16rem;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+    }
+
+    .card-title-clean p {
+        margin: 5px 0 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        font-weight: 650;
+    }
+
+    .score-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .score-input-card {
+        padding: 16px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid rgba(35, 31, 27, 0.07);
+    }
+
+    .score-input-card h3 {
+        margin: 0 0 12px;
+        color: var(--text);
+        font-size: 1rem;
+        font-weight: 950;
+        letter-spacing: -0.025em;
+    }
+
+    .coef-pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        margin-top: 10px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.12);
+        font-size: 0.78rem;
+        font-weight: 900;
+    }
+
+    .locked-note {
+        padding: 14px;
+        border-radius: 18px;
+        color: #14543a;
+        background: rgba(36, 144, 96, 0.12);
+        border: 1px solid rgba(36, 144, 96, 0.16);
+        font-weight: 750;
+    }
+
+    .actions-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin-top: 18px;
+    }
+
+    .info-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .info-item {
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid rgba(35, 31, 27, 0.07);
+    }
+
+    .info-item span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+    }
+
+    .info-item strong {
+        display: block;
+        margin-top: 6px;
+        color: var(--text);
+        font-weight: 930;
+        line-height: 1.2;
+    }
+
+    .formula-card {
+        margin-top: 14px;
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255, 247, 237, 0.76);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+    }
+
+    .formula-card strong {
+        display: block;
+        color: var(--orange-deep);
+        font-weight: 950;
+    }
+
+    .formula-card span {
+        display: block;
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 0.88rem;
+        font-weight: 680;
+    }
+
+    @media (max-width: 1050px) {
+        .evaluation-detail-hero,
+        .evaluation-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .score-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .student-evaluation-panel,
+        .final-panel,
+        .evaluation-form-card,
+        .side-card {
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .student-main {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .actions-row .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="evaluation-detail-hero">
+    <div class="student-evaluation-panel">
+        <span class="eyebrow">Évaluation professeur</span>
+
+        <div class="student-main">
+            <div class="student-avatar-large">
+                {{ jury_student.student.full_name|slice:":1"|upper }}
+            </div>
+
+            <div class="student-title">
+                <h1>{{ jury_student.student.full_name }}</h1>
+                <p>
+                    {{ jury_student.student.matricule }}
+                    ·
+                    {{ jury_student.student.filiere|default:"Filière non renseignée" }}
+                </p>
+            </div>
+        </div>
+
+        <div class="student-tags">
+            <span class="student-tag">Jury : {{ jury_student.jury.name }}</span>
+            <span class="student-tag">Date : {{ jury_student.jury.defense_date|date:"d/m/Y" }}</span>
+
+            {% if jury_student.schedule %}
+                <span class="student-tag">
+                    Horaire :
+                    {{ jury_student.schedule.start_time|time:"H:i" }}
+                    -
+                    {{ jury_student.schedule.end_time|time:"H:i" }}
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <aside class="final-panel">
+        <div>
+            <span class="eyebrow">Résultat</span>
+            <h2>Note finale calculée</h2>
+            <p>La note se met à jour automatiquement pendant la saisie.</p>
+        </div>
+
+        <div class="final-note-box">
+            <span>Note sur 20</span>
+            <strong id="liveFinalNote">
+                {% if evaluation and evaluation.final_note %}
+                    {{ evaluation.final_note }}/20
+                {% else %}
+                    -/20
+                {% endif %}
+            </strong>
+        </div>
+
+        <div>
+            {% if evaluation and evaluation.is_locked %}
+                <span class="status-pill success">Envoyée et verrouillée</span>
+            {% elif evaluation %}
+                <span class="status-pill info">Brouillon</span>
+            {% else %}
+                <span class="status-pill warning">Nouvelle évaluation</span>
+            {% endif %}
+        </div>
+    </aside>
+</section>
+
+<div class="evaluation-layout">
+    <section class="evaluation-form-card">
+        <div class="card-title-clean">
+            <div>
+                <span class="eyebrow">Saisie</span>
+                <h2>Notes de l’évaluation</h2>
+                <p>Saisissez chaque note sur 20 puis enregistrez ou envoyez définitivement.</p>
+            </div>
+        </div>
+
+        {% if not jury_student.presentation_started %}
+            <div class="locked-note mb-3">
+                La soutenance n’a pas encore démarré. Seul le président de soutenance peut la démarrer, depuis "Mes jurys".
+            </div>
+        {% elif is_pfe_non_soutenable %}
+            <div class="locked-note mb-3" style="color:#7d1f1f; background:rgba(220,38,38,0.09); border-color:rgba(220,38,38,0.20);">
+                &#10007; Ce PFE a été déclaré <strong>non soutenable</strong> par le président du jury. Aucune évaluation ne peut être saisie.
+            </div>
+        {% elif is_pfe_soutenable_pending %}
+            <div class="locked-note mb-3" style="color:#7c3f05; background:rgba(217,119,6,0.09); border-color:rgba(217,119,6,0.20);">
+                &#9679; Le président du jury doit d’abord confirmer que le PFE est soutenable avant que les évaluations puissent être saisies.
+            </div>
+        {% elif evaluation and evaluation.is_locked %}
+            <div class="locked-note mb-3">
+                Cette évaluation est envoyée et verrouillée. Elle ne peut être modifiée que si l’administration la déverrouille.
+            </div>
+        {% endif %}
+
+        <form method="post" id="evaluationForm">
+            {% csrf_token %}
+
+            <fieldset {% if is_evaluation_locked or not jury_student.presentation_started or is_pfe_soutenable_pending or is_pfe_non_soutenable %}disabled{% endif %} style="border:none;padding:0;margin:0;">
+            <div class="score-grid">
+                <div class="score-input-card">
+                    <h3>Rapport</h3>
+
+                    <label class="form-label" for="{{ form.rapport_note.id_for_label }}">
+                        {{ form.rapport_note.label }}
+                    </label>
+
+                    {{ form.rapport_note }}
+
+                    {% if form.rapport_note.errors %}
+                        <div class="form-error">
+                            {{ form.rapport_note.errors }}
+                        </div>
+                    {% endif %}
+
+                    <span class="coef-pill">Coefficient 30%</span>
+                </div>
+
+                <div class="score-input-card">
+                    <h3>Présentation</h3>
+
+                    <label class="form-label" for="{{ form.presentation_note.id_for_label }}">
+                        {{ form.presentation_note.label }}
+                    </label>
+
+                    {{ form.presentation_note }}
+
+                    {% if form.presentation_note.errors %}
+                        <div class="form-error">
+                            {{ form.presentation_note.errors }}
+                        </div>
+                    {% endif %}
+
+                    <span class="coef-pill">Coefficient 30%</span>
+                </div>
+
+                <div class="score-input-card">
+                    <h3>Questions</h3>
+
+                    <label class="form-label" for="{{ form.questions_note.id_for_label }}">
+                        {{ form.questions_note.label }}
+                    </label>
+
+                    {{ form.questions_note }}
+
+                    {% if form.questions_note.errors %}
+                        <div class="form-error">
+                            {{ form.questions_note.errors }}
+                        </div>
+                    {% endif %}
+
+                    <span class="coef-pill">Coefficient 40%</span>
+                </div>
+            </div>
+            </fieldset>
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger mt-3">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            {% if form.errors %}
+                <div class="alert alert-danger mt-3">
+                    Veuillez corriger les erreurs du formulaire.
+                </div>
+            {% endif %}
+
+            <div class="actions-row">
+                {% if not jury_student.presentation_started or is_pfe_soutenable_pending or is_pfe_non_soutenable or evaluation and evaluation.is_locked %}
+                    <a href="{% url 'professor_evaluations' %}" class="btn btn-outline-secondary">
+                        Retour
+                    </a>
+                {% else %}
+                    <button type="submit" name="action" value="save" class="btn btn-outline-primary">
+                        Enregistrer brouillon
+                    </button>
+
+                    <button
+                        type="submit"
+                        name="action"
+                        value="submit"
+                        class="btn btn-success"
+                        data-confirm="Envoyer définitivement cette évaluation ? Elle sera verrouillée."
+                    >
+                        Envoyer définitivement
+                    </button>
+
+                    <a href="{% url 'professor_evaluations' %}" class="btn btn-outline-secondary">
+                        Annuler
+                    </a>
+                {% endif %}
+            </div>
+        </form>
+    </section>
+
+    <aside class="side-card">
+        <div class="card-title-clean">
+            <div>
+                <span class="eyebrow">Contexte</span>
+                <h2>Détails du passage</h2>
+                <p>Informations liées à la soutenance évaluée.</p>
+            </div>
+        </div>
+
+        <div class="info-list">
+            <div class="info-item">
+                <span>Étudiant</span>
+                <strong>{{ jury_student.student.full_name }}</strong>
+            </div>
+
+            <div class="info-item">
+                <span>Matricule</span>
+                <strong>{{ jury_student.student.matricule }}</strong>
+            </div>
+
+            <div class="info-item">
+                <span>Jury</span>
+                <strong>{{ jury_student.jury.name }}</strong>
+            </div>
+
+            <div class="info-item">
+                <span>Date</span>
+                <strong>{{ jury_student.jury.defense_date|date:"d/m/Y" }}</strong>
+            </div>
+        </div>
+
+        <div class="formula-card">
+            <strong>Calcul appliqué</strong>
+            <span>Rapport × 0.30 + Présentation × 0.30 + Questions × 0.40</span>
+        </div>
+
+        <div class="formula-card">
+            <strong>Après l’envoi</strong>
+            <span>L’évaluation devient verrouillée. L’administration pourra la déverrouiller si nécessaire.</span>
+        </div>
+    </aside>
+</div>
+
+<script>
+const rapportInput = document.querySelector('[name="rapport_note"]');
+const presentationInput = document.querySelector('[name="presentation_note"]');
+const questionsInput = document.querySelector('[name="questions_note"]');
+const finalNoteElement = document.getElementById('liveFinalNote');
+
+function parseNote(input) {
+    if (!input || input.value === '') {
+        return null;
+    }
+
+    const value = parseFloat(input.value.replace(',', '.'));
+
+    if (Number.isNaN(value)) {
+        return null;
+    }
+
+    return value;
+}
+
+function formatNote(value) {
+    return value.toFixed(2).replace('.', ',') + '/20';
+}
+
+function updateFinalNote() {
+    const rapport = parseNote(rapportInput);
+    const presentation = parseNote(presentationInput);
+    const questions = parseNote(questionsInput);
+
+    if (!finalNoteElement) {
+        return;
+    }
+
+    if (rapport === null || presentation === null || questions === null) {
+        finalNoteElement.textContent = '-/20';
+        return;
+    }
+
+    const finalNote = (rapport * 0.30) + (presentation * 0.30) + (questions * 0.40);
+    finalNoteElement.textContent = formatNote(finalNote);
+}
+
+if (rapportInput && presentationInput && questionsInput && finalNoteElement) {
+    rapportInput.addEventListener('input', updateFinalNote);
+    presentationInput.addEventListener('input', updateFinalNote);
+    questionsInput.addEventListener('input', updateFinalNote);
+    updateFinalNote();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,1044 @@
+/* ==========================================================================
+   IUP Soutenances — Identité visuelle premium (clair, pétrole + indigo)
+   Chargé après style.css et après le bloc extra_css de chaque page : toutes
+   les règles ci-dessous gagnent la cascade et reskinnent le site entier
+   sans devoir réécrire chaque template.
+   ========================================================================== */
+
+:root {
+    /* Surfaces */
+    --bg: #f3f6f7;
+    --bg-2: #ffffff;
+    --bg-3: #eaf0f1;
+
+    --surface: #ffffff;
+    --surface-strong: #ffffff;
+    --surface-soft: #f4f7f8;
+
+    /* Accent principal : bleu pétrole / turquoise profond */
+    --orange: #0d9488;
+    --orange-dark: #0f766e;
+    --orange-deep: #115e59;
+    --orange-soft: rgba(13, 148, 136, 0.1);
+    --orange-soft-2: rgba(13, 148, 136, 0.18);
+
+    /* Accent secondaire : indigo doux, pour varier les highlights */
+    --accent2: #6366f1;
+    --accent2-dark: #4f46e5;
+    --accent2-soft: rgba(99, 102, 241, 0.1);
+
+    --text: #1c2530;
+    --heading: #0f1720;
+    --muted: #62707c;
+    --muted-soft: #97a4ad;
+
+    --success: #16a34a;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --info: #0284c7;
+
+    --line: rgba(15, 23, 42, 0.08);
+    --line-strong: rgba(15, 23, 42, 0.15);
+
+    --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(15, 23, 42, 0.05);
+    --shadow-card: 0 4px 8px rgba(15, 23, 42, 0.04), 0 16px 32px rgba(15, 23, 42, 0.08);
+    --shadow-lift: 0 10px 24px rgba(15, 23, 42, 0.1);
+
+    --radius-xl: 22px;
+    --radius-lg: 16px;
+    --radius-md: 12px;
+
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Pas de glassmorphism : surfaces nettes, sans flou */
+*,
+*::before,
+*::after {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: radial-gradient(circle at 12% 0%, rgba(13, 148, 136, 0.05), transparent 40%), var(--bg);
+    background-attachment: fixed;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+    background: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--heading);
+    letter-spacing: -0.02em;
+}
+
+a {
+    color: var(--orange-dark);
+    transition: color 0.15s var(--ease);
+}
+
+a:hover {
+    color: var(--orange-deep);
+}
+
+/* ==========================================================================
+   Navbar
+   ========================================================================== */
+
+.app-header {
+    padding: 18px 18px 10px;
+}
+
+.app-header-inner {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-soft);
+    border-radius: 20px;
+}
+
+.app-brand-mark {
+    background: #ffffff;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-soft);
+    display: grid;
+    place-items: center;
+    padding: 4px;
+    overflow: hidden;
+}
+
+.app-nav > a,
+.nav-dropdown > button {
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.app-nav > a:hover,
+.nav-dropdown > button:hover {
+    color: var(--orange-dark);
+    background: var(--orange-soft);
+}
+
+.app-nav > a.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+    box-shadow: 0 6px 14px rgba(13, 148, 136, 0.25);
+}
+
+.nav-dropdown-menu {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-card);
+    border-radius: var(--radius-md);
+}
+
+.nav-dropdown-menu a {
+    color: var(--text);
+    border-radius: 10px;
+}
+
+.nav-dropdown-menu a:hover {
+    background: var(--orange-soft);
+    color: var(--orange-dark);
+}
+
+.app-brand-text strong,
+.app-user-meta strong {
+    color: var(--heading);
+}
+
+.app-user {
+    gap: 12px;
+}
+
+.app-user-avatar {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent2-soft);
+    color: var(--accent2-dark);
+    font-weight: 800;
+    font-size: 0.95rem;
+}
+
+.mobile-nav-btn {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 12px;
+    font-weight: 700;
+}
+
+/* ==========================================================================
+   Surfaces génériques (cards / panels / hero) utilisées dans tout le site.
+   Beaucoup codent en dur un fond translucide dans leur <style> inline : on
+   l'écrase ici par une surface blanche nette, ombre légère, coins doux.
+   ========================================================================== */
+
+.glass-card,
+.content-panel,
+.page-header,
+.hero-panel,
+.toolbar-card,
+.soft-card,
+.jury-card,
+.detail-card,
+.result-card,
+.timeline-item,
+.info-box,
+.info-cell,
+.document-item,
+.comment-box,
+.member-row,
+.evaluation-card,
+.student-line,
+.student-detail-row,
+.empty-state,
+.table-responsive,
+.auth-card,
+.auth-panel,
+.login-card,
+.register-card,
+.glass-panel,
+.availability-card,
+.availability-form-card,
+.availability-panel,
+.availability-grid-card,
+.student-card,
+.student-side-card,
+[class$="-panel"],
+[class$="-card"] {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    color: var(--text);
+    box-shadow: var(--shadow-soft) !important;
+    border-radius: var(--radius-xl) !important;
+}
+
+.glass-card::before,
+.content-panel::before {
+    background: none !important;
+}
+
+.glass-card,
+.content-panel,
+.jury-card,
+.detail-card,
+.result-card,
+.student-card {
+    transition: box-shadow 0.18s var(--ease), transform 0.18s var(--ease);
+}
+
+.jury-card:hover,
+.result-card:hover,
+.student-card:hover {
+    box-shadow: var(--shadow-lift) !important;
+    transform: translateY(-1px);
+}
+
+/* Hero / blocs d'intro : dégradé très doux, liseré coloré à gauche */
+.student-hero-clean,
+.submit-hero,
+.availability-panel,
+.juries-panel,
+.results-panel,
+.evaluation-detail-hero .student-evaluation-panel,
+.student-evaluation-panel,
+.hero-panel,
+[class*="hero"] {
+    background: linear-gradient(155deg, #ffffff, var(--surface-soft)) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+[class*="hero"]::after,
+.page-header::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--orange), var(--accent2));
+    border-radius: 4px 0 0 4px;
+}
+
+[class*="hero"] h1,
+.page-header h1,
+.hero-panel h1 {
+    color: var(--heading) !important;
+    font-weight: 800 !important;
+}
+
+[class*="hero"] p,
+.page-header p {
+    color: var(--muted) !important;
+}
+
+.page-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 26px 28px !important;
+}
+
+/* eyebrow label */
+.eyebrow {
+    color: var(--orange-dark);
+    font-weight: 800;
+}
+
+.eyebrow::before {
+    background: var(--orange);
+    box-shadow: 0 0 0 4px var(--orange-soft);
+}
+
+/* Tags / chips / pills */
+[class*="-tag"],
+[class*="-chip"],
+.member-pill,
+.member-chip {
+    background: var(--orange-soft) !important;
+    border: 1px solid rgba(13, 148, 136, 0.22) !important;
+    color: var(--orange-deep) !important;
+    border-radius: 999px !important;
+    font-weight: 700;
+}
+
+/* Avatars / badges numérotés : alternance pétrole / indigo pour varier */
+[class*="avatar"],
+.step-number,
+.timeline-number,
+.status-dot,
+.avatar-dot {
+    background: linear-gradient(135deg, var(--orange), var(--orange-dark)) !important;
+    color: #ffffff !important;
+    border-radius: 14px !important;
+    font-weight: 800;
+}
+
+/* Boîtes pleines colorées (jury affecté, note finale...) */
+.jury-main-box,
+.final-note-box,
+.date-box {
+    background: linear-gradient(135deg, var(--orange-dark), var(--orange)) !important;
+    color: #ffffff !important;
+    border-radius: var(--radius-lg) !important;
+}
+
+.jury-main-box *,
+.final-note-box *,
+.date-box * {
+    color: #ffffff !important;
+}
+
+.result-box {
+    background: rgba(22, 163, 74, 0.07) !important;
+    border: 1px solid rgba(22, 163, 74, 0.2) !important;
+    border-radius: var(--radius-lg) !important;
+}
+
+.result-box h3 {
+    color: #15803d !important;
+}
+
+/* ==========================================================================
+   Tableaux
+   ========================================================================== */
+
+.table-responsive {
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.table thead th {
+    background: var(--surface-soft);
+    border-bottom: 1px solid var(--line-strong);
+    color: var(--orange-deep);
+    font-weight: 800;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 14px 18px;
+}
+
+.table tbody td {
+    border-bottom-color: var(--line);
+    color: var(--text);
+    padding: 14px 18px;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table tbody tr {
+    transition: background 0.12s var(--ease);
+}
+
+.table tbody tr:hover {
+    background: rgba(13, 148, 136, 0.035);
+}
+
+/* ==========================================================================
+   Formulaires
+   ========================================================================== */
+
+.form-control,
+.form-select,
+input[type="text"],
+input[type="number"],
+input[type="password"],
+input[type="tel"],
+input[type="email"],
+input[type="date"],
+input[type="time"],
+input[type="file"],
+select,
+textarea {
+    background: #ffffff !important;
+    border: 1px solid var(--line-strong) !important;
+    color: var(--text) !important;
+    border-radius: 12px !important;
+    padding: 0.65rem 0.85rem !important;
+    transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+
+.form-control::placeholder,
+input::placeholder,
+textarea::placeholder {
+    color: var(--muted-soft);
+}
+
+.form-control:focus,
+.form-select:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--orange) !important;
+    box-shadow: 0 0 0 3px var(--orange-soft) !important;
+}
+
+select option {
+    background: #ffffff;
+    color: var(--text);
+}
+
+.form-label {
+    color: var(--heading);
+    font-weight: 700;
+    font-size: 0.88rem;
+    margin-bottom: 6px;
+}
+
+.form-help {
+    color: var(--muted);
+}
+
+.form-check-input:checked {
+    background-color: var(--orange);
+    border-color: var(--orange);
+}
+
+/* ==========================================================================
+   Boutons
+   ========================================================================== */
+
+.btn {
+    border-radius: 12px !important;
+    font-weight: 700;
+    padding: 0.55rem 1.05rem;
+    transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease), background 0.12s var(--ease);
+    box-shadow: none !important;
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+.btn-primary {
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+    border-color: transparent;
+}
+
+.btn-primary:hover {
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--orange-dark), var(--orange-deep));
+    box-shadow: 0 8px 16px rgba(13, 148, 136, 0.22) !important;
+}
+
+.btn-secondary {
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--accent2), var(--accent2-dark));
+    border-color: transparent;
+}
+
+.btn-secondary:hover {
+    color: #ffffff;
+    background: var(--accent2-dark);
+    box-shadow: 0 8px 16px rgba(99, 102, 241, 0.22) !important;
+}
+
+.btn-light {
+    color: var(--text);
+    background: var(--surface-soft);
+    border-color: var(--line);
+}
+
+.btn-light:hover {
+    background: #e9eef0;
+    color: var(--text);
+}
+
+.btn-outline-primary {
+    color: var(--orange-dark);
+    background: var(--orange-soft);
+    border-color: rgba(13, 148, 136, 0.3);
+}
+
+.btn-outline-primary:hover {
+    color: #ffffff;
+    background: var(--orange);
+    border-color: var(--orange);
+}
+
+.btn-outline-secondary {
+    color: var(--text);
+    background: #ffffff;
+    border-color: var(--line-strong);
+}
+
+.btn-outline-secondary:hover {
+    color: #ffffff;
+    background: var(--text);
+    border-color: var(--text);
+}
+
+.btn-outline-danger {
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.06);
+    border-color: rgba(220, 38, 38, 0.24);
+}
+
+.btn-outline-danger:hover {
+    color: #ffffff;
+    background: var(--danger);
+    border-color: var(--danger);
+}
+
+.btn-success {
+    color: #ffffff;
+    background: var(--success);
+    border-color: var(--success);
+}
+
+.btn-success:hover {
+    color: #ffffff;
+    background: #15803d;
+    border-color: #15803d;
+}
+
+.btn-danger {
+    background: var(--danger);
+    border-color: var(--danger);
+}
+
+/* ==========================================================================
+   Badges / status pills
+   ========================================================================== */
+
+.badge,
+.status-pill,
+.soft-pill,
+.status-current,
+[class*="status-pill"] {
+    color: var(--muted);
+    background: var(--surface-soft);
+    border: 1px solid var(--line);
+    border-radius: 999px !important;
+    font-weight: 700;
+}
+
+.status-pill.success,
+.soft-pill.success,
+.status-current.accepted,
+.status-pill.accepted {
+    color: #15803d !important;
+    background: rgba(22, 163, 74, 0.1) !important;
+    border-color: rgba(22, 163, 74, 0.24) !important;
+}
+
+.status-pill.warning,
+.soft-pill.warning,
+.status-current.pending-professor,
+.status-current.pending-admin,
+.status-pill.pending,
+.status-pill.pending-admin {
+    color: #92400e !important;
+    background: rgba(217, 119, 6, 0.1) !important;
+    border-color: rgba(217, 119, 6, 0.24) !important;
+}
+
+.status-pill.danger,
+.soft-pill.danger,
+.status-current.refused,
+.status-pill.refused {
+    color: #b91c1c !important;
+    background: rgba(220, 38, 38, 0.1) !important;
+    border-color: rgba(220, 38, 38, 0.24) !important;
+}
+
+.status-pill.info,
+.soft-pill.info {
+    color: var(--accent2-dark) !important;
+    background: var(--accent2-soft) !important;
+    border-color: rgba(99, 102, 241, 0.24) !important;
+}
+
+.status-pill.muted,
+.soft-pill.muted,
+.status-current.other {
+    color: var(--muted) !important;
+    background: var(--surface-soft) !important;
+    border-color: var(--line) !important;
+}
+
+.warning-tag {
+    background: rgba(217, 119, 6, 0.12) !important;
+    color: #92400e !important;
+}
+
+.president-tag {
+    background: rgba(22, 163, 74, 0.12) !important;
+    color: #15803d !important;
+}
+
+.warning-text {
+    color: #92400e !important;
+}
+
+.president-name {
+    color: #15803d !important;
+}
+
+/* ==========================================================================
+   Alertes
+   ========================================================================== */
+
+.alert {
+    border-radius: var(--radius-md) !important;
+    border: 1px solid transparent !important;
+    font-weight: 600;
+}
+
+.alert-success {
+    color: #15803d;
+    background: rgba(22, 163, 74, 0.08);
+    border-color: rgba(22, 163, 74, 0.2) !important;
+}
+
+.alert-danger {
+    color: #b91c1c;
+    background: rgba(220, 38, 38, 0.08);
+    border-color: rgba(220, 38, 38, 0.2) !important;
+}
+
+.alert-warning {
+    color: #92400e;
+    background: rgba(217, 119, 6, 0.08);
+    border-color: rgba(217, 119, 6, 0.2) !important;
+}
+
+.alert-info {
+    color: var(--accent2-dark);
+    background: var(--accent2-soft);
+    border-color: rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Empty state */
+.empty-state {
+    background: var(--surface-soft);
+    border: 1.5px dashed rgba(13, 148, 136, 0.3);
+    color: var(--muted);
+    border-radius: var(--radius-lg);
+    font-weight: 600;
+}
+
+/* Textes secondaires */
+.muted,
+.text-muted,
+.text-muted-small {
+    color: var(--muted) !important;
+}
+
+hr {
+    border-color: var(--line);
+}
+
+/* ==========================================================================
+   Grille hebdomadaire des disponibilités
+   ========================================================================== */
+
+.week-grid-wrapper {
+    overflow-x: auto;
+    border-radius: var(--radius-lg);
+}
+
+.week-grid {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 6px;
+    min-width: 760px;
+}
+
+.week-grid th {
+    padding: 10px 6px;
+    text-align: center;
+    color: var(--orange-deep);
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.week-grid th.hour-col-header {
+    text-align: left;
+    color: var(--muted);
+}
+
+.week-grid td.hour-label {
+    padding: 0 10px;
+    white-space: nowrap;
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 0.84rem;
+}
+
+.week-cell {
+    position: relative;
+    text-align: center;
+    border-radius: 10px;
+    background: var(--surface-soft);
+    border: 1px solid var(--line);
+    transition: 0.14s var(--ease);
+}
+
+.week-cell:hover {
+    border-color: rgba(13, 148, 136, 0.4);
+}
+
+.week-cell.disabled-cell {
+    opacity: 0.4;
+}
+
+.week-cell label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 42px;
+    width: 100%;
+    cursor: pointer;
+    margin: 0;
+}
+
+.week-cell input[type="checkbox"],
+.week-cell input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--orange);
+    cursor: pointer;
+}
+
+.week-cell:has(input:checked) {
+    background: rgba(13, 148, 136, 0.12);
+    border-color: var(--orange);
+}
+
+.week-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.week-nav-label {
+    color: var(--heading);
+    font-weight: 800;
+    font-size: 1.05rem;
+}
+
+/* Indices d'aide (formulaire jury) */
+.helper-hint {
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--accent2-soft);
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    color: var(--accent2-dark);
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.helper-hint.empty {
+    background: rgba(217, 119, 6, 0.08);
+    border-color: rgba(217, 119, 6, 0.22);
+    color: #92400e;
+}
+
+.step-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--orange-soft);
+    color: var(--orange-deep);
+    font-weight: 800;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ==========================================================================
+   Pages login / inscription
+   ========================================================================== */
+
+.auth-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+}
+
+.auth-decoration {
+    display: none;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 520px;
+    padding: 42px;
+    border-radius: 24px !important;
+    box-shadow: var(--shadow-card) !important;
+}
+
+.auth-card.register-card-wide {
+    max-width: 780px;
+}
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 22px;
+}
+
+.auth-brand-mark {
+    width: 58px;
+    height: 58px;
+    flex: 0 0 58px;
+    display: grid;
+    place-items: center;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-soft);
+    padding: 5px;
+    overflow: hidden;
+}
+
+.auth-brand h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--heading);
+}
+
+.auth-form .form-group {
+    margin-bottom: 16px;
+}
+
+.auth-form .btn {
+    padding: 0.85rem 1rem;
+    font-size: 1.02rem;
+}
+
+.auth-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.auth-form-grid .full-width {
+    grid-column: 1 / -1;
+}
+
+.reference-card {
+    grid-column: 1 / -1;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: var(--orange-soft);
+    border: 1px solid rgba(13, 148, 136, 0.2);
+    display: none;
+}
+
+.reference-card.is-visible {
+    display: block;
+}
+
+.reference-card .reference-title {
+    margin: 0 0 6px;
+    color: var(--orange-deep);
+    font-weight: 800;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.reference-card .reference-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    color: var(--text);
+    font-weight: 700;
+}
+
+.reference-card .reference-row span strong {
+    display: block;
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.reference-card.not-found {
+    background: rgba(217, 119, 6, 0.07);
+    border-color: rgba(217, 119, 6, 0.2);
+}
+
+.reference-card.not-found .reference-title {
+    color: #92400e;
+}
+
+/* ==========================================================================
+   Système global pour les groupes de badges / chips / pills
+   De nombreux templates utilisent des noms de classes différents pour les
+   "rangées de badges" sous un titre (chip-row, chips, tags, pill-row...).
+   Une seule règle générique, basée sur un sélecteur d'attribut, corrige
+   l'alignement, l'espacement et le retour à la ligne partout à la fois,
+   sans dépendre du nom exact de la classe ni du template.
+   ========================================================================== */
+
+[class*="chip-row"],
+[class*="-chips"],
+[class*="-tags"],
+[class*="tag-row"],
+[class*="pill-row"],
+[class*="chip-list"] {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-top: 14px;
+    margin-bottom: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Les badges eux-mêmes : hauteur, padding et line-height homogènes pour
+   qu'ils ne se chevauchent jamais, même quand le texte est plus long. */
+[class*="chip-row"] > *,
+[class*="-chips"] > *,
+[class*="-tags"] > *,
+[class*="tag-row"] > *,
+[class*="pill-row"] > *,
+[class*="chip-list"] > * {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 6px 13px;
+    line-height: 1.3;
+    white-space: nowrap;
+    border-radius: 999px;
+}
+
+@media (max-width: 640px) {
+    [class*="chip-row"],
+    [class*="-chips"],
+    [class*="-tags"],
+    [class*="tag-row"],
+    [class*="pill-row"],
+    [class*="chip-list"] {
+        gap: 6px;
+    }
+
+    [class*="chip-row"] > *,
+    [class*="-chips"] > *,
+    [class*="-tags"] > *,
+    [class*="tag-row"] > *,
+    [class*="pill-row"] > *,
+    [class*="chip-list"] > * {
+        font-size: 0.78rem;
+        padding: 5px 10px;
+    }
+}
+
+/* ==========================================================================
+   Logo IUP
+   ========================================================================== */
+
+.app-brand-logo {
+    height: 100%;
+    width: 100%;
+    max-height: 40px;
+    max-width: 40px;
+    object-fit: contain;
+    display: block;
+}
+
+.auth-brand-logo {
+    height: 100%;
+    width: 100%;
+    max-height: 48px;
+    max-width: 48px;
+    object-fit: contain;
+    display: block;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 720px) {
+    .auth-card {
+        padding: 26px;
+    }
+
+    .auth-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .page-header {
+        padding: 20px !important;
+    }
+}

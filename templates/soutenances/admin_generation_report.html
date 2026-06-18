@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Rapport de génération{% endblock %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="hero-panel">
+        <div>
+            <p class="eyebrow">Administration</p>
+            <h1>Rapport de génération automatique</h1>
+        </div>
+        <div class="hero-actions">
+            <a href="{% url 'admin_jury_list' %}" class="btn btn-primary">Voir les jurys</a>
+        </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="soft-grid" style="margin-bottom: 2rem;">
+        <article class="soft-card">
+            <span class="label">Étudiants prêts</span>
+            <strong>{{ result.report.total_ready }}</strong>
+        </article>
+        <article class="soft-card">
+            <span class="label">Jurys créés</span>
+            <strong>{{ result.created }}</strong>
+        </article>
+        <article class="soft-card">
+            <span class="label">Étudiants affectés</span>
+            <strong>{{ result.assigned }}</strong>
+        </article>
+        <article class="soft-card">
+            <span class="label">Non affectés</span>
+            <strong>{{ result.errors|length }}</strong>
+        </article>
+    </div>
+
+    <!-- Students per advisor before generation -->
+    {% if result.report.by_encadrant_before %}
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">Répartition initiale par encadrant</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Encadrant</th>
+                        <th class="text-center">Étudiants prêts</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for enc_name, count in result.report.by_encadrant_before.items %}
+                    <tr>
+                        <td>{{ enc_name }}</td>
+                        <td class="text-center">{{ count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Juries created -->
+    {% if result.report.juries %}
+    <h2 class="h5 mb-3">Jurys générés ({{ result.report.juries|length }})</h2>
+    {% for entry in result.report.juries %}
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">{{ entry.jury_name }}</span>
+            <span class="text-muted small">{{ entry.defense_date }} — créneau {{ entry.slot_start|time:"H:i" }} — capacité {{ entry.capacity }} étudiant(s)</span>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Membre du jury</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member_name in entry.members %}
+                    <tr><td>{{ member_name }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <hr class="my-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Étudiant</th>
+                        <th>Encadrant</th>
+                        <th class="text-center">Heure de passage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in entry.students_scheduled %}
+                    <tr>
+                        <td>{{ s.name }}</td>
+                        <td>{{ s.encadrant }}</td>
+                        <td class="text-center">{{ s.start_time|time:"H:i" }} → {{ s.end_time|time:"H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="alert alert-info">Aucun jury n'a pu être généré.</div>
+    {% endif %}
+
+    <!-- Unassigned students -->
+    {% if result.errors %}
+    <h2 class="h5 mb-3 mt-4">Étudiants non affectés ({{ result.errors|length }})</h2>
+    <div class="card">
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Étudiant</th>
+                        <th>Encadrant</th>
+                        <th>Raison</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for err in result.errors %}
+                    <tr>
+                        <td>{{ err.student.full_name }}</td>
+                        <td>{{ err.student.encadrant.full_name|default:"—" }}</td>
+                        <td class="text-danger small">{{ err.message }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{% url 'admin_jury_list' %}" class="btn btn-secondary">Retour aux jurys</a>
+    </div>
+</section>
+{% endblock %}

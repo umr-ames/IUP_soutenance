@@ -1,0 +1,692 @@
+import datetime
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+
+from accounts.decorators import role_required
+from soutenances.models import Evaluation, Jury, JuryStudent, PFERequest
+from students.models import StudentProfile, StudentReference
+
+from .forms import (
+    EvaluationForm,
+    ProfessorRequestDecisionForm,
+)
+from .models import ProfessorAvailability, ProfessorProfile
+
+
+SESSION_START_DATE = datetime.date(2026, 6, 1)
+SESSION_END_DATE = datetime.date(2026, 7, 10)
+GRID_START_HOUR = 9
+GRID_END_HOUR = 19
+
+
+def get_professor_profile(request):
+    try:
+        return request.user.professor_profile
+    except Exception:
+        return None
+
+
+def monday_of(value):
+    return value - datetime.timedelta(days=value.weekday())
+
+
+def clamp_week_start(week_start):
+    earliest = monday_of(min(timezone.localdate(), SESSION_START_DATE))
+    latest = monday_of(SESSION_END_DATE)
+
+    if week_start < earliest:
+        return earliest
+
+    if week_start > latest:
+        return latest
+
+    return week_start
+
+
+def parse_week_start(raw_value):
+    if raw_value:
+        try:
+            return clamp_week_start(
+                datetime.date.fromisoformat(raw_value)
+            )
+        except ValueError:
+            pass
+
+    return clamp_week_start(monday_of(timezone.localdate()))
+
+
+@login_required
+@role_required(["admin"])
+def admin_professor_availability(request):
+    availabilities = ProfessorAvailability.objects.select_related(
+        "professor"
+    ).order_by(
+        "date",
+        "start_time"
+    )
+
+    professor_id = request.GET.get("professor")
+    filtered_professor = None
+
+    if professor_id:
+        availabilities = availabilities.filter(professor_id=professor_id)
+        filtered_professor = ProfessorProfile.objects.filter(id=professor_id).first()
+
+    today = timezone.localdate()
+
+    # Regroupement par professeur : une seule ligne par professeur, avec ses
+    # créneaux regroupés par date pour la section détails.
+    professors_by_id = {}
+
+    for availability in availabilities:
+        professor = availability.professor
+
+        entry = professors_by_id.get(professor.id)
+
+        if entry is None:
+            entry = {
+                "professor": professor,
+                "slots_count": 0,
+                "days": {},
+                "next_date": None,
+            }
+            professors_by_id[professor.id] = entry
+
+        entry["slots_count"] += 1
+        entry["days"].setdefault(availability.date, []).append(availability)
+
+        if availability.date >= today and (
+            entry["next_date"] is None or availability.date < entry["next_date"]
+        ):
+            entry["next_date"] = availability.date
+
+    professor_rows = []
+
+    for entry in professors_by_id.values():
+        sorted_dates = sorted(entry["days"].keys())
+
+        professor_rows.append({
+            "professor": entry["professor"],
+            "slots_count": entry["slots_count"],
+            "days_count": len(sorted_dates),
+            "next_date": entry["next_date"],
+            "days": [
+                {"date": date, "slots": entry["days"][date]}
+                for date in sorted_dates
+            ],
+        })
+
+    professor_rows.sort(key=lambda row: row["professor"].full_name.lower())
+
+    return render(request, "professors/admin_professor_availability.html", {
+        "professor_rows": professor_rows,
+        "filtered_professor": filtered_professor,
+    })
+
+
+@login_required
+@role_required(["professor"])
+def professor_availability(request):
+    professor = get_professor_profile(request)
+
+    if not professor:
+        messages.error(request, "Votre profil professeur n'est pas encore configuré.")
+        return redirect("professor_dashboard")
+
+    if request.method == "POST":
+        week_start = parse_week_start(request.POST.get("week_start"))
+        week_dates = [week_start + datetime.timedelta(days=i) for i in range(7)]
+
+        checked_hours_by_date = {}
+
+        for day in week_dates:
+            checked_hours = []
+
+            for hour in range(GRID_START_HOUR, GRID_END_HOUR):
+                field_name = f"slot_{day.isoformat()}_{hour}"
+
+                if request.POST.get(field_name):
+                    checked_hours.append(hour)
+
+            if checked_hours:
+                checked_hours_by_date[day] = checked_hours
+
+        ProfessorAvailability.objects.filter(
+            professor=professor,
+            date__in=week_dates,
+        ).delete()
+
+        created_count = 0
+
+        for day, hours in checked_hours_by_date.items():
+            for start_hour, end_hour in merge_consecutive_hours(hours):
+                ProfessorAvailability.objects.create(
+                    professor=professor,
+                    date=day,
+                    start_time=datetime.time(start_hour, 0),
+                    end_time=datetime.time(end_hour, 0),
+                )
+                created_count += 1
+
+        messages.success(
+            request,
+            f"Disponibilités enregistrées pour la semaine du {week_start.strftime('%d/%m/%Y')} "
+            f"({created_count} créneau(x))."
+        )
+
+        return redirect(f"{request.path}?week={week_start.isoformat()}")
+
+    week_start = parse_week_start(request.GET.get("week"))
+    week_dates = [week_start + datetime.timedelta(days=i) for i in range(7)]
+
+    existing = ProfessorAvailability.objects.filter(
+        professor=professor,
+        date__range=(week_dates[0], week_dates[-1]),
+    )
+
+    checked_cells = set()
+
+    for availability in existing:
+        start_hour = availability.start_time.hour
+        end_hour = availability.end_time.hour
+
+        for hour in range(max(start_hour, GRID_START_HOUR), min(end_hour, GRID_END_HOUR)):
+            checked_cells.add((availability.date, hour))
+
+    hours = list(range(GRID_START_HOUR, GRID_END_HOUR))
+
+    grid_rows = []
+    for hour in hours:
+        row_cells = []
+        for day in week_dates:
+            row_cells.append({
+                "date": day,
+                "hour": hour,
+                "checked": (day, hour) in checked_cells,
+                "disabled": day < timezone.localdate() or day > SESSION_END_DATE,
+            })
+        grid_rows.append({"hour": hour, "cells": row_cells})
+
+    today = timezone.localdate()
+    earliest_week = clamp_week_start(monday_of(min(today, SESSION_START_DATE)))
+    latest_week = clamp_week_start(monday_of(SESSION_END_DATE))
+
+    prev_week = week_start - datetime.timedelta(days=7)
+    next_week = week_start + datetime.timedelta(days=7)
+
+    all_availabilities = ProfessorAvailability.objects.filter(
+        professor=professor
+    ).order_by("date", "start_time")
+
+    return render(request, "professors/professor_availability.html", {
+        "week_start": week_start,
+        "week_end": week_dates[-1],
+        "week_days": week_dates,
+        "grid_rows": grid_rows,
+        "can_go_prev": week_start > earliest_week,
+        "can_go_next": week_start < latest_week,
+        "prev_week": prev_week.isoformat(),
+        "next_week": next_week.isoformat(),
+        "session_end_date": SESSION_END_DATE,
+        "availabilities": all_availabilities,
+    })
+
+
+def merge_consecutive_hours(hours):
+    """Turn [9, 10, 11, 14] into [(9, 12), (14, 15)] (end exclusive)."""
+    if not hours:
+        return []
+
+    sorted_hours = sorted(hours)
+    ranges = []
+    range_start = sorted_hours[0]
+    previous = sorted_hours[0]
+
+    for hour in sorted_hours[1:]:
+        if hour == previous + 1:
+            previous = hour
+            continue
+
+        ranges.append((range_start, previous + 1))
+        range_start = hour
+        previous = hour
+
+    ranges.append((range_start, previous + 1))
+    return ranges
+
+
+@login_required
+@role_required(["professor"])
+def professor_supervised_students(request):
+    professor = get_professor_profile(request)
+
+    if not professor:
+        messages.error(request, "Votre profil professeur n'est pas encore configuré.")
+        return redirect("professor_dashboard")
+
+    # Source officielle : StudentReference (inclut les étudiants sans compte)
+    refs = StudentReference.objects.filter(
+        encadrant_name=professor.full_name
+    ).order_by("full_name")
+
+    # Index des profils existants par matricule pour jointure rapide
+    profile_map = {
+        sp.matricule: sp
+        for sp in StudentProfile.objects.filter(
+            matricule__in=refs.values_list("matricule", flat=True)
+        ).select_related("user").prefetch_related("pfe_request")
+    }
+
+    rows = []
+    for ref in refs:
+        profile = profile_map.get(ref.matricule)
+        pfe_request = None
+        if profile:
+            try:
+                pfe_request = profile.pfe_request
+            except Exception:
+                pass
+        rows.append({
+            "ref":        ref,
+            "profile":    profile,
+            "has_account": profile is not None,
+            "pfe_request": pfe_request,
+        })
+
+    # Étudiants avec compte qui ne seraient pas dans StudentReference
+    # (cas d'encadrant via FK directe sans référence officielle)
+    ref_matricules = {r.matricule for r in refs}
+    extra_profiles = professor.students.select_related("user").prefetch_related(
+        "pfe_request"
+    ).exclude(matricule__in=ref_matricules)
+    for profile in extra_profiles.order_by("full_name"):
+        pfe_request = None
+        try:
+            pfe_request = profile.pfe_request
+        except Exception:
+            pass
+        rows.append({
+            "ref": None,
+            "profile": profile,
+            "has_account": True,
+            "pfe_request": pfe_request,
+        })
+
+    rows.sort(key=lambda r: (not r["has_account"], (r["ref"] or r["profile"]).full_name))
+
+    return render(request, "professors/professor_supervised_students.html", {
+        "professor": professor,
+        "rows": rows,
+    })
+
+
+@login_required
+@role_required(["professor"])
+def professor_requests(request):
+    professor = get_professor_profile(request)
+
+    if not professor:
+        messages.error(request, "Votre profil professeur n'est pas encore configuré.")
+        return redirect("professor_dashboard")
+
+    requests = PFERequest.objects.filter(
+        student__encadrant=professor
+    ).select_related(
+        "student",
+        "student__encadrant",
+    ).order_by(
+        "-submitted_at"
+    )
+
+    return render(request, "professors/professor_requests.html", {
+        "professor": professor,
+        "requests": requests,
+    })
+
+
+@login_required
+@role_required(["professor"])
+def professor_request_detail(request, pk):
+    professor = get_professor_profile(request)
+
+    if not professor:
+        messages.error(request, "Votre profil professeur n'est pas encore configuré.")
+        return redirect("professor_dashboard")
+
+    pfe_request = get_object_or_404(
+        PFERequest.objects.select_related(
+            "student",
+            "student__encadrant",
+        ),
+        pk=pk,
+        student__encadrant=professor,
+    )
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        comment = (
+            request.POST.get("professor_comment")
+            or request.POST.get("comment")
+            or ""
+        )
+
+        form = ProfessorRequestDecisionForm({
+            "action": action,
+            "professor_comment": comment,
+        })
+
+        if form.is_valid():
+            if pfe_request.status != PFERequest.STATUS_PENDING_PROFESSOR:
+                messages.error(request, "Cette demande a déjà été traitée.")
+                return redirect("professor_request_detail", pk=pfe_request.pk)
+
+            if action == "accept":
+                pfe_request.professor_accept(professor)
+
+                messages.success(
+                    request,
+                    "La demande a été validée et envoyée à l'administration."
+                )
+
+                return redirect("professor_requests")
+
+            if action == "refuse":
+                pfe_request.professor_refuse(professor, comment)
+
+                messages.success(request, "La demande a été refusée.")
+
+                return redirect("professor_requests")
+        else:
+            messages.error(request, form.errors)
+
+    return render(request, "professors/professor_request_detail.html", {
+        "pfe_request": pfe_request,
+    })
+
+
+@login_required
+@role_required(["professor"])
+def professor_start_presentation(request, jury_student_id):
+    professor = get_professor_profile(request)
+
+    jury_student = get_object_or_404(
+        JuryStudent.objects.select_related("president", "jury"),
+        pk=jury_student_id,
+    )
+
+    if not professor or jury_student.president_id != professor.id:
+        messages.error(request, "Seul le président de soutenance peut démarrer cette soutenance.")
+        return redirect("professor_my_juries")
+
+    if request.method == "POST":
+        jury_student.start_presentation(request.user)
+        messages.success(
+            request,
+            "La soutenance a été démarrée. Les évaluations sont maintenant ouvertes."
+        )
+
+    return redirect("professor_my_juries")
+
+
+@login_required
+@role_required(["professor"])
+def professor_set_pfe_soutenable(request, jury_student_id):
+    """Seul le président peut décider si le PFE est soutenable ou non."""
+    professor = get_professor_profile(request)
+
+    jury_student = get_object_or_404(
+        JuryStudent.objects.select_related("student", "jury"),
+        pk=jury_student_id,
+    )
+
+    if not professor or jury_student.president_id != professor.id:
+        messages.error(request, "Seul le président de soutenance peut prendre cette décision.")
+        return redirect("professor_my_juries")
+
+    if not jury_student.presentation_started:
+        messages.error(request, "La soutenance doit être démarrée avant de prendre cette décision.")
+        return redirect("professor_my_juries")
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "soutenable":
+            JuryStudent.objects.filter(pk=jury_student.pk).update(
+                pfe_soutenable_status=JuryStudent.PFE_SOUTENABLE_OUI,
+                pfe_soutenable_decided_at=timezone.now(),
+                pfe_soutenable_decided_by=request.user,
+            )
+            messages.success(request, f"PFE de {jury_student.student.full_name} déclaré soutenable.")
+        elif action == "non_soutenable":
+            JuryStudent.objects.filter(pk=jury_student.pk).update(
+                pfe_soutenable_status=JuryStudent.PFE_SOUTENABLE_NON,
+                pfe_soutenable_decided_at=timezone.now(),
+                pfe_soutenable_decided_by=request.user,
+            )
+            messages.success(
+                request,
+                f"PFE de {jury_student.student.full_name} déclaré non soutenable. "
+                "Les évaluations sont bloquées."
+            )
+        else:
+            messages.error(request, "Action invalide.")
+
+    return redirect("professor_my_juries")
+
+
+@login_required
+@role_required(["professor"])
+def professor_my_juries(request):
+    professor = get_professor_profile(request)
+
+    if not professor:
+        messages.error(request, "Votre profil professeur n'est pas encore configuré.")
+        return redirect("professor_dashboard")
+
+    juries = Jury.objects.filter(
+        members__professor=professor,
+        is_validated=True,
+    ).prefetch_related(
+        "members__professor",
+        "students__student",
+        "students__student__encadrant",
+    ).distinct().order_by(
+        "-defense_date",
+        "name",
+    )
+
+    now = timezone.localtime()
+
+    return render(request, "professors/professor_my_juries.html", {
+        "professor": professor,
+        "juries": juries,
+        "now_date": now.date(),
+        "now_time": now.time(),
+    })
+
+
+@login_required
+@role_required(["professor"])
+def professor_evaluations(request):
+    professor = get_professor_profile(request)
+
+    if not professor:
+        messages.error(request, "Votre profil professeur n'est pas encore configuré.")
+        return redirect("professor_dashboard")
+
+    jury_students = JuryStudent.objects.filter(
+        jury__members__professor=professor
+    ).select_related(
+        "student",
+        "jury",
+        "student__encadrant",
+    ).distinct().order_by(
+        "jury__defense_date",
+        "jury__name",
+        "student__full_name",
+    )
+
+    rows = []
+
+    for jury_student in jury_students:
+        evaluation = Evaluation.objects.filter(
+            jury_student=jury_student,
+            professor=professor,
+        ).first()
+
+        rows.append({
+            "jury_student": jury_student,
+            "evaluation": evaluation,
+        })
+
+    return render(request, "professors/professor_evaluations.html", {
+        "professor": professor,
+        "rows": rows,
+    })
+
+
+@login_required
+@role_required(["professor"])
+def professor_evaluation_detail(request, jury_student_id):
+    professor = get_professor_profile(request)
+
+    if not professor:
+        messages.error(request, "Votre profil professeur n'est pas encore configuré.")
+        return redirect("professor_dashboard")
+
+    jury_student = get_object_or_404(
+        JuryStudent.objects.select_related(
+            "student",
+            "jury",
+            "student__encadrant",
+        ),
+        pk=jury_student_id,
+        jury__members__professor=professor,
+    )
+
+    existing_evaluation = Evaluation.objects.filter(
+        jury_student=jury_student,
+        professor=professor,
+    ).first()
+
+    if existing_evaluation:
+        evaluation = existing_evaluation
+    else:
+        evaluation = Evaluation(
+            jury_student=jury_student,
+            professor=professor
+        )
+
+    if request.method == "POST":
+        if not jury_student.presentation_started:
+            messages.error(
+                request,
+                "La soutenance n'a pas encore démarré. Le président doit d'abord la démarrer."
+            )
+            return redirect("professor_evaluation_detail", jury_student_id=jury_student.id)
+
+        if jury_student.pfe_soutenable_status == JuryStudent.PFE_SOUTENABLE_PENDING:
+            messages.error(
+                request,
+                "Le président doit d'abord confirmer que le PFE est soutenable."
+            )
+            return redirect("professor_evaluation_detail", jury_student_id=jury_student.id)
+
+        if jury_student.pfe_soutenable_status == JuryStudent.PFE_SOUTENABLE_NON:
+            messages.error(
+                request,
+                "Ce PFE a été déclaré non soutenable. Aucune évaluation ne peut être saisie."
+            )
+            return redirect("professor_evaluation_detail", jury_student_id=jury_student.id)
+
+        if existing_evaluation and existing_evaluation.is_locked:
+            messages.error(
+                request,
+                "Cette évaluation est déjà envoyée et verrouillée."
+            )
+
+            return redirect(
+                "professor_evaluation_detail",
+                jury_student_id=jury_student.id
+            )
+
+        form = EvaluationForm(
+            request.POST,
+            instance=evaluation
+        )
+
+        if form.is_valid():
+            evaluation = form.save(commit=False)
+            evaluation.jury_student = jury_student
+            evaluation.professor = professor
+
+            action = request.POST.get("action")
+
+            if action == "save":
+                evaluation.save()
+
+                messages.success(
+                    request,
+                    "Évaluation enregistrée comme brouillon."
+                )
+
+                return redirect(
+                    "professor_evaluation_detail",
+                    jury_student_id=jury_student.id
+                )
+
+            if action == "submit":
+                evaluation.submit()
+
+                messages.success(
+                    request,
+                    "Évaluation envoyée avec succès."
+                )
+
+                return redirect("professor_evaluations")
+
+            messages.error(request, "Action invalide.")
+        else:
+            messages.error(request, "Veuillez corriger les erreurs du formulaire.")
+    else:
+        form = EvaluationForm(instance=evaluation)
+
+    return render(request, "professors/professor_evaluation_detail.html", {
+        "professor": professor,
+        "jury_student": jury_student,
+        "evaluation": existing_evaluation,
+        "form": form,
+        "is_pfe_soutenable_pending": jury_student.pfe_soutenable_status == JuryStudent.PFE_SOUTENABLE_PENDING,
+        "is_pfe_soutenable": jury_student.pfe_soutenable_status == JuryStudent.PFE_SOUTENABLE_OUI,
+        "is_pfe_non_soutenable": jury_student.pfe_soutenable_status == JuryStudent.PFE_SOUTENABLE_NON,
+        "is_evaluation_locked": bool(existing_evaluation and existing_evaluation.is_locked),
+    })
+
+
+@login_required
+@role_required(["professor"])
+def professor_submitted_notes(request):
+    professor = get_professor_profile(request)
+
+    if not professor:
+        messages.error(request, "Votre profil professeur n'est pas encore configuré.")
+        return redirect("professor_dashboard")
+
+    evaluations = Evaluation.objects.filter(
+        professor=professor,
+        is_submitted=True,
+    ).select_related(
+        "jury_student",
+        "jury_student__student",
+        "jury_student__jury",
+    ).order_by(
+        "-submitted_at"
+    )
+
+    return render(request, "professors/professor_submitted_notes.html", {
+        "professor": professor,
+        "evaluations": evaluations,
+    })

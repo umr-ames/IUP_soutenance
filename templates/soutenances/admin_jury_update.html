@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block title %}Modifier le jury{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Administration</span>
+        <h1>Modifier le jury</h1>
+        <p>{{ jury.name }}</p>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'admin_jury_detail' jury.pk %}" class="btn btn-outline-secondary">
+            Voir le détail
+        </a>
+        <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">
+            Retour aux jurys
+        </a>
+    </div>
+</div>
+
+<!-- ── Section 1 : Créneau réel + Composition actuelle ────────────────────── -->
+<div class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Section 1</span>
+            <h3>Composition actuelle</h3>
+            <p class="text-muted mb-0">
+                {% if has_real_slot %}
+                    Créneau du jury :
+                    <strong>{{ real_slot_date|date:"d/m/Y" }} — {{ real_slot_start|time:"H:i" }}–{{ real_slot_end|time:"H:i" }}</strong>
+                    — utilisé automatiquement pour le filtrage des professeurs.
+                {% else %}
+                    <span class="text-warning">
+                        Aucun créneau planifié pour ce jury.
+                        Ajoutez d'abord un étudiant ou planifiez le jury.
+                    </span>
+                {% endif %}
+            </p>
+        </div>
+
+        {% if current_members_count < 3 %}
+            <span class="status-pill warning">Jury incomplet ({{ current_members_count }}/3)</span>
+        {% else %}
+            <span class="status-pill success">3/3 membres</span>
+        {% endif %}
+    </div>
+
+    <div class="row g-2 mt-2">
+        {% for row in member_rows %}
+            <div class="col-md-4">
+                <div class="timeline-item h-100">
+                    <strong>{{ row.professor.full_name }}</strong>
+
+                    <div class="d-flex flex-wrap gap-1 mt-2">
+                        {% if row.supervised_here %}
+                            <span class="status-pill info">
+                                Encadrant de {{ row.supervised_here|length }} étudiant(s)
+                            </span>
+                        {% else %}
+                            <span class="status-pill muted">Membre</span>
+                        {% endif %}
+
+                        {% if has_real_slot %}
+                            {% if row.is_available == True %}
+                                <span class="status-pill success">Disponible à ce créneau</span>
+                            {% elif row.is_available == False %}
+                                <span class="status-pill danger">Indisponible à ce créneau</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-2">
+                        {% if row.can_remove %}
+                            <form method="post"
+                                  onsubmit="return confirm('Retirer {{ row.professor.full_name }} du jury ?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="remove_member">
+                                <input type="hidden" name="professor_id" value="{{ row.professor.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    Retirer
+                                </button>
+                            </form>
+                        {% else %}
+                            <span class="status-pill danger" title="{{ row.cannot_remove_reason }}">
+                                Retrait bloqué — encadrant actif
+                            </span>
+                            <small class="text-muted d-block mt-1">{{ row.cannot_remove_reason }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="empty-state">Aucun membre dans ce jury.</div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ── Section 2 : Ajouter un membre disponible ───────────────────────────── -->
+<div class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Section 2</span>
+            <h3>Ajouter un membre disponible</h3>
+            <p class="text-muted mb-0">
+                {% if has_real_slot %}
+                    Seuls les professeurs disponibles le
+                    <strong>{{ real_slot_date|date:"d/m/Y" }} à {{ real_slot_start|time:"H:i" }}</strong>
+                    et sans conflit d'horaire sont proposés.
+                {% else %}
+                    Aucun créneau détecté — ajoutez d'abord un étudiant avec son horaire.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    {% if not has_real_slot %}
+        <div class="helper-hint empty">
+            Impossible de proposer des professeurs sans créneau planifié.
+        </div>
+    {% elif current_members_count >= 3 %}
+        <div class="helper-hint">Le jury contient déjà 3 professeurs.</div>
+    {% elif add_member_form %}
+        {% if addable_count == 0 %}
+            <div class="helper-hint empty">
+                Aucun professeur disponible à ce créneau ({{ real_slot_date|date:"d/m/Y" }}
+                à {{ real_slot_start|time:"H:i" }}).
+            </div>
+        {% else %}
+            <form method="post" class="row g-2 align-items-end mt-1">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_member">
+                <div class="col-md-8">
+                    {{ add_member_form.professor }}
+                    {% if add_member_form.professor.errors %}
+                        <div class="form-error">{{ add_member_form.professor.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">Ajouter</button>
+                </div>
+            </form>
+            <small class="form-help d-block mt-2">
+                {{ addable_count }} professeur(s) disponible(s) à ce créneau.
+            </small>
+        {% endif %}
+    {% endif %}
+</div>
+
+<!-- ── Section 3 : Étudiants affectés ────────────────────────────────────── -->
+{% if jury_students %}
+<div class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Section 3</span>
+            <h3>Étudiants affectés ({{ jury_students|length }})</h3>
+        </div>
+    </div>
+
+    <div class="row g-2">
+        {% for js in jury_students %}
+            <div class="col-md-4">
+                <div class="timeline-item h-100">
+                    <strong>{{ js.student.full_name }}</strong>
+                    <span class="d-block text-muted">
+                        {{ js.student.matricule }}
+                        {% if js.student.filiere %} · {{ js.student.filiere }}{% endif %}
+                    </span>
+                    <span class="d-block text-muted">
+                        Encadrant : {{ js.student.encadrant.full_name }}
+                    </span>
+
+                    {% if js.schedule %}
+                        <span class="status-pill success mt-1">
+                            {{ js.schedule.start_time|time:"H:i" }} → {{ js.schedule.end_time|time:"H:i" }}
+                        </span>
+                    {% else %}
+                        <span class="status-pill warning mt-1">Non planifié</span>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Section 3</span>
+            <h3>Étudiants affectés</h3>
+            <p class="text-muted mb-0">Aucun étudiant affecté à ce jury pour le moment.</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Section 4 : Zone danger — Supprimer le jury ────────────────────────── -->
+<div class="glass-card" style="border: 1px solid rgba(220,38,38,0.25);">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow" style="color: #dc2626;">Zone danger</span>
+            <h3>Supprimer le jury</h3>
+            <p class="text-muted mb-0">
+                Supprime définitivement le jury, ses membres et les horaires planifiés.
+                <strong>Bloqué si des évaluations ou résultats existent.</strong>
+            </p>
+        </div>
+    </div>
+
+    <form method="post" action="{% url 'admin_jury_delete' jury.pk %}"
+          onsubmit="return confirm('Supprimer définitivement le jury « {{ jury.name }} » ?\nCette action est irréversible.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger mt-2">
+            Supprimer ce jury
+        </button>
+    </form>
+</div>
+
+{% endblock %}

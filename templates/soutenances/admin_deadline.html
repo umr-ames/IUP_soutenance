@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Date limite{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Date limite</h1>
+        <p>Controle de la periode de depot des demandes.</p>
+    </div>
+</div>
+
+<section class="content-panel">
+    <form method="post" class="row g-3 align-items-end">
+        {% csrf_token %}
+        <div class="col-md-4">
+            <label class="form-label" for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+            {{ form.title }}
+            {{ form.title.errors }}
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="{{ form.deadline_date.id_for_label }}">{{ form.deadline_date.label }}</label>
+            {{ form.deadline_date }}
+            {{ form.deadline_date.errors }}
+        </div>
+        <div class="col-md-2">
+            <div class="form-check">
+                {{ form.is_active }}
+                <label class="form-check-label" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100" type="submit">Enregistrer</button>
+        </div>
+    </form>
+</section>
+
+<section class="content-panel">
+    <h2>Historique</h2>
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead><tr><th>Titre</th><th>Date</th><th>Statut</th></tr></thead>
+            <tbody>
+                {% for deadline in deadlines %}
+                    <tr>
+                        <td>{{ deadline.title }}</td>
+                        <td>{{ deadline.deadline_date|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            {% if deadline.is_active %}
+                                <span class="badge text-bg-success">Active</span>
+                            {% else %}
+                                <span class="badge text-bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="3"><div class="empty-state">Aucune date limite.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

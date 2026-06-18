@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Jurys{% endblock %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="hero-panel">
+        <div>
+            <p class="eyebrow">Administration</p>
+            <h1>Gestion des jurys</h1>
+        </div>
+
+        <div class="hero-actions">
+            <form method="post" action="{% url 'admin_generate_juries' %}">
+                {% csrf_token %}
+                {{ generation_form.auto_generation }}
+                <button type="submit" class="btn btn-primary">
+                    Générer automatiquement
+                </button>
+            </form>
+
+            <a href="{% url 'admin_jury_quick_create' %}" class="btn btn-secondary">
+                Préparer un jury
+            </a>
+
+            <a href="{% url 'admin_jury_create' %}" class="btn btn-light">
+                Créer manuellement
+            </a>
+
+            <a href="{% url 'export_juries_pdf' %}" class="btn btn-light">
+                Export PDF
+            </a>
+        </div>
+    </div>
+
+    <div class="soft-grid">
+        <article class="soft-card">
+            <span class="label">Total jurys</span>
+            <strong>{{ total_juries_count|default:"0" }}</strong>
+        </article>
+
+        <article class="soft-card">
+            <span class="label">Publiés</span>
+            <strong>{{ published_juries_count|default:"0" }}</strong>
+        </article>
+
+        <article class="soft-card">
+            <span class="label">Brouillons</span>
+            <strong>{{ draft_juries_count|default:"0" }}</strong>
+        </article>
+
+        <article class="soft-card">
+            <span class="label">Étudiants en attente</span>
+            <strong>{{ pending_students_count|default:"0" }}</strong>
+        </article>
+    </div>
+
+    <div class="toolbar-card">
+        <div>
+            <h2>Liste des jurys</h2>
+            </p>
+        </div>
+
+        <div class="search-box">
+            <input
+                type="search"
+                id="jurySearch"
+                placeholder="Rechercher jury, étudiant, encadrant ou président..."
+            >
+        </div>
+    </div>
+
+    <div class="jury-board" id="juryBoard">
+        {% for jury in juries %}
+            <article class="jury-card" data-search="{{ jury.name }} {% for member in jury.members.all %} {{ member.professor.full_name }} {% endfor %} {% for item in jury.students.all %} {{ item.student.full_name }} {{ item.student.matricule }} {{ item.student.encadrant.full_name }} {% if item.president %} {{ item.president.full_name }} {% endif %} {% endfor %}">
+                <div class="jury-card-header">
+                    <div>
+                        <p class="eyebrow">Jury</p>
+                        <h3>{{ jury.name }}</h3>
+                        <p class="muted">
+                            Date : {{ jury.defense_date|date:"d/m/Y" }}
+                        </p>
+                    </div>
+
+                    <div class="status-stack">
+                        {% if jury.is_validated %}
+                            <span class="status-pill success">Publié</span>
+                        {% else %}
+                            <span class="status-pill warning">Non publié</span>
+                        {% endif %}
+                        <span class="status-pill">
+                            {{ jury.students.count }} étudiant(s)
+                        </span>
+                    </div>
+                </div>
+
+                <div class="jury-section">
+                    <h4>Membres du jury</h4>
+                    <div class="pill-row">
+                        {% for member in jury.members.all %}
+                            <span class="member-pill">
+                                {{ member.professor.full_name }}
+                            </span>
+                        {% empty %}
+                            <span class="muted">Aucun membre.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="jury-section">
+                    <h4>Étudiants affectés</h4>
+
+                    {% if jury.students.all %}
+                        <div class="student-list">
+                            {% for item in jury.students.all %}
+                                <div class="student-line">
+                                    <div>
+                                        <strong>{{ item.student.full_name }}</strong>
+                                        <p class="muted">
+                                            {{ item.student.matricule }}
+                                            {% if item.student.filiere %}
+                                                · {{ item.student.filiere }}
+                                            {% endif %}
+                                        </p>
+
+                                        <div class="mini-tags">
+                                            <span>
+                                                Encadrant : {{ item.student.encadrant.full_name }}
+                                            </span>
+
+                                            {% if item.president %}
+                                                <span class="president-tag">
+                                                    Président : {{ item.president.full_name }}
+                                                </span>
+                                            {% else %}
+                                                <span class="warning-tag">
+                                                    Président non défini
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <div class="student-time">
+                                        {% if item.schedule %}
+                                            <span>{{ item.schedule.start_time|time:"H:i" }}</span>
+                                            <small>{{ item.schedule.end_time|time:"H:i" }}</small>
+                                        {% else %}
+                                            <span>Non planifié</span>
+                                            <small>--:--</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="muted">Aucun étudiant affecté à ce jury.</p>
+                    {% endif %}
+                </div>
+
+                <div class="card-actions">
+                    <a href="{% url 'admin_jury_detail' jury.pk %}" class="btn btn-secondary">
+                        Voir détails
+                    </a>
+                    <a href="{% url 'admin_jury_update' jury.pk %}" class="btn btn-light">
+                        Modifier
+                    </a>
+                    {% if not jury.is_validated %}
+                        <form method="post" action="{% url 'admin_jury_publish' jury.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary">
+                                Publier
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </article>
+        {% empty %}
+            <div class="empty-state">
+                <h3>Aucun jury pour le moment</h3>
+                <p>
+                    Lancez la génération automatique après validation des demandes et disponibilité des professeurs.
+                </p>
+            </div>
+        {% endfor %}
+    </div>
+</section>
+
+<script>
+    const jurySearch = document.getElementById("jurySearch");
+    const juryCards = document.querySelectorAll(".jury-card");
+
+    if (jurySearch) {
+        jurySearch.addEventListener("input", function () {
+            const value = this.value.toLowerCase().trim();
+
+            juryCards.forEach(function (card) {
+                const haystack = (card.dataset.search || "").toLowerCase();
+                card.style.display = haystack.includes(value) ? "" : "none";
+            });
+        });
+    }
+</script>
+{% endblock %}

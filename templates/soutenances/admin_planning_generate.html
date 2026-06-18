@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Génération du planning{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Planning intelligent</span>
+        <h1>Générer le planning</h1>
+        <p>
+            Le système utilise des créneaux de 30 minutes, vérifie les disponibilités
+            et empêche les conflits entre professeurs.
+        </p>
+    </div>
+
+    <a class="btn btn-outline-secondary" href="{% url 'admin_planning' %}">
+        Voir planning
+    </a>
+</div>
+
+<div class="stat-grid">
+    <div class="stat-card">
+        <span>Créneau</span>
+        <strong>30</strong>
+        <small class="text-muted">minutes</small>
+    </div>
+
+    <div class="stat-card">
+        <span>Matin</span>
+        <strong>09-12</strong>
+        <small class="text-muted">session matin</small>
+    </div>
+
+    <div class="stat-card">
+        <span>Après-midi</span>
+        <strong>16-19</strong>
+        <small class="text-muted">session soir</small>
+    </div>
+
+    <div class="stat-card">
+        <span>Conflits</span>
+        <strong>Auto</strong>
+        <small class="text-muted">professeurs protégés</small>
+    </div>
+</div>
+
+<section class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Génération</span>
+            <h3>Paramètres du planning</h3>
+            <p class="text-muted mb-0">
+                Sélectionnez la date de soutenance. Si vous cochez l'écrasement,
+                les anciens horaires de cette date seront supprimés puis régénérés.
+            </p>
+        </div>
+
+        <span class="badge bg-success">30 min</span>
+    </div>
+
+    <form method="post" class="row g-3 align-items-end mt-3">
+        {% csrf_token %}
+
+        <div class="col-md-5">
+            <label class="form-label" for="{{ form.defense_date.id_for_label }}">
+                {{ form.defense_date.label }}
+            </label>
+            {{ form.defense_date }}
+
+            {% if form.defense_date.errors %}
+                <div class="form-error">
+                    {{ form.defense_date.errors }}
+                </div>
+            {% endif %}
+
+            <small class="form-help">
+                Le planning sera généré uniquement pour les jurys de cette date.
+            </small>
+        </div>
+
+        <div class="col-md-5">
+            <div class="timeline-item">
+                <div class="form-check">
+                    {{ form.overwrite_existing }}
+                    <label class="form-check-label" for="{{ form.overwrite_existing.id_for_label }}">
+                        {{ form.overwrite_existing.label }}
+                    </label>
+                </div>
+
+                <span>
+                    À utiliser si vous avez modifié des jurys ou des disponibilités.
+                </span>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100" type="submit">
+                Générer
+            </button>
+        </div>
+    </form>
+</section>
+
+<section class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Règles utilisées</span>
+            <h3>Comment le planning est décidé</h3>
+        </div>
+    </div>
+
+    <div class="row g-3 mt-2">
+        <div class="col-md-3">
+            <div class="timeline-item">
+                <strong>1. Date</strong>
+                <span>Le système prend les jurys créés à cette date.</span>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="timeline-item">
+                <strong>2. Disponibilité</strong>
+                <span>Les 3 professeurs du jury doivent être libres.</span>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="timeline-item">
+                <strong>3. Durée</strong>
+                <span>Chaque étudiant reçoit un passage de 30 minutes.</span>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="timeline-item">
+                <strong>4. Aucun conflit</strong>
+                <span>Un professeur ne peut pas être planifié deux fois au même moment.</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% if result %}
+    <section class="stat-grid">
+        <div class="stat-card">
+            <span>Horaires créés</span>
+            <strong>{{ result.created }}</strong>
+        </div>
+
+        <div class="stat-card {% if result.errors %}alert-stat{% endif %}">
+            <span>Non planifiés</span>
+            <strong>{{ result.errors|length }}</strong>
+        </div>
+    </section>
+
+    {% if result.errors %}
+        <section class="glass-card">
+            <div class="card-header-flex">
+                <div>
+                    <span class="eyebrow">À corriger</span>
+                    <h3>Affectations sans horaire</h3>
+                    <p class="text-muted mb-0">
+                        Ces étudiants n'ont pas pu être planifiés. Vérifiez les disponibilités
+                        ou les conflits des professeurs.
+                    </p>
+                </div>
+            </div>
+
+            <div class="table-responsive mt-3">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Étudiant</th>
+                            <th>Jury</th>
+                            <th>Motif</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for item in result.errors %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.assignment.student.full_name }}</strong>
+                                    <div class="text-muted-small">
+                                        {{ item.assignment.student.matricule }}
+                                    </div>
+                                </td>
+
+                                <td>
+                                    {{ item.assignment.jury.name }}
+                                </td>
+
+                                <td>
+                                    <span class="badge bg-warning text-dark">
+                                        {{ item.message }}
+                                    </span>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    {% else %}
+        <section class="glass-card">
+            <div class="empty-state">
+                Tous les étudiants affectés ont été planifiés avec succès.
+            </div>
+        </section>
+    {% endif %}
+{% endif %}
+{% endblock %}

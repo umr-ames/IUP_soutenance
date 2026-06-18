@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+
+{% block title %}Planning des soutenances{% endblock %}
+
+{% block extra_css %}
+<style>
+    .planning-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .planning-panel,
+    .planning-tools,
+    .planning-card {
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.78);
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px);
+    }
+
+    .planning-panel {
+        position: relative;
+        overflow: hidden;
+        padding: 28px;
+        background:
+            radial-gradient(circle at 88% 16%, rgba(249, 115, 22, 0.16), transparent 34%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 247, 237, 0.72));
+    }
+
+    .planning-panel h1 {
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(1.65rem, 2.7vw, 2.5rem);
+        line-height: 1.05;
+        font-weight: 950;
+        letter-spacing: -0.055em;
+    }
+
+    .planning-panel p {
+        max-width: 720px;
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-weight: 680;
+    }
+
+    .planning-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    .planning-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+    }
+
+    .planning-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.82rem;
+        font-weight: 850;
+    }
+
+    .planning-tools {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 18px;
+    }
+
+    .planning-tools h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 1.15rem;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+    }
+
+    .planning-tools p {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-weight: 650;
+    }
+
+    .planning-board {
+        display: grid;
+        gap: 14px;
+    }
+
+    .planning-card {
+        padding: 18px;
+        transition: 0.16s ease;
+    }
+
+    .planning-card:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.9);
+    }
+
+    .planning-card-inner {
+        display: grid;
+        grid-template-columns: 150px minmax(0, 1.15fr) minmax(220px, 0.85fr) auto;
+        gap: 16px;
+        align-items: center;
+    }
+
+    .time-box {
+        min-height: 104px;
+        border-radius: 22px;
+        padding: 14px;
+        color: white;
+        background:
+            radial-gradient(circle at 90% 10%, rgba(255, 255, 255, 0.22), transparent 34%),
+            linear-gradient(135deg, var(--orange), var(--orange-dark));
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        box-shadow: 0 14px 28px rgba(249, 115, 22, 0.18);
+    }
+
+    .time-box strong {
+        color: white;
+        font-size: 1.28rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .time-box span {
+        display: block;
+        margin-top: 7px;
+        color: rgba(255, 255, 255, 0.84);
+        font-size: 0.82rem;
+        font-weight: 850;
+    }
+
+    .student-block strong,
+    .jury-block strong {
+        display: block;
+        color: var(--text);
+        font-weight: 950;
+        line-height: 1.18;
+    }
+
+    .student-block span,
+    .jury-block span {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 0.86rem;
+        font-weight: 700;
+    }
+
+    .info-line {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+    }
+
+    .info-pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.12);
+        font-size: 0.78rem;
+        font-weight: 900;
+    }
+
+    .info-pill.neutral {
+        color: var(--muted);
+        background: rgba(35, 31, 27, 0.06);
+        border-color: rgba(35, 31, 27, 0.08);
+    }
+
+    .card-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .no-result {
+        display: none;
+    }
+
+    @media (max-width: 1050px) {
+        .planning-hero {
+            grid-template-columns: 1fr;
+        }
+
+        .planning-card-inner {
+            grid-template-columns: 1fr;
+        }
+
+        .card-actions {
+            justify-content: flex-start;
+        }
+
+        .time-box {
+            min-height: auto;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .planning-panel,
+        .planning-tools,
+        .planning-card {
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .planning-actions .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="planning-hero">
+    <div class="planning-panel">
+        <span class="eyebrow">Planning</span>
+        <h1>Agenda des soutenances</h1>
+        <p>
+            Consultez les passages planifiés automatiquement. Chaque soutenance dure {{ duration_minutes|default:"30" }} minutes.
+        </p>
+
+        <div class="planning-actions">
+            <a class="btn btn-primary" href="{% url 'admin_generate_planning' %}">
+                Générer planning
+            </a>
+
+            <a class="btn btn-outline-secondary" href="{% url 'export_planning_pdf' %}">
+                Exporter PDF
+            </a>
+
+            <a class="btn btn-outline-primary" href="{% url 'admin_jury_list' %}">
+                Voir les jurys
+            </a>
+        </div>
+
+        <div class="planning-chips">
+            <span class="planning-chip">30 minutes</span>
+            <span class="planning-chip">Sans conflit professeur</span>
+            <span class="planning-chip">Jurys parallèles possibles</span>
+            <span class="planning-chip">Tri par date et heure</span>
+        </div>
+    </div>
+
+    <aside class="planning-tools">
+        <div>
+            <span class="eyebrow">Recherche</span>
+            <h2>Filtrer le planning</h2>
+            <p>Recherchez par étudiant, matricule, jury, filière, encadrant ou date.</p>
+        </div>
+
+        <input
+            type="text"
+            id="planningSearch"
+            class="form-control"
+            placeholder="Rechercher..."
+        >
+    </aside>
+</section>
+
+<section class="planning-board" id="planningBoard">
+    {% for schedule in schedules %}
+        <article class="planning-card">
+            <div class="planning-card-inner">
+                <div class="time-box">
+                    <strong>
+                        {{ schedule.start_time|time:"H:i" }}
+                        -
+                        {{ schedule.end_time|time:"H:i" }}
+                    </strong>
+                    <span>{{ schedule.jury_student.jury.defense_date|date:"d/m/Y" }}</span>
+                </div>
+
+                <div class="student-block">
+                    <strong>{{ schedule.jury_student.student.full_name }}</strong>
+                    <span>
+                        {{ schedule.jury_student.student.matricule }}
+                        {% if schedule.jury_student.student.filiere %}
+                            · {{ schedule.jury_student.student.filiere }}
+                        {% endif %}
+                    </span>
+
+                    <div class="info-line">
+                        <span class="info-pill">
+                            Encadrant : {{ schedule.jury_student.student.encadrant.full_name }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="jury-block">
+                    <strong>{{ schedule.jury_student.jury.name }}</strong>
+                    <span>Jury de soutenance</span>
+
+                    <div class="info-line">
+                        <span class="info-pill neutral">
+                            Durée : {{ schedule.duration_minutes|default:duration_minutes|default:"30" }} min
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card-actions">
+                    <a href="{% url 'admin_jury_detail' schedule.jury_student.jury.id %}" class="btn btn-sm btn-outline-primary">
+                        Jury
+                    </a>
+
+                    <a href="{% url 'admin_jury_update' schedule.jury_student.jury.id %}" class="btn btn-sm btn-outline-secondary">
+                        Modifier
+                    </a>
+                </div>
+            </div>
+        </article>
+    {% empty %}
+        <div class="empty-state">
+            Aucun planning généré pour le moment. Créez les jurys puis lancez la génération du planning.
+        </div>
+    {% endfor %}
+
+    <div class="empty-state no-result" id="noPlanningResult">
+        Aucun passage ne correspond à votre recherche.
+    </div>
+</section>
+
+<script>
+const planningSearch = document.getElementById('planningSearch');
+const planningCards = document.querySelectorAll('.planning-card');
+const noPlanningResult = document.getElementById('noPlanningResult');
+
+if (planningSearch) {
+    planningSearch.addEventListener('input', function () {
+        const value = this.value.toLowerCase().trim();
+        let visibleCount = 0;
+
+        planningCards.forEach(function (card) {
+            const text = card.innerText.toLowerCase();
+            const visible = text.includes(value);
+
+            card.style.display = visible ? '' : 'none';
+
+            if (visible) {
+                visibleCount += 1;
+            }
+        });
+
+        if (noPlanningResult) {
+            noPlanningResult.style.display = visibleCount === 0 ? 'block' : 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

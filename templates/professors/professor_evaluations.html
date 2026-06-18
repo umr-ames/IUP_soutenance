@@ -1,0 +1,450 @@
+{% extends 'base.html' %}
+
+{% block title %}Évaluations{% endblock %}
+
+{% block extra_css %}
+<style>
+    .evaluations-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .evaluations-panel,
+    .evaluations-tools,
+    .evaluation-card {
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.78);
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px);
+    }
+
+    .evaluations-panel {
+        position: relative;
+        overflow: hidden;
+        padding: 28px;
+        background:
+            radial-gradient(circle at 88% 16%, rgba(249, 115, 22, 0.16), transparent 34%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 247, 237, 0.72));
+    }
+
+    .evaluations-panel h1 {
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(1.65rem, 2.7vw, 2.5rem);
+        line-height: 1.05;
+        font-weight: 950;
+        letter-spacing: -0.055em;
+    }
+
+    .evaluations-panel p {
+        max-width: 720px;
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-weight: 680;
+    }
+
+    .evaluations-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    .evaluation-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+    }
+
+    .evaluation-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.82rem;
+        font-weight: 850;
+    }
+
+    .evaluations-tools {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        justify-content: space-between;
+    }
+
+    .evaluations-tools h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 1.15rem;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+    }
+
+    .evaluations-tools p {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-weight: 650;
+    }
+
+    .filter-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .filter-tab {
+        min-height: 34px;
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        border-radius: 999px;
+        padding: 7px 11px;
+        color: var(--orange-deep);
+        background: rgba(255, 247, 237, 0.72);
+        font-size: 0.82rem;
+        font-weight: 880;
+        transition: 0.16s ease;
+    }
+
+    .filter-tab:hover,
+    .filter-tab.active {
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        border-color: transparent;
+    }
+
+    .evaluations-board {
+        display: grid;
+        gap: 14px;
+    }
+
+    .evaluation-card {
+        padding: 18px;
+        transition: 0.16s ease;
+    }
+
+    .evaluation-card:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.9);
+    }
+
+    .evaluation-inner {
+        display: grid;
+        grid-template-columns: minmax(270px, 1fr) minmax(220px, 0.75fr) minmax(150px, 0.45fr) auto;
+        gap: 16px;
+        align-items: center;
+    }
+
+    .student-main {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .student-avatar {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+        display: grid;
+        place-items: center;
+        border-radius: 18px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        box-shadow: 0 12px 24px rgba(249, 115, 22, 0.18);
+        font-weight: 950;
+    }
+
+    .student-info strong,
+    .jury-info strong,
+    .note-info strong {
+        display: block;
+        color: var(--text);
+        font-weight: 950;
+        line-height: 1.18;
+    }
+
+    .student-info span,
+    .jury-info span,
+    .note-info span:not(.final-note) {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        font-weight: 700;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        width: fit-content;
+        padding: 7px 11px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 920;
+        white-space: nowrap;
+    }
+
+    .status-pill.success {
+        color: #14543a;
+        background: rgba(36, 144, 96, 0.13);
+        border: 1px solid rgba(36, 144, 96, 0.16);
+    }
+
+    .status-pill.info {
+        color: #294f78;
+        background: rgba(79, 120, 167, 0.13);
+        border: 1px solid rgba(79, 120, 167, 0.15);
+    }
+
+    .status-pill.warning {
+        color: #7c3f05;
+        background: rgba(217, 119, 6, 0.14);
+        border: 1px solid rgba(217, 119, 6, 0.16);
+    }
+
+    .status-pill.muted {
+        color: var(--muted);
+        background: rgba(35, 31, 27, 0.07);
+        border: 1px solid rgba(35, 31, 27, 0.09);
+    }
+
+    .final-note {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 8px 13px;
+        border-radius: 999px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .evaluation-action {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .no-result {
+        display: none;
+    }
+
+    @media (max-width: 1050px) {
+        .evaluations-hero {
+            grid-template-columns: 1fr;
+        }
+
+        .evaluation-inner {
+            grid-template-columns: 1fr;
+            align-items: start;
+        }
+
+        .evaluation-action {
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .evaluations-panel,
+        .evaluations-tools,
+        .evaluation-card {
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .evaluations-actions .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="evaluations-hero">
+    <div class="evaluations-panel">
+        <span class="eyebrow">Évaluations</span>
+        <h1>Notes de soutenance</h1>
+        <p>
+            Saisissez ou consultez les évaluations des étudiants dans les jurys où vous êtes membre.
+        </p>
+
+        <div class="evaluations-actions">
+            <a href="{% url 'professor_dashboard' %}" class="btn btn-outline-secondary">
+                Accueil professeur
+            </a>
+
+            <a href="{% url 'professor_my_juries' %}" class="btn btn-outline-primary">
+                Mes jurys
+            </a>
+
+            <a href="{% url 'professor_submitted_notes' %}" class="btn btn-primary">
+                Notes envoyées
+            </a>
+        </div>
+
+        <div class="evaluation-chip-row">
+            <span class="evaluation-chip">Rapport 30%</span>
+            <span class="evaluation-chip">Présentation 30%</span>
+            <span class="evaluation-chip">Questions 40%</span>
+            <span class="evaluation-chip">Verrouillage après envoi</span>
+        </div>
+    </div>
+
+    <aside class="evaluations-tools">
+        <div>
+            <span class="eyebrow">Recherche</span>
+            <h2>Filtrer les évaluations</h2>
+            <p>Recherchez par étudiant, matricule, filière, jury, date ou statut.</p>
+        </div>
+
+        <input
+            type="text"
+            id="evaluationSearch"
+            class="form-control"
+            placeholder="Rechercher..."
+        >
+
+        <div class="filter-tabs" aria-label="Filtres évaluations">
+            <button class="filter-tab active" type="button" data-filter="all">Toutes</button>
+            <button class="filter-tab" type="button" data-filter="todo">À saisir</button>
+            <button class="filter-tab" type="button" data-filter="draft">Brouillons</button>
+            <button class="filter-tab" type="button" data-filter="submitted">Envoyées</button>
+        </div>
+    </aside>
+</section>
+
+<section class="evaluations-board" id="evaluationsBoard">
+    {% for row in rows %}
+        <article
+            class="evaluation-card"
+            data-status="{% if row.evaluation and row.evaluation.is_submitted %}submitted{% elif row.evaluation %}draft{% else %}todo{% endif %}"
+        >
+            <div class="evaluation-inner">
+                <div class="student-main">
+                    <div class="student-avatar">
+                        {{ row.jury_student.student.full_name|slice:":1"|upper }}
+                    </div>
+
+                    <div class="student-info">
+                        <strong>{{ row.jury_student.student.full_name }}</strong>
+                        <span>
+                            {{ row.jury_student.student.matricule }}
+                            {% if row.jury_student.student.filiere %}
+                                · {{ row.jury_student.student.filiere }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="jury-info">
+                    <strong>{{ row.jury_student.jury.name }}</strong>
+                    <span>{{ row.jury_student.jury.defense_date|date:"d/m/Y" }}</span>
+                </div>
+
+                <div class="note-info">
+                    {% if row.evaluation and row.evaluation.is_submitted %}
+                        <span class="status-pill success">Envoyée</span>
+                    {% elif row.evaluation %}
+                        <span class="status-pill info">Brouillon</span>
+                    {% else %}
+                        <span class="status-pill warning">À saisir</span>
+                    {% endif %}
+
+                    <div class="mt-2">
+                        {% if row.evaluation and row.evaluation.final_note %}
+                            <span class="final-note">{{ row.evaluation.final_note }}/20</span>
+                        {% else %}
+                            <span class="status-pill muted">Note non saisie</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="evaluation-action">
+                    <a href="{% url 'professor_evaluation_detail' row.jury_student.id %}" class="btn btn-sm btn-primary">
+                        {% if row.evaluation and row.evaluation.is_submitted %}
+                            Voir
+                        {% elif row.evaluation %}
+                            Continuer
+                        {% else %}
+                            Saisir
+                        {% endif %}
+                    </a>
+                </div>
+            </div>
+        </article>
+    {% empty %}
+        <div class="empty-state">
+            Aucune évaluation pour le moment.
+        </div>
+    {% endfor %}
+
+    <div class="empty-state no-result" id="noEvaluationResult">
+        Aucune évaluation ne correspond à votre recherche.
+    </div>
+</section>
+
+<script>
+const evaluationSearch = document.getElementById('evaluationSearch');
+const evaluationCards = document.querySelectorAll('.evaluation-card');
+const noEvaluationResult = document.getElementById('noEvaluationResult');
+const filterTabs = document.querySelectorAll('.filter-tab');
+
+let activeFilter = 'all';
+
+function evaluationMatchesFilter(card) {
+    if (activeFilter === 'all') {
+        return true;
+    }
+
+    return card.getAttribute('data-status') === activeFilter;
+}
+
+function refreshEvaluations() {
+    const query = evaluationSearch ? evaluationSearch.value.toLowerCase().trim() : '';
+    let visibleCount = 0;
+
+    evaluationCards.forEach(function (card) {
+        const text = card.innerText.toLowerCase();
+        const visible = text.includes(query) && evaluationMatchesFilter(card);
+
+        card.style.display = visible ? '' : 'none';
+
+        if (visible) {
+            visibleCount += 1;
+        }
+    });
+
+    if (noEvaluationResult) {
+        noEvaluationResult.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+}
+
+if (evaluationSearch) {
+    evaluationSearch.addEventListener('input', refreshEvaluations);
+}
+
+filterTabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+        filterTabs.forEach(function (item) {
+            item.classList.remove('active');
+        });
+
+        tab.classList.add('active');
+        activeFilter = tab.getAttribute('data-filter');
+        refreshEvaluations();
+    });
+});
+</script>
+{% endblock %}

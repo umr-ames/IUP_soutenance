@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+
+{% block title %}Préparer un jury pour un étudiant{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Administration</span>
+        <h1>Préparer un jury pour un étudiant</h1>
+        <p>
+            Flux guidé : seuls les créneaux où l'encadrant est réellement disponible sont
+            proposés, et seuls les professeurs réellement disponibles à ce créneau peuvent
+            être choisis comme membres. Ces règles sont appliquées côté serveur, pas
+            seulement à l'affichage.
+        </p>
+    </div>
+
+    <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">
+        Retour jurys
+    </a>
+</div>
+
+<div class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="step-badge">Étape 1</span>
+            <h3 class="mt-2">Choisir un étudiant</h3>
+            <p class="text-muted mb-0">Uniquement les étudiants acceptés et non encore affectés.</p>
+        </div>
+    </div>
+
+    <form method="get" class="row g-2 align-items-end mt-2">
+        <div class="col-md-8">
+            <select name="student_id" class="form-select" {% if not eligible_students %}disabled{% endif %}>
+                <option value="">-- Sélectionner un étudiant --</option>
+                {% for s in eligible_students %}
+                    <option value="{{ s.id }}" {% if student and student.id == s.id %}selected{% endif %}>
+                        {{ s.full_name }} ({{ s.matricule }}) — Encadrant : {{ s.encadrant.full_name|default:"aucun" }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <button type="submit" class="btn btn-primary w-100">Continuer</button>
+        </div>
+    </form>
+
+    {% if not eligible_students %}
+        <div class="empty-state mt-3">
+            Aucun étudiant accepté en attente d'affectation pour le moment.
+        </div>
+    {% endif %}
+</div>
+
+{% if student %}
+    <div class="glass-card">
+        <div class="card-header-flex">
+            <div>
+                <span class="step-badge">Étape 2</span>
+                <h3 class="mt-2">Choisir un créneau réel</h3>
+                <p class="text-muted mb-0">
+                    Étudiant : <strong>{{ student.full_name }}</strong> ({{ student.matricule }}) ·
+                    Encadrant : <strong>{{ student.encadrant.full_name }}</strong>
+                </p>
+            </div>
+        </div>
+
+        {% if no_slots %}
+            <div class="helper-hint empty mt-2">
+                Aucun créneau disponible pour {{ student.encadrant.full_name }}. Demandez-lui de
+                déclarer des disponibilités avant de continuer.
+            </div>
+        {% else %}
+            <form method="get" class="mt-2">
+                <input type="hidden" name="student_id" value="{{ student.id }}">
+
+                <div class="row g-2">
+                    {% for slot in slots %}
+                        <div class="col-md-3">
+                            <label class="week-cell d-flex align-items-center justify-content-start gap-2 p-2" style="height: auto;">
+                                <input
+                                    type="radio"
+                                    name="slot"
+                                    value="{{ slot.key }}"
+                                    {% if slot_key == slot.key %}checked{% endif %}
+                                    required
+                                >
+                                <span>{{ slot.date|date:"d/m/Y" }} · {{ slot.start_time|time:"H:i" }}</span>
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <button type="submit" class="btn btn-primary mt-3">
+                    Continuer avec ce créneau
+                </button>
+            </form>
+        {% endif %}
+    </div>
+{% endif %}
+
+{% if selected_date and selected_time %}
+    <div class="glass-card">
+        <div class="card-header-flex">
+            <div>
+                <span class="step-badge">Étape 3</span>
+                <h3 class="mt-2">Choisir les membres disponibles</h3>
+                <p class="text-muted mb-0">
+                    Créneau retenu : <strong>{{ selected_date|date:"d/m/Y" }} à {{ selected_time|time:"H:i" }}</strong> ·
+                    Encadrant inclus automatiquement : <strong>{{ student.encadrant.full_name }}</strong>
+                </p>
+            </div>
+        </div>
+
+        {% if not_enough_members %}
+            <div class="helper-hint empty mt-2">
+                Seulement {{ available_count }} professeur(s) disponible(s) à ce créneau en plus de
+                l'encadrant (2 requis). Choisissez un autre créneau à l'étape 2.
+            </div>
+        {% else %}
+            <div class="helper-hint mt-2 mb-3">
+                {{ available_count }} professeur(s) réellement disponible(s) à ce créneau, en plus
+                de l'encadrant.
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="step" value="3">
+                <input type="hidden" name="student_id" value="{{ student.id }}">
+                <input type="hidden" name="slot" value="{{ slot_key }}">
+
+                {% if members_form.non_field_errors or members_form.members.errors %}
+                    <div class="alert alert-danger">
+                        {{ members_form.members.errors }}
+                        {{ members_form.non_field_errors }}
+                    </div>
+                {% endif %}
+
+                <div class="row g-2">
+                    {% for checkbox in members_form.members %}
+                        <div class="col-md-4">
+                            <label class="week-cell d-flex align-items-center justify-content-start gap-2 p-2" style="height: auto;">
+                                {{ checkbox.tag }}
+                                <span>{{ checkbox.choice_label }}</span>
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <small class="form-help d-block mt-2">
+                    Choisissez exactement 2 professeurs. L'encadrant sera ajouté automatiquement
+                    comme 3ᵉ membre.
+                </small>
+
+                <button type="submit" class="btn btn-primary mt-3">
+                    Créer le jury et planifier la soutenance
+                </button>
+            </form>
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

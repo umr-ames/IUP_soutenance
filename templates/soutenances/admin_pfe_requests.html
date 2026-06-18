@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block title %}Demandes de soutenance{% endblock %}
+
+{% block extra_css %}
+<style>
+    .requests-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .requests-panel,
+    .requests-tools,
+    .request-card {
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.78);
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px);
+    }
+
+    .requests-panel {
+        position: relative;
+        overflow: hidden;
+        padding: 28px;
+        background:
+            radial-gradient(circle at 88% 16%, rgba(249, 115, 22, 0.16), transparent 34%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 247, 237, 0.72));
+    }
+
+    .requests-panel h1 {
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(1.65rem, 2.7vw, 2.5rem);
+        line-height: 1.05;
+        font-weight: 950;
+        letter-spacing: -0.055em;
+    }
+
+    .requests-panel p {
+        max-width: 720px;
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-weight: 680;
+    }
+
+    .requests-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    .requests-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+    }
+
+    .requests-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.82rem;
+        font-weight: 850;
+    }
+
+    .requests-tools {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        justify-content: space-between;
+    }
+
+    .requests-tools h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 1.15rem;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+    }
+
+    .requests-tools p {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-weight: 650;
+    }
+
+    .filter-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .filter-tab {
+        min-height: 34px;
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        border-radius: 999px;
+        padding: 7px 11px;
+        color: var(--orange-deep);
+        background: rgba(255, 247, 237, 0.72);
+        font-size: 0.82rem;
+        font-weight: 880;
+        transition: 0.16s ease;
+    }
+
+    .filter-tab:hover,
+    .filter-tab.active {
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        border-color: transparent;
+    }
+
+    .requests-board {
+        display: grid;
+        gap: 14px;
+    }
+
+    .request-card {
+        padding: 18px;
+        transition: 0.16s ease;
+    }
+
+    .request-card:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.9);
+    }
+
+    .request-card-inner {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) minmax(220px, 0.75fr) minmax(170px, 0.55fr) auto;
+        gap: 16px;
+        align-items: center;
+    }
+
+    .student-avatar {
+        width: 46px;
+        height: 46px;
+        flex: 0 0 46px;
+        display: grid;
+        place-items: center;
+        border-radius: 17px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        font-weight: 950;
+        box-shadow: 0 12px 24px rgba(249, 115, 22, 0.18);
+    }
+
+    .student-main {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .student-info strong,
+    .teacher-info strong,
+    .date-info strong {
+        display: block;
+        color: var(--text);
+        font-weight: 950;
+        line-height: 1.18;
+    }
+
+    .student-info span,
+    .teacher-info span,
+    .date-info span {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        font-weight: 700;
+    }
+
+    .meta-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 9px;
+    }
+
+    .meta-pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        color: var(--muted);
+        background: rgba(35, 31, 27, 0.055);
+        font-size: 0.76rem;
+        font-weight: 850;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        width: fit-content;
+        padding: 7px 11px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 920;
+        white-space: nowrap;
+    }
+
+    .status-pill.accepted {
+        color: #14543a;
+        background: rgba(36, 144, 96, 0.13);
+        border: 1px solid rgba(36, 144, 96, 0.16);
+    }
+
+    .status-pill.refused {
+        color: #7d2522;
+        background: rgba(194, 65, 61, 0.12);
+        border: 1px solid rgba(194, 65, 61, 0.15);
+    }
+
+    .status-pill.pending-admin {
+        color: #294f78;
+        background: rgba(79, 120, 167, 0.13);
+        border: 1px solid rgba(79, 120, 167, 0.15);
+    }
+
+    .status-pill.pending-professor {
+        color: #7c3f05;
+        background: rgba(217, 119, 6, 0.14);
+        border: 1px solid rgba(217, 119, 6, 0.16);
+    }
+
+    .status-pill.other {
+        color: var(--muted);
+        background: rgba(35, 31, 27, 0.07);
+        border: 1px solid rgba(35, 31, 27, 0.09);
+    }
+
+    .request-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .no-result {
+        display: none;
+    }
+
+    @media (max-width: 1050px) {
+        .requests-hero {
+            grid-template-columns: 1fr;
+        }
+
+        .request-card-inner {
+            grid-template-columns: 1fr;
+            align-items: start;
+        }
+
+        .request-actions {
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .requests-panel,
+        .requests-tools,
+        .request-card {
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .requests-actions .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="requests-hero">
+    <div class="requests-panel">
+        <span class="eyebrow">Demandes</span>
+        <h1>Dossiers de soutenance</h1>
+        <p>
+            Consultez les dossiers envoyés par les étudiants et traitez uniquement les demandes prêtes pour la décision administrative.
+        </p>
+
+        <div class="requests-actions">
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary">
+                Accueil
+            </a>
+
+            <a href="{% url 'admin_jury_list' %}" class="btn btn-primary">
+                Jurys intelligents
+            </a>
+        </div>
+
+        <div class="requests-chip-row">
+            <span class="requests-chip">Validation encadrant</span>
+            <span class="requests-chip">Décision admin</span>
+            <span class="requests-chip">Dossier étudiant</span>
+            <span class="requests-chip">Passage vers jury</span>
+        </div>
+    </div>
+
+    <aside class="requests-tools">
+        <div>
+            <span class="eyebrow">Recherche</span>
+            <h2>Filtrer les dossiers</h2>
+            <p>Recherchez par étudiant, matricule, filière, téléphone, encadrant ou statut.</p>
+        </div>
+
+        <input
+            type="text"
+            id="requestSearch"
+            class="form-control"
+            placeholder="Rechercher..."
+        >
+
+        <div class="filter-tabs" aria-label="Filtres des demandes">
+            <button class="filter-tab active" type="button" data-filter="all">Toutes</button>
+            <button class="filter-tab" type="button" data-filter="pending_admin">Admin</button>
+            <button class="filter-tab" type="button" data-filter="pending_professor">Encadrant</button>
+            <button class="filter-tab" type="button" data-filter="accepted">Acceptées</button>
+            <button class="filter-tab" type="button" data-filter="refused">Refusées</button>
+        </div>
+    </aside>
+</section>
+
+<section class="requests-board" id="requestsBoard">
+    {% for demande in requests %}
+        <article class="request-card" data-status="{{ demande.status }}">
+            <div class="request-card-inner">
+                <div class="student-main">
+                    <div class="student-avatar">
+                        {{ demande.student.full_name|slice:":1"|upper }}
+                    </div>
+
+                    <div class="student-info">
+                        <strong>{{ demande.student.full_name }}</strong>
+                        <span>
+                            {{ demande.student.matricule }}
+                            {% if demande.student.filiere %}
+                                · {{ demande.student.filiere }}
+                            {% endif %}
+                        </span>
+
+                        <div class="meta-pills">
+                            <span class="meta-pill">
+                                Tél :
+                                {% if demande.student.user.phone_number %}
+                                    {{ demande.student.user.phone_number }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="teacher-info">
+                    <strong>{{ demande.student.encadrant.full_name }}</strong>
+                    <span>Encadrant</span>
+                </div>
+
+                <div class="date-info">
+                    <strong>{{ demande.submitted_at|date:"d/m/Y" }}</strong>
+                    <span>{{ demande.submitted_at|date:"H:i" }}</span>
+
+                    <div class="mt-2">
+                        {% if demande.status == 'accepted' %}
+                            <span class="status-pill accepted">{{ demande.get_status_display }}</span>
+                        {% elif demande.status == 'refused_by_professor' or demande.status == 'refused_by_admin' %}
+                            <span class="status-pill refused">{{ demande.get_status_display }}</span>
+                        {% elif demande.status == 'pending_admin' %}
+                            <span class="status-pill pending-admin">{{ demande.get_status_display }}</span>
+                        {% elif demande.status == 'pending_professor' %}
+                            <span class="status-pill pending-professor">{{ demande.get_status_display }}</span>
+                        {% else %}
+                            <span class="status-pill other">{{ demande.get_status_display }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="request-actions">
+                    <a class="btn btn-sm btn-primary" href="{% url 'admin_pfe_request_detail' demande.id %}">
+                        Ouvrir
+                    </a>
+                </div>
+            </div>
+        </article>
+    {% empty %}
+        <div class="empty-state">
+            Aucune demande de soutenance pour le moment.
+        </div>
+    {% endfor %}
+
+    <div class="empty-state no-result" id="noRequestResult">
+        Aucune demande ne correspond à votre recherche.
+    </div>
+</section>
+
+<script>
+const requestSearch = document.getElementById('requestSearch');
+const requestCards = document.querySelectorAll('.request-card');
+const noRequestResult = document.getElementById('noRequestResult');
+const filterTabs = document.querySelectorAll('.filter-tab');
+
+let activeFilter = 'all';
+
+function statusMatches(status) {
+    if (activeFilter === 'all') {
+        return true;
+    }
+
+    if (activeFilter === 'refused') {
+        return status === 'refused_by_professor' || status === 'refused_by_admin';
+    }
+
+    return status === activeFilter;
+}
+
+function refreshRequests() {
+    const query = requestSearch ? requestSearch.value.toLowerCase().trim() : '';
+    let visibleCount = 0;
+
+    requestCards.forEach(function (card) {
+        const text = card.innerText.toLowerCase();
+        const status = card.getAttribute('data-status');
+
+        const visible = text.includes(query) && statusMatches(status);
+
+        card.style.display = visible ? '' : 'none';
+
+        if (visible) {
+            visibleCount += 1;
+        }
+    });
+
+    if (noRequestResult) {
+        noRequestResult.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+}
+
+if (requestSearch) {
+    requestSearch.addEventListener('input', refreshRequests);
+}
+
+filterTabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+        filterTabs.forEach(function (item) {
+            item.classList.remove('active');
+        });
+
+        tab.classList.add('active');
+        activeFilter = tab.getAttribute('data-filter');
+        refreshRequests();
+    });
+});
+</script>
+{% endblock %}

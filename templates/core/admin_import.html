@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Import etudiants{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Import etudiants/professeurs</h1>
+        <p>Creation sans doublons a partir de matricule, nom complet, filiere et encadrant.</p>
+    </div>
+</div>
+
+<section class="content-panel">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label class="form-label" for="{{ form.data_file.id_for_label }}">{{ form.data_file.label }}</label>
+            {{ form.data_file }}
+            <div class="form-help mt-1">{{ form.data_file.help_text }}</div>
+            {{ form.data_file.errors }}
+        </div>
+        <button class="btn btn-primary" type="submit">Lancer l'import</button>
+    </form>
+</section>
+
+{% if result %}
+    <section class="stat-grid">
+        <div class="stat-card"><span>Etudiants crees</span><strong>{{ result.created_students }}</strong></div>
+        <div class="stat-card"><span>Etudiants mis a jour</span><strong>{{ result.updated_students }}</strong></div>
+        <div class="stat-card"><span>Professeurs crees</span><strong>{{ result.created_professors }}</strong></div>
+    </section>
+
+    {% if result.errors %}
+        <section class="content-panel">
+            <h2>Lignes ignorees</h2>
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead><tr><th>Ligne</th><th>Erreur</th></tr></thead>
+                    <tbody>
+                        {% for error in result.errors %}
+                            <tr><td>{{ error.line }}</td><td>{{ error.message }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    {% endif %}
+{% endif %}
+{% endblock %}

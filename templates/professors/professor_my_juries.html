@@ -1,0 +1,706 @@
+{% extends 'base.html' %}
+
+{% block title %}Mes jurys{% endblock %}
+
+{% block extra_css %}
+<style>
+    .juries-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .juries-panel,
+    .juries-tools,
+    .jury-card {
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.78);
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px);
+    }
+
+    .juries-panel {
+        position: relative;
+        overflow: hidden;
+        padding: 28px;
+        background:
+            radial-gradient(circle at 88% 16%, rgba(249, 115, 22, 0.16), transparent 34%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 247, 237, 0.72));
+    }
+
+    .juries-panel h1 {
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(1.65rem, 2.7vw, 2.5rem);
+        line-height: 1.05;
+        font-weight: 950;
+        letter-spacing: -0.055em;
+    }
+
+    .juries-panel p {
+        max-width: 720px;
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-weight: 680;
+    }
+
+    .juries-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    .jury-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+    }
+
+    .jury-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.82rem;
+        font-weight: 850;
+    }
+
+    .juries-tools {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        justify-content: space-between;
+    }
+
+    .juries-tools h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 1.15rem;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+    }
+
+    .juries-tools p {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-weight: 650;
+    }
+
+    .juries-board {
+        display: grid;
+        gap: 14px;
+    }
+
+    .jury-card {
+        padding: 18px;
+        transition: 0.16s ease;
+    }
+
+    .jury-card:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.9);
+    }
+
+    .jury-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        padding-bottom: 14px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid rgba(35, 31, 27, 0.08);
+    }
+
+    .jury-title strong {
+        display: block;
+        color: var(--text);
+        font-size: 1.08rem;
+        font-weight: 950;
+        line-height: 1.15;
+    }
+
+    .jury-title span {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        font-weight: 700;
+    }
+
+    .jury-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    .date-pill,
+    .status-pill,
+    .count-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 920;
+        white-space: nowrap;
+    }
+
+    .date-pill {
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+    }
+
+    .status-pill.valid {
+        color: #14543a;
+        background: rgba(36, 144, 96, 0.13);
+        border: 1px solid rgba(36, 144, 96, 0.16);
+    }
+
+    .status-pill.draft {
+        color: var(--muted);
+        background: rgba(35, 31, 27, 0.07);
+        border: 1px solid rgba(35, 31, 27, 0.09);
+    }
+
+    .count-pill {
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+    }
+
+    .jury-content {
+        display: grid;
+        grid-template-columns: minmax(230px, 0.75fr) minmax(0, 1.25fr);
+        gap: 16px;
+        align-items: start;
+    }
+
+    .block-label {
+        margin-bottom: 9px;
+        color: var(--orange-dark);
+        font-size: 0.72rem;
+        font-weight: 950;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    .members-card {
+        padding: 14px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid rgba(35, 31, 27, 0.07);
+    }
+
+    .member-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .member-chip {
+        display: inline-flex;
+        width: fit-content;
+        max-width: 100%;
+        padding: 8px 11px;
+        border-radius: 999px;
+        color: var(--text);
+        background: rgba(255, 247, 237, 0.84);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.84rem;
+        font-weight: 850;
+    }
+
+    .student-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .student-card {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) minmax(130px, auto) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid rgba(35, 31, 27, 0.07);
+    }
+
+    .student-avatar {
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        border-radius: 16px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        font-weight: 950;
+    }
+
+    .student-info strong {
+        display: block;
+        color: var(--text);
+        font-weight: 930;
+        line-height: 1.18;
+    }
+
+    .student-info span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        font-weight: 680;
+    }
+
+    .time-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: fit-content;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.8rem;
+        font-weight: 920;
+        white-space: nowrap;
+    }
+
+    .time-pill.warning {
+        color: #7c3f05;
+        background: rgba(217, 119, 6, 0.14);
+        border-color: rgba(217, 119, 6, 0.16);
+    }
+
+    .time-pill.muted {
+        color: #6b7280;
+        background: rgba(107, 114, 128, 0.10);
+        border-color: rgba(107, 114, 128, 0.15);
+    }
+
+    /* Alerte président dynamique */
+    .alert-president-now {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+        margin-bottom: 14px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(22,163,74,0.08), rgba(22,163,74,0.04));
+        border: 1px solid rgba(22, 163, 74, 0.30);
+        color: #14532d;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .alert-president-now .alert-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .alert-president-now .alert-text { flex: 1; }
+    .alert-president-now .alert-text strong { display: block; font-size: 0.95rem; margin-bottom: 2px; }
+    .alert-president-now .alert-text span   { font-size: 0.82rem; color: #166534; font-weight: 500; }
+
+    .btn-start-now {
+        animation: pulse-green 1.8s ease-in-out infinite;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    @keyframes pulse-green {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45); }
+        50%       { box-shadow: 0 0 0 7px rgba(22, 163, 74, 0); }
+    }
+
+    /* Timer soutenance */
+    .defense-timer {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 900;
+        background: rgba(22, 163, 74, 0.10);
+        border: 1px solid rgba(22, 163, 74, 0.25);
+        color: #14532d;
+        white-space: nowrap;
+    }
+    .defense-timer.expired {
+        background: rgba(220, 38, 38, 0.10);
+        border-color: rgba(220, 38, 38, 0.25);
+        color: #7d1f1f;
+    }
+
+    /* Décision soutenable */
+    .soutenable-block {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        padding: 10px 14px;
+        border-radius: 14px;
+        background: rgba(249, 115, 22, 0.07);
+        border: 1px solid rgba(249, 115, 22, 0.16);
+    }
+    .soutenable-block span { font-size: 0.85rem; font-weight: 700; color: var(--text); flex: 1; }
+    .badge-soutenable {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 5px 11px; border-radius: 999px; font-size: 0.8rem; font-weight: 850;
+        white-space: nowrap;
+    }
+    .badge-soutenable.oui { background: rgba(22,163,74,0.12); border: 1px solid rgba(22,163,74,0.22); color: #14532d; }
+    .badge-soutenable.non { background: rgba(220,38,38,0.10); border: 1px solid rgba(220,38,38,0.22); color: #7d1f1f; }
+    .badge-soutenable.pending { background: rgba(217,119,6,0.12); border: 1px solid rgba(217,119,6,0.18); color: #7c3f05; }
+
+    .no-result {
+        display: none;
+    }
+
+    @media (max-width: 1050px) {
+        .juries-hero,
+        .jury-content {
+            grid-template-columns: 1fr;
+        }
+
+        .jury-header {
+            flex-direction: column;
+        }
+
+        .jury-meta {
+            justify-content: flex-start;
+        }
+
+        .student-card {
+            grid-template-columns: auto minmax(0, 1fr);
+        }
+
+        .student-card .time-pill,
+        .student-card .btn {
+            grid-column: 1 / -1;
+            width: fit-content;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .juries-panel,
+        .juries-tools,
+        .jury-card {
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .juries-actions .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="juries-hero">
+    <div class="juries-panel">
+        <span class="eyebrow">Mes jurys</span>
+        <h1>Jurys de soutenance</h1>
+        <p>
+            Retrouvez les jurys où vous êtes membre, les étudiants affectés et les horaires de passage.
+        </p>
+
+        <div class="juries-actions">
+            <a href="{% url 'professor_dashboard' %}" class="btn btn-outline-secondary">
+                Accueil professeur
+            </a>
+
+            <a href="{% url 'professor_evaluations' %}" class="btn btn-primary">
+                Évaluations
+            </a>
+        </div>
+
+        <div class="jury-chip-row">
+            <span class="jury-chip">Membre du jury</span>
+            <span class="jury-chip">Créneau de 30 minutes</span>
+            <span class="jury-chip">Étudiants affectés</span>
+            <span class="jury-chip">Évaluation après passage</span>
+        </div>
+    </div>
+
+    <aside class="juries-tools">
+        <div>
+            <span class="eyebrow">Recherche</span>
+            <h2>Filtrer mes jurys</h2>
+            <p>Recherchez par jury, étudiant, matricule, filière, membre ou horaire.</p>
+        </div>
+
+        <input
+            type="text"
+            id="jurySearch"
+            class="form-control"
+            placeholder="Rechercher..."
+        >
+    </aside>
+</section>
+
+<section class="juries-board" id="juriesBoard">
+    {% for jury in juries %}
+        <article class="jury-card">
+            <div class="jury-header">
+                <div class="jury-title">
+                    <strong>{{ jury.name }}</strong>
+                    <span>Date de soutenance : {{ jury.defense_date|date:"d/m/Y" }}</span>
+                </div>
+
+                <div class="jury-meta">
+                    <span class="date-pill">{{ jury.defense_date|date:"d/m/Y" }}</span>
+
+                    {% if jury.is_validated %}
+                        <span class="status-pill valid">Validé</span>
+                    {% else %}
+                        <span class="status-pill draft">Brouillon</span>
+                    {% endif %}
+
+                    <span class="count-pill">{{ jury.students.count }} étudiant(s)</span>
+                </div>
+            </div>
+
+            {# Conteneur d'alertes dynamiques — rempli par JS #}
+            <div class="js-alerts-container" style="margin-bottom:0;"></div>
+
+            <div class="jury-content">
+                <div class="members-card">
+                    <div class="block-label">Membres</div>
+                    <div class="member-list">
+                        {% for member in jury.members.all %}
+                            <span class="member-chip">{{ member.professor.full_name }}</span>
+                        {% empty %}
+                            <span class="text-muted-small">Aucun membre.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div>
+                    <div class="block-label">Passages</div>
+
+                    <div class="student-list">
+                        {% for item in jury.students.all %}
+                            {# data-president : 1 si cet utilisateur est le président pour cet étudiant #}
+                            {# data-start-iso : date+heure ISO locale du créneau (vide si pas de schedule) #}
+                            <div class="student-card"
+                                 data-president="{% if item.president and item.president.user_id == request.user.id and not item.presentation_started %}1{% else %}0{% endif %}"
+                                 data-started="{% if item.presentation_started %}1{% else %}0{% endif %}"
+                                 data-start-iso="{% if item.schedule %}{{ jury.defense_date|date:'Y-m-d' }}T{{ item.schedule.start_time|time:'H:i:s' }}{% endif %}"
+                                 data-started-at="{% if item.presentation_started_at %}{{ item.presentation_started_at|date:'Y-m-d' }}T{{ item.presentation_started_at|time:'H:i:s' }}{% endif %}"
+                                 data-student-name="{{ item.student.full_name }}"
+                                 data-schedule-label="{% if item.schedule %}{{ item.schedule.start_time|time:'H:i' }}{% endif %}"
+                                 data-soutenable="{{ item.pfe_soutenable_status }}"
+                                 data-is-president="{% if item.president and item.president.user_id == request.user.id %}1{% else %}0{% endif %}">
+
+                                <div class="student-avatar">
+                                    {{ item.student.full_name|slice:":1"|upper }}
+                                </div>
+
+                                <div class="student-info">
+                                    <strong>{{ item.student.full_name }}</strong>
+                                    <span>
+                                        {{ item.student.matricule }}
+                                        {% if item.student.filiere %}· {{ item.student.filiere }}{% endif %}
+                                        · Encadrant : {{ item.student.encadrant.full_name }}
+                                    </span>
+                                    {# Décision soutenable — visible dès que la soutenance est démarrée #}
+                                    {% if item.presentation_started %}
+                                        {% if item.pfe_soutenable_status == 'soutenable' %}
+                                            <span class="badge-soutenable oui" style="margin-top:6px;">&#10003; PFE soutenable</span>
+                                        {% elif item.pfe_soutenable_status == 'non_soutenable' %}
+                                            <span class="badge-soutenable non" style="margin-top:6px;">&#10007; PFE non soutenable</span>
+                                        {% else %}
+                                            <span class="badge-soutenable pending" style="margin-top:6px;">&#9679; Décision soutenable en attente</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+
+                                {% if item.schedule %}
+                                    <span class="time-pill">
+                                        {{ item.schedule.start_time|time:"H:i" }} – {{ item.schedule.end_time|time:"H:i" }}
+                                    </span>
+                                {% else %}
+                                    <span class="time-pill warning">Non planifié</span>
+                                {% endif %}
+
+                                {# Zone d'action — JS prend le relais pour le président #}
+                                <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-start;">
+                                {% if item.presentation_started %}
+                                    {# Timer dynamique — JS met à jour toutes les secondes #}
+                                    <span class="defense-timer js-defense-timer">
+                                        Soutenance démarrée
+                                    </span>
+                                    {# Boutons soutenable — uniquement pour le président, si décision non prise #}
+                                    {% if item.president and item.president.user_id == request.user.id and item.pfe_soutenable_status == 'pending' %}
+                                        <div class="soutenable-block">
+                                            <span>PFE soutenable ?</span>
+                                            <form method="post" action="{% url 'professor_set_pfe_soutenable' item.id %}" style="display:inline;">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="soutenable">
+                                                <button type="submit" class="btn btn-sm btn-success">Oui</button>
+                                            </form>
+                                            <form method="post" action="{% url 'professor_set_pfe_soutenable' item.id %}" style="display:inline;">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="non_soutenable">
+                                                <button type="submit" class="btn btn-sm btn-danger">Non soutenable</button>
+                                            </form>
+                                        </div>
+                                    {% endif %}
+                                {% elif item.president and item.president.user_id == request.user.id %}
+                                    {# Bouton démarrer — caché initialement, révélé par JS à l'heure #}
+                                    <form class="js-start-form" method="post"
+                                          action="{% url 'professor_start_presentation' item.id %}"
+                                          style="display:none;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-success btn-start-now">
+                                            &#9654; Démarrer la soutenance
+                                        </button>
+                                    </form>
+                                    {# "En attente" — visible par défaut, caché par JS à l'heure #}
+                                    <span class="time-pill muted js-waiting-pill">En attente du créneau</span>
+                                {% else %}
+                                    <span class="time-pill warning">Pas encore démarrée</span>
+                                {% endif %}
+                                </div>
+
+                                <a href="{% url 'professor_evaluation_detail' item.id %}" class="btn btn-sm btn-outline-primary">
+                                    Évaluer / voir
+                                </a>
+                            </div>
+                        {% empty %}
+                            <div class="empty-state">Aucun étudiant affecté à ce jury.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </article>
+    {% empty %}
+        <div class="empty-state">
+            Vous n'êtes membre d'aucun jury pour le moment.
+        </div>
+    {% endfor %}
+
+    <div class="empty-state no-result" id="noJuryResult">
+        Aucun jury ne correspond à votre recherche.
+    </div>
+</section>
+
+<script>
+/* ── Recherche jury ──────────────────────────────────────────────── */
+const jurySearch    = document.getElementById('jurySearch');
+const juryCards     = document.querySelectorAll('.jury-card');
+const noJuryResult  = document.getElementById('noJuryResult');
+
+if (jurySearch) {
+    jurySearch.addEventListener('input', function () {
+        const value = this.value.toLowerCase().trim();
+        let visibleCount = 0;
+        juryCards.forEach(function (card) {
+            const visible = card.innerText.toLowerCase().includes(value);
+            card.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+        if (noJuryResult) noJuryResult.style.display = visibleCount === 0 ? 'block' : 'none';
+    });
+}
+
+/* ── Alerte président automatique (polling 10 s) ─────────────────── */
+function checkPresidentAlerts() {
+    const now = new Date();
+
+    document.querySelectorAll('.student-card[data-president="1"]').forEach(function (card) {
+        const isoStr    = card.getAttribute('data-start-iso');
+        const name      = card.getAttribute('data-student-name');
+        const label     = card.getAttribute('data-schedule-label');
+        const startForm = card.querySelector('.js-start-form');
+        const waitPill  = card.querySelector('.js-waiting-pill');
+
+        if (!isoStr) return;   /* pas de créneau planifié */
+
+        const startTime = new Date(isoStr);
+        const isTime    = now >= startTime;
+
+        if (isTime) {
+            /* Révéler le bouton, masquer "En attente" */
+            if (startForm)  startForm.style.display  = '';
+            if (waitPill)   waitPill.style.display    = 'none';
+
+            /* Injecter l'alerte dans le conteneur du jury-card parent */
+            const juryCard       = card.closest('.jury-card');
+            const alertContainer = juryCard ? juryCard.querySelector('.js-alerts-container') : null;
+            if (alertContainer && !alertContainer.querySelector('[data-alert-for="' + name + '"]')) {
+                const alert = document.createElement('div');
+                alert.className = 'alert-president-now';
+                alert.setAttribute('data-alert-for', name);
+                alert.innerHTML =
+                    '<span class="alert-icon">&#128994;</span>' +
+                    '<div class="alert-text">' +
+                        '<strong>C\'est l\'heure de démarrer la soutenance de ' + name + '</strong>' +
+                        '<span>Créneau prévu à ' + label + '. Cliquez sur « Démarrer » dans la ligne de l\'étudiant.</span>' +
+                    '</div>';
+                alertContainer.appendChild(alert);
+                alertContainer.style.marginBottom = '14px';
+            }
+        } else {
+            /* L'heure n'est pas encore arrivée — s'assurer que le bouton est masqué */
+            if (startForm) startForm.style.display = 'none';
+            if (waitPill)  waitPill.style.display  = '';
+        }
+    });
+}
+
+/* Vérification immédiate au chargement puis toutes les 10 s */
+checkPresidentAlerts();
+setInterval(checkPresidentAlerts, 10000);
+
+/* ── Timer 30 min par soutenance démarrée ────────────────────────── */
+const DEFENSE_DURATION_MS = 30 * 60 * 1000;
+
+function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+function updateDefenseTimers() {
+    const now = new Date();
+    document.querySelectorAll('.student-card[data-started="1"]').forEach(function (card) {
+        const startedAtIso = card.getAttribute('data-started-at');
+        const timerEl = card.querySelector('.js-defense-timer');
+        if (!startedAtIso || !timerEl) return;
+
+        const startedAt = new Date(startedAtIso);
+        const endAt = new Date(startedAt.getTime() + DEFENSE_DURATION_MS);
+        const remaining = endAt - now;
+
+        var endH = pad2(endAt.getHours());
+        var endM = pad2(endAt.getMinutes());
+
+        if (remaining <= 0) {
+            timerEl.classList.add('expired');
+            timerEl.textContent = 'Temps ecoule — fin prevue ' + endH + ':' + endM;
+        } else {
+            timerEl.classList.remove('expired');
+            var totalSec = Math.ceil(remaining / 1000);
+            var mins = Math.floor(totalSec / 60);
+            var secs = totalSec % 60;
+            timerEl.textContent = 'En cours — ' + pad2(mins) + ':' + pad2(secs) + ' restant(es) (fin ' + endH + ':' + endM + ')';
+        }
+    });
+}
+
+updateDefenseTimers();
+setInterval(updateDefenseTimers, 1000);
+</script>
+{% endblock %}

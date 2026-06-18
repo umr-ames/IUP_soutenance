@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Saisie evaluation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Saisie evaluation</h1>
+        <p>{{ assignment.student.full_name }} - {{ assignment.jury.name }}</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'professor_evaluations' %}">Retour</a>
+</div>
+
+<section class="content-panel">
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><span class="text-muted-small">Matricule</span><strong class="d-block">{{ assignment.student.matricule }}</strong></div>
+        <div class="col-md-3"><span class="text-muted-small">Filiere</span><strong class="d-block">{{ assignment.student.filiere|default:"-" }}</strong></div>
+        <div class="col-md-3"><span class="text-muted-small">Date</span><strong class="d-block">{{ assignment.jury.defense_date }}</strong></div>
+        <div class="col-md-3"><span class="text-muted-small">Horaire</span><strong class="d-block">{% if assignment.schedule %}{{ assignment.schedule.start_time|time:"H:i" }}{% else %}-{% endif %}</strong></div>
+    </div>
+
+    <form method="post" class="row g-3 align-items-end">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="col-md-4">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {{ field.errors }}
+            </div>
+        {% endfor %}
+        {{ form.non_field_errors }}
+        <div class="col-12">
+            <button class="btn btn-primary" type="submit" data-confirm="Envoyer cette evaluation definitivement ?">Envoyer</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

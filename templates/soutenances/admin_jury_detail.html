@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Détail jury{% endblock %}
+
+{% block content %}
+<section class="page-shell">
+    <div class="hero-panel">
+        <div>
+            <p class="eyebrow">Détail du jury</p>
+            <h1>{{ jury.name }}</h1>
+            <p class="muted">
+                Date de soutenance : {{ jury.defense_date|date:"d/m/Y" }}
+            </p>
+        </div>
+
+        <div class="hero-actions">
+            <a href="{% url 'admin_jury_list' %}" class="btn btn-light">
+                Retour aux jurys
+            </a>
+
+            <a href="{% url 'admin_jury_update' jury.pk %}" class="btn btn-secondary">
+                Modifier le jury
+            </a>
+
+            {% if jury.is_validated %}
+                <span class="status-pill success">Publié</span>
+            {% else %}
+                <form method="post" action="{% url 'admin_jury_publish' jury.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary">
+                        Publier ce jury
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="detail-grid">
+        <article class="detail-card">
+            <h2>Membres du jury</h2>
+            <p class="muted">
+                Le jury doit contenir exactement 3 professeurs.
+            </p>
+
+            <div class="member-list">
+                {% for member in jury.members.all %}
+                    <div class="member-row">
+                        <span class="avatar-dot">
+                            {{ member.professor.full_name|slice:":1" }}
+                        </span>
+                        <div>
+                            <strong>{{ member.professor.full_name }}</strong>
+                            <p class="muted">Membre du jury</p>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="muted">Aucun membre ajouté.</p>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="detail-card">
+            <h2>Ajouter un étudiant</h2>
+            <p class="muted">
+                Le président sera choisi automatiquement parmi les deux professeurs qui ne sont pas l'encadrant.
+            </p>
+
+            <form method="post" action="{% url 'admin_jury_add_student' jury.pk %}" class="form-stack">
+                {% csrf_token %}
+                {{ form.as_p }}
+
+                <button type="submit" class="btn btn-primary">
+                    Ajouter au jury
+                </button>
+            </form>
+        </article>
+    </div>
+
+    <article class="detail-card wide">
+        <div class="section-title">
+            <div>
+                <h2>Étudiants affectés</h2>
+                <p class="muted">
+                    Chaque étudiant possède son président de soutenance.
+                    L'encadrant ne peut pas être président pour son propre étudiant.
+                </p>
+            </div>
+
+            <span class="status-pill">
+                {{ jury.students.count }} étudiant(s)
+            </span>
+        </div>
+
+        {% if jury.students.all %}
+            <div class="student-table-like">
+                {% for item in jury.students.all %}
+                    <div class="student-detail-row">
+                        <div>
+                            <strong>{{ item.student.full_name }}</strong>
+                            <p class="muted">
+                                {{ item.student.matricule }}
+                                {% if item.student.filiere %}
+                                    · {{ item.student.filiere }}
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <div>
+                            <span class="label">Encadrant</span>
+                            <p>{{ item.student.encadrant.full_name }}</p>
+                        </div>
+
+                        <div>
+                            <span class="label">Président</span>
+                            {% if item.president %}
+                                <p class="president-name">{{ item.president.full_name }}</p>
+                            {% else %}
+                                <p class="warning-text">Non défini</p>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <span class="label">Horaire</span>
+                            {% if item.schedule %}
+                                <p>
+                                    {{ item.schedule.start_time|time:"H:i" }}
+                                    -
+                                    {{ item.schedule.end_time|time:"H:i" }}
+                                </p>
+                            {% else %}
+                                <p class="warning-text">Non planifié</p>
+                            {% endif %}
+                        </div>
+
+                        <div class="row-actions">
+                            <form method="post" action="{% url 'admin_jury_remove_student' jury.pk item.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger">
+                                    Retirer
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <h3>Aucun étudiant affecté</h3>
+                <p>Ajoutez un étudiant ou lancez la génération automatique.</p>
+            </div>
+        {% endif %}
+    </article>
+</section>
+{% endblock %}

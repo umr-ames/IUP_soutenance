@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+venv/
+staticfiles/
+media/
+backups/
+data/student_references_real.csv
+data/student_references_final.xlsx
+.pytest_cache/
+.coverage
+htmlcov/

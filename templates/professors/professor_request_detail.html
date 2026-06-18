@@ -1,0 +1,632 @@
+{% extends 'base.html' %}
+
+{% block title %}Détail demande{% endblock %}
+
+{% block extra_css %}
+<style>
+    .prof-detail-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(310px, 0.85fr);
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .student-profile-panel,
+    .decision-panel,
+    .detail-card {
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.78);
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px);
+    }
+
+    .student-profile-panel {
+        position: relative;
+        overflow: hidden;
+        padding: 28px;
+        background:
+            radial-gradient(circle at 88% 16%, rgba(249, 115, 22, 0.16), transparent 34%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 247, 237, 0.72));
+    }
+
+    .profile-main {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+    }
+
+    .profile-avatar {
+        width: 72px;
+        height: 72px;
+        flex: 0 0 72px;
+        display: grid;
+        place-items: center;
+        border-radius: 26px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        box-shadow: 0 16px 34px rgba(249, 115, 22, 0.22);
+        font-size: 1.7rem;
+        font-weight: 950;
+    }
+
+    .profile-info h1 {
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(1.55rem, 2.4vw, 2.35rem);
+        line-height: 1.05;
+        font-weight: 950;
+        letter-spacing: -0.055em;
+    }
+
+    .profile-info p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-weight: 700;
+    }
+
+    .profile-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+    }
+
+    .profile-tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.82rem;
+        font-weight: 880;
+    }
+
+    .decision-panel {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .panel-title h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 1.16rem;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+    }
+
+    .panel-title p {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        font-weight: 650;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 36px;
+        width: fit-content;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 930;
+        white-space: nowrap;
+    }
+
+    .status-pill.accepted {
+        color: #14543a;
+        background: rgba(36, 144, 96, 0.13);
+        border: 1px solid rgba(36, 144, 96, 0.16);
+    }
+
+    .status-pill.refused {
+        color: #7d2522;
+        background: rgba(194, 65, 61, 0.12);
+        border: 1px solid rgba(194, 65, 61, 0.15);
+    }
+
+    .status-pill.pending-admin {
+        color: #294f78;
+        background: rgba(79, 120, 167, 0.13);
+        border: 1px solid rgba(79, 120, 167, 0.15);
+    }
+
+    .status-pill.pending-professor {
+        color: #7c3f05;
+        background: rgba(217, 119, 6, 0.14);
+        border: 1px solid rgba(217, 119, 6, 0.16);
+    }
+
+    .status-pill.muted {
+        color: var(--muted);
+        background: rgba(35, 31, 27, 0.07);
+        border: 1px solid rgba(35, 31, 27, 0.09);
+    }
+
+    .decision-form textarea {
+        min-height: 145px;
+    }
+
+    .decision-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin-top: 14px;
+    }
+
+    .detail-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(320px, 0.75fr);
+        gap: 18px;
+        align-items: start;
+    }
+
+    .detail-card {
+        padding: 22px;
+    }
+
+    .card-title-clean {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 16px;
+    }
+
+    .card-title-clean h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 1.16rem;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+    }
+
+    .card-title-clean p {
+        margin: 5px 0 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        font-weight: 650;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .info-cell {
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid rgba(35, 31, 27, 0.07);
+    }
+
+    .info-cell span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+    }
+
+    .info-cell strong {
+        display: block;
+        margin-top: 6px;
+        color: var(--text);
+        font-weight: 930;
+        line-height: 1.2;
+    }
+
+    .document-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .document-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid rgba(35, 31, 27, 0.07);
+    }
+
+    .document-item strong {
+        display: block;
+        color: var(--text);
+        font-weight: 930;
+        line-height: 1.2;
+    }
+
+    .document-item span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        font-weight: 680;
+    }
+
+    .timeline-clean {
+        display: grid;
+        gap: 10px;
+    }
+
+    .timeline-step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid rgba(35, 31, 27, 0.07);
+    }
+
+    .timeline-number {
+        width: 34px;
+        height: 34px;
+        flex: 0 0 34px;
+        display: grid;
+        place-items: center;
+        border-radius: 13px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        font-size: 0.8rem;
+        font-weight: 950;
+    }
+
+    .timeline-step strong {
+        display: block;
+        color: var(--text);
+        font-weight: 930;
+        line-height: 1.2;
+    }
+
+    .timeline-step span {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        font-weight: 680;
+    }
+
+    .comment-box {
+        margin-top: 12px;
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255, 247, 237, 0.76);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+    }
+
+    .comment-box strong {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--orange-deep);
+        font-weight: 930;
+    }
+
+    .comment-box p {
+        margin: 0;
+        color: var(--text);
+        font-weight: 650;
+    }
+
+    @media (max-width: 1050px) {
+        .prof-detail-hero,
+        .detail-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .student-profile-panel,
+        .decision-panel,
+        .detail-card {
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .profile-main {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .document-item {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .decision-actions .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="prof-detail-hero">
+    <div class="student-profile-panel">
+        <span class="eyebrow">Validation encadrant</span>
+
+        <div class="profile-main">
+            <div class="profile-avatar">
+                {{ pfe_request.student.full_name|slice:":1"|upper }}
+            </div>
+
+            <div class="profile-info">
+                <h1>{{ pfe_request.student.full_name }}</h1>
+                <p>
+                    {{ pfe_request.student.matricule }}
+                    ·
+                    {{ pfe_request.student.filiere|default:"Filière non renseignée" }}
+                </p>
+            </div>
+        </div>
+
+        <div class="profile-tags">
+            <span class="profile-tag">Envoyée le {{ pfe_request.submitted_at|date:"d/m/Y H:i" }}</span>
+            <span class="profile-tag">Encadrant : {{ pfe_request.student.encadrant.full_name }}</span>
+
+            {% if pfe_request.status == 'pending_professor' %}
+                <span class="profile-tag">Décision attendue</span>
+            {% elif pfe_request.status == 'pending_admin' %}
+                <span class="profile-tag">Transmise à l’administration</span>
+            {% elif pfe_request.status == 'accepted' %}
+                <span class="profile-tag">Acceptée</span>
+            {% else %}
+                <span class="profile-tag">Traitée</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <aside class="decision-panel">
+        <div class="panel-title">
+            <span class="eyebrow">Décision</span>
+            <h2>Traitement du dossier</h2>
+            <p>
+                Validez le dossier pour l’envoyer à l’administration, ou refusez avec un commentaire clair.
+            </p>
+        </div>
+
+        <div>
+            {% if pfe_request.status == 'pending_professor' %}
+                <span class="status-pill pending-professor">En attente encadrant</span>
+            {% elif pfe_request.status == 'pending_admin' %}
+                <span class="status-pill pending-admin">En attente administration</span>
+            {% elif pfe_request.status == 'accepted' %}
+                <span class="status-pill accepted">Acceptée</span>
+            {% elif pfe_request.status == 'refused_by_professor' or pfe_request.status == 'refused_by_admin' %}
+                <span class="status-pill refused">Refusée</span>
+            {% else %}
+                <span class="status-pill muted">{{ pfe_request.get_status_display }}</span>
+            {% endif %}
+        </div>
+
+        {% if pfe_request.status == 'pending_professor' %}
+            <form method="post" class="decision-form">
+                {% csrf_token %}
+
+                <div>
+                    <label class="form-label">
+                        Commentaire
+                    </label>
+
+                    <textarea
+                        name="professor_comment"
+                        class="form-control"
+                        rows="4"
+                        placeholder="Obligatoire en cas de refus : document incomplet, rapport non conforme..."
+                    ></textarea>
+
+                    <small class="form-help">
+                        Facultatif pour valider, obligatoire pour refuser.
+                    </small>
+                </div>
+
+                <div class="decision-actions">
+                    <button type="submit" name="action" value="accept" class="btn btn-success">
+                        Valider
+                    </button>
+
+                    <button type="submit" name="action" value="refuse" class="btn btn-danger">
+                        Refuser
+                    </button>
+
+                    <a href="{% url 'professor_requests' %}" class="btn btn-outline-secondary">
+                        Annuler
+                    </a>
+                </div>
+            </form>
+        {% else %}
+            <div class="empty-state">
+                Cette demande a déjà été traitée.
+            </div>
+
+            {% if pfe_request.professor_comment %}
+                <div class="comment-box">
+                    <strong>Votre commentaire</strong>
+                    <p>{{ pfe_request.professor_comment }}</p>
+                </div>
+            {% endif %}
+        {% endif %}
+
+        <a href="{% url 'professor_requests' %}" class="btn btn-outline-secondary">
+            Retour aux demandes
+        </a>
+    </aside>
+</section>
+
+<div class="detail-layout">
+    <div>
+        <section class="detail-card">
+            <div class="card-title-clean">
+                <div>
+                    <span class="eyebrow">Étudiant</span>
+                    <h2>Informations principales</h2>
+                    <p>Données utiles pour vérifier le dossier.</p>
+                </div>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-cell">
+                    <span>Matricule</span>
+                    <strong>{{ pfe_request.student.matricule }}</strong>
+                </div>
+
+                <div class="info-cell">
+                    <span>Filière</span>
+                    <strong>{{ pfe_request.student.filiere|default:"-" }}</strong>
+                </div>
+
+                <div class="info-cell">
+                    <span>Nom complet</span>
+                    <strong>{{ pfe_request.student.full_name }}</strong>
+                </div>
+
+                <div class="info-cell">
+                    <span>Encadrant</span>
+                    <strong>{{ pfe_request.student.encadrant.full_name }}</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="detail-card mt-3">
+            <div class="card-title-clean">
+                <div>
+                    <span class="eyebrow">Documents</span>
+                    <h2>Pièces envoyées</h2>
+                    <p>Vérifiez les documents avant la décision.</p>
+                </div>
+            </div>
+
+            <div class="document-list">
+                <div class="document-item">
+                    <div>
+                        <strong>Autorisation de soutenance</strong>
+                        <span>Document obligatoire</span>
+                    </div>
+
+                    {% if pfe_request.authorization_document %}
+                        <a href="{{ pfe_request.authorization_document.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            Ouvrir
+                        </a>
+                    {% else %}
+                        <span class="status-pill muted">Non envoyée</span>
+                    {% endif %}
+                </div>
+
+                <div class="document-item">
+                    <div>
+                        <strong>Rapport de stage</strong>
+                        <span>Document obligatoire</span>
+                    </div>
+
+                    {% if pfe_request.rapport_stage %}
+                        <a href="{{ pfe_request.rapport_stage.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            Ouvrir
+                        </a>
+                    {% else %}
+                        <span class="status-pill muted">Non envoyé</span>
+                    {% endif %}
+                </div>
+
+                {% if pfe_request.rapport_pfe %}
+                    <div class="document-item">
+                        <div>
+                            <strong>Rapport PFE</strong>
+                            <span>Document complémentaire</span>
+                        </div>
+
+                        <a href="{{ pfe_request.rapport_pfe.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            Ouvrir
+                        </a>
+                    </div>
+                {% endif %}
+
+                {% if pfe_request.fiche_demande %}
+                    <div class="document-item">
+                        <div>
+                            <strong>Fiche de demande</strong>
+                            <span>Document complémentaire</span>
+                        </div>
+
+                        <a href="{{ pfe_request.fiche_demande.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            Ouvrir
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+
+    <aside>
+        <section class="detail-card">
+            <div class="card-title-clean">
+                <div>
+                    <span class="eyebrow">Suivi</span>
+                    <h2>Historique</h2>
+                    <p>État du traitement de la demande.</p>
+                </div>
+            </div>
+
+            <div class="timeline-clean">
+                <div class="timeline-step">
+                    <div class="timeline-number">1</div>
+                    <div>
+                        <strong>Dépôt étudiant</strong>
+                        <span>{{ pfe_request.submitted_at|date:"d/m/Y H:i" }}</span>
+                    </div>
+                </div>
+
+                <div class="timeline-step">
+                    <div class="timeline-number">2</div>
+                    <div>
+                        <strong>Validation encadrant</strong>
+                        <span>
+                            {% if pfe_request.professor_reviewed_at %}
+                                {{ pfe_request.professor_reviewed_at|date:"d/m/Y H:i" }}
+                            {% else %}
+                                En attente
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="timeline-step">
+                    <div class="timeline-number">3</div>
+                    <div>
+                        <strong>Administration</strong>
+                        <span>
+                            {% if pfe_request.admin_reviewed_at %}
+                                {{ pfe_request.admin_reviewed_at|date:"d/m/Y H:i" }}
+                            {% else %}
+                                En attente
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {% if pfe_request.admin_comment %}
+                <div class="comment-box">
+                    <strong>Commentaire administration</strong>
+                    <p>{{ pfe_request.admin_comment }}</p>
+                </div>
+            {% endif %}
+        </section>
+    </aside>
+</div>
+{% endblock %}

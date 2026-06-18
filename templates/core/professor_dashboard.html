@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}Espace professeur{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin: 18px 0;
+    }
+
+    .kpi-card {
+        padding: 18px 20px;
+        border-radius: var(--radius-lg);
+    }
+
+    .kpi-card .kpi-label {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .kpi-card .kpi-value {
+        margin-top: 8px;
+        color: var(--heading);
+        font-size: 2rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .quick-actions-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .quick-action {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 14px 16px;
+        border-radius: var(--radius-lg);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        color: var(--text);
+        font-weight: 800;
+        transition: 0.15s var(--ease);
+    }
+
+    .quick-action:hover {
+        color: #ffffff;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        border-color: transparent;
+        transform: translateY(-1px);
+    }
+
+    .professor-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.75fr);
+        gap: 18px;
+        align-items: start;
+    }
+
+    .student-line-clean {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px;
+        border-radius: var(--radius-md);
+        background: var(--surface-soft);
+        border: 1px solid var(--line);
+    }
+
+    .student-avatar-small {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 14px;
+        color: #ffffff;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        font-weight: 900;
+    }
+
+    .student-line-clean strong {
+        display: block;
+        color: var(--heading);
+        font-weight: 800;
+    }
+
+    .student-line-clean span {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 0.84rem;
+    }
+
+    .availability-slot {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 14px;
+        border-radius: var(--radius-md);
+        background: var(--surface-soft);
+        border: 1px solid var(--line);
+        margin-bottom: 9px;
+    }
+
+    @media (max-width: 1050px) {
+        .kpi-grid,
+        .quick-actions-row {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .professor-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .kpi-grid,
+        .quick-actions-row {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if not professor %}
+    <section class="glass-card">
+        <div class="alert alert-warning mb-0">
+            Votre profil professeur n'est pas encore configuré.
+        </div>
+    </section>
+{% else %}
+    <div class="page-header">
+        <div>
+            <span class="eyebrow">Espace professeur</span>
+            <h1>{{ professor.full_name }}</h1>
+        </div>
+
+        <a class="btn btn-primary" href="{% url 'professor_evaluations' %}">
+            Voir mes évaluations
+        </a>
+    </div>
+
+    <div class="kpi-grid">
+        <div class="kpi-card glass-card">
+            <div class="kpi-label">Disponibilités déclarées</div>
+            <div class="kpi-value">{{ availability_count }}</div>
+        </div>
+
+        <div class="kpi-card glass-card">
+            <div class="kpi-label">Jurys assignés</div>
+            <div class="kpi-value">{{ juries_count }}</div>
+        </div>
+
+        <div class="kpi-card glass-card">
+            <div class="kpi-label">Soutenances à démarrer</div>
+            <div class="kpi-value">{{ to_start_count }}</div>
+        </div>
+
+        <div class="kpi-card glass-card">
+            <div class="kpi-label">Évaluations à faire</div>
+            <div class="kpi-value">{{ pending_evaluations }}</div>
+        </div>
+    </div>
+
+    <div class="quick-actions-row">
+        <a href="{% url 'professor_availability' %}" class="quick-action">Déclarer mes disponibilités</a>
+        <a href="{% url 'professor_my_juries' %}" class="quick-action">Voir mes jurys</a>
+        <a href="{% url 'professor_evaluations' %}" class="quick-action">Voir évaluations</a>
+    </div>
+
+    <div class="professor-grid">
+        <div class="main-stack">
+            <section class="glass-card">
+                <div class="card-header-flex">
+                    <div>
+                        <span class="eyebrow">Encadrement</span>
+                        <h3>Étudiants encadrés</h3>
+                    </div>
+
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'professor_supervised_students' %}">
+                        Tout voir
+                    </a>
+                </div>
+
+                <div class="d-grid gap-2 mt-2">
+                    {% for student in supervised_students %}
+                        <div class="student-line-clean">
+                            <div class="student-avatar-small">{{ student.full_name|slice:":1"|upper }}</div>
+
+                            <div>
+                                <strong>{{ student.full_name }}</strong>
+                                <span>{{ student.matricule }}{% if student.filiere %} · {{ student.filiere }}{% endif %}</span>
+                            </div>
+
+                            {% if student.pfe_request %}
+                                {% if student.pfe_request.status == 'accepted' %}
+                                    <span class="status-pill success">{{ student.pfe_request.get_status_display }}</span>
+                                {% elif student.pfe_request.status == 'refused_by_professor' or student.pfe_request.status == 'refused_by_admin' %}
+                                    <span class="status-pill danger">{{ student.pfe_request.get_status_display }}</span>
+                                {% elif student.pfe_request.status == 'pending_admin' %}
+                                    <span class="status-pill info">{{ student.pfe_request.get_status_display }}</span>
+                                {% elif student.pfe_request.status == 'pending_professor' %}
+                                    <span class="status-pill warning">{{ student.pfe_request.get_status_display }}</span>
+                                {% else %}
+                                    <span class="status-pill muted">{{ student.pfe_request.get_status_display }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="status-pill muted">Aucune demande</span>
+                            {% endif %}
+                        </div>
+                    {% empty %}
+                        <div class="empty-state">Aucun étudiant encadré pour le moment.</div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            {% if pending_requests_count %}
+                <section class="glass-card mt-3">
+                    <div class="card-header-flex">
+                        <div>
+                            <span class="eyebrow">À traiter</span>
+                            <h3>{{ pending_requests_count }} demande(s) en attente</h3>
+                        </div>
+
+                        <a class="btn btn-sm btn-primary" href="{% url 'professor_requests' %}">
+                            Traiter
+                        </a>
+                    </div>
+                </section>
+            {% endif %}
+        </div>
+
+        <aside>
+            <section class="glass-card">
+                <div class="card-header-flex">
+                    <div>
+                        <span class="eyebrow">Disponibilités</span>
+                        <h3>Mes prochains créneaux</h3>
+                    </div>
+
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'professor_availability' %}">
+                        Gérer
+                    </a>
+                </div>
+
+                <div class="mt-2">
+                    {% for slot in availability_blocks %}
+                        <div class="availability-slot">
+                            <div>
+                                <strong>{{ slot.date|date:"d/m/Y" }}</strong>
+                                <span class="d-block text-muted">{{ slot.start_time|time:"H:i" }} - {{ slot.end_time|time:"H:i" }}</span>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="empty-state">Aucune disponibilité ajoutée.</div>
+                    {% endfor %}
+                </div>
+            </section>
+        </aside>
+    </div>
+{% endif %}
+{% endblock %}

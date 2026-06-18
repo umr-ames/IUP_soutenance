@@ -1,0 +1,653 @@
+{% extends "base.html" %}
+
+{% block title %}Résultats{% endblock %}
+
+{% block extra_css %}
+<style>
+    .results-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .results-panel,
+    .results-tools,
+    .result-card {
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.78);
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px);
+    }
+
+    .results-panel {
+        position: relative;
+        overflow: hidden;
+        padding: 28px;
+        background:
+            radial-gradient(circle at 88% 16%, rgba(249, 115, 22, 0.16), transparent 34%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 247, 237, 0.72));
+    }
+
+    .results-panel h1 {
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(1.65rem, 2.7vw, 2.5rem);
+        line-height: 1.05;
+        font-weight: 950;
+        letter-spacing: -0.055em;
+    }
+
+    .results-panel p {
+        max-width: 720px;
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-weight: 680;
+    }
+
+    .results-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    .results-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+    }
+
+    .results-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.82rem;
+        font-weight: 850;
+    }
+
+    .results-tools {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        justify-content: space-between;
+    }
+
+    .results-tools h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 1.15rem;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+    }
+
+    .results-tools p {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-weight: 650;
+    }
+
+    .filter-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .filter-tab {
+        min-height: 34px;
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        border-radius: 999px;
+        padding: 7px 11px;
+        color: var(--orange-deep);
+        background: rgba(255, 247, 237, 0.72);
+        font-size: 0.82rem;
+        font-weight: 880;
+        transition: 0.16s ease;
+    }
+
+    .filter-tab:hover,
+    .filter-tab.active {
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        border-color: transparent;
+    }
+
+    .results-board {
+        display: grid;
+        gap: 14px;
+    }
+
+    .result-card {
+        padding: 18px;
+        transition: 0.16s ease;
+    }
+
+    .result-card:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.9);
+    }
+
+    .result-card.has-gap-alert {
+        border-color: rgba(220, 38, 38, 0.30) !important;
+        background: linear-gradient(135deg, rgba(220, 38, 38, 0.04), rgba(255, 255, 255, 0.78)) !important;
+    }
+
+    .result-card.non-soutenable-card {
+        border-color: rgba(220, 38, 38, 0.22) !important;
+        background: linear-gradient(135deg, rgba(220, 38, 38, 0.03), rgba(255, 255, 255, 0.82)) !important;
+        opacity: 0.88;
+    }
+
+    .gap-alert-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 34px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 900;
+        white-space: nowrap;
+        color: #7d1f1f;
+        background: rgba(220, 38, 38, 0.12);
+        border: 1px solid rgba(220, 38, 38, 0.28);
+        animation: gap-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes gap-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
+        50%       { box-shadow: 0 0 0 5px rgba(220, 38, 38, 0); }
+    }
+
+    .result-card-header {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) minmax(210px, 0.72fr) minmax(180px, 0.55fr) auto;
+        gap: 16px;
+        align-items: center;
+        padding-bottom: 14px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid rgba(35, 31, 27, 0.08);
+    }
+
+    .student-main {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .student-avatar {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+        display: grid;
+        place-items: center;
+        border-radius: 18px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        box-shadow: 0 12px 24px rgba(249, 115, 22, 0.18);
+        font-weight: 950;
+    }
+
+    .student-info strong,
+    .jury-info strong {
+        display: block;
+        color: var(--text);
+        font-weight: 950;
+        line-height: 1.18;
+    }
+
+    .student-info span,
+    .jury-info span {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        font-weight: 700;
+    }
+
+    .result-value {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .average-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 8px 13px;
+        border-radius: 999px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .soft-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: fit-content;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 920;
+        white-space: nowrap;
+    }
+
+    .soft-pill.success {
+        color: #14543a;
+        background: rgba(36, 144, 96, 0.13);
+        border: 1px solid rgba(36, 144, 96, 0.16);
+    }
+
+    .soft-pill.warning {
+        color: #7c3f05;
+        background: rgba(217, 119, 6, 0.14);
+        border: 1px solid rgba(217, 119, 6, 0.16);
+    }
+
+    .soft-pill.danger {
+        color: #7d2522;
+        background: rgba(194, 65, 61, 0.12);
+        border: 1px solid rgba(194, 65, 61, 0.15);
+    }
+
+    .soft-pill.info {
+        color: #294f78;
+        background: rgba(79, 120, 167, 0.13);
+        border: 1px solid rgba(79, 120, 167, 0.15);
+    }
+
+    .soft-pill.muted {
+        color: var(--muted);
+        background: rgba(35, 31, 27, 0.07);
+        border: 1px solid rgba(35, 31, 27, 0.09);
+    }
+
+    .result-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+
+    .evaluations-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .evaluation-card {
+        display: grid;
+        grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 13px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid rgba(35, 31, 27, 0.07);
+    }
+
+    .evaluation-prof strong {
+        display: block;
+        color: var(--text);
+        font-weight: 930;
+        line-height: 1.2;
+    }
+
+    .evaluation-prof span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 680;
+    }
+
+    .note-line {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+    }
+
+    .note-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.12);
+        font-size: 0.78rem;
+        font-weight: 900;
+    }
+
+    .note-chip.final {
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        border-color: transparent;
+    }
+
+    .empty-evaluations {
+        padding: 14px;
+        border-radius: 18px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.55);
+        border: 1px dashed rgba(249, 115, 22, 0.24);
+        font-weight: 800;
+    }
+
+    .no-result {
+        display: none;
+    }
+
+    @media (max-width: 1100px) {
+        .results-hero {
+            grid-template-columns: 1fr;
+        }
+
+        .result-card-header,
+        .evaluation-card {
+            grid-template-columns: 1fr;
+            align-items: start;
+        }
+
+        .result-actions {
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .results-panel,
+        .results-tools,
+        .result-card {
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .results-actions .btn,
+        .results-actions form,
+        .results-actions form button {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="results-hero">
+    <div class="results-panel">
+        <span class="eyebrow">Résultats</span>
+        <h1>Publication des notes</h1>
+        <p>
+            Suivez les évaluations envoyées par les jurys, publiez les résultats prêts et exportez les PV.
+        </p>
+
+        <div class="results-actions">
+            <form method="post" action="{% url 'admin_publish_all_results' %}">
+                {% csrf_token %}
+                <button class="btn btn-primary" type="submit" data-confirm="Publier tous les résultats prêts ?">
+                    Publier les résultats prêts
+                </button>
+            </form>
+
+            <a class="btn btn-outline-secondary" href="{% url 'export_results_pdf' %}">
+                Exporter PDF
+            </a>
+
+            <a class="btn btn-outline-primary" href="{% url 'admin_planning' %}">
+                Planning
+            </a>
+        </div>
+
+        <div class="results-chip-row">
+            <span class="results-chip">3 évaluations requises</span>
+            <span class="results-chip">Moyenne automatique</span>
+            <span class="results-chip">PV individuel</span>
+            <span class="results-chip">Alerte écart ≥ 3</span>
+        </div>
+    </div>
+
+    <aside class="results-tools">
+        <div>
+            <span class="eyebrow">Recherche</span>
+            <h2>Filtrer les résultats</h2>
+            <p>Recherchez par étudiant, matricule, jury, professeur ou statut.</p>
+        </div>
+
+        <input
+            type="text"
+            id="resultSearch"
+            class="form-control"
+            placeholder="Rechercher..."
+        >
+
+        <div class="filter-tabs" aria-label="Filtres résultats">
+            <button class="filter-tab active" type="button" data-filter="all">Tous</button>
+            <button class="filter-tab" type="button" data-filter="ready">Prêts</button>
+            <button class="filter-tab" type="button" data-filter="published">Publiés</button>
+            <button class="filter-tab" type="button" data-filter="waiting">En attente</button>
+            <button class="filter-tab" type="button" data-filter="alert">Alertes</button>
+            <button class="filter-tab" type="button" data-filter="non_soutenable">Non soutenable</button>
+        </div>
+    </aside>
+</section>
+
+<section class="results-board" id="resultsBoard">
+    {% for item in items %}
+        {% with gap_alert=item.result.has_note_gap_alert|default:item.computed_gap_alert %}
+        <article
+            class="result-card{% if gap_alert %} has-gap-alert{% endif %}{% if item.assignment.pfe_soutenable_status == 'non_soutenable' %} non-soutenable-card{% endif %}"
+            data-status="{% if item.result and item.result.is_published %}published{% elif item.ready %}ready{% elif item.assignment.pfe_soutenable_status == 'non_soutenable' %}non_soutenable{% else %}waiting{% endif %}"
+            data-alert="{% if gap_alert %}alert{% else %}normal{% endif %}"
+        >
+            <div class="result-card-header">
+                <div class="student-main">
+                    <div class="student-avatar">
+                        {{ item.assignment.student.full_name|slice:":1"|upper }}
+                    </div>
+
+                    <div class="student-info">
+                        <strong>{{ item.assignment.student.full_name }}</strong>
+                        <span>
+                            {{ item.assignment.student.matricule }}
+                            {% if item.assignment.student.filiere %}
+                                · {{ item.assignment.student.filiere }}
+                            {% endif %}
+                        </span>
+                        {% if item.assignment.pfe_soutenable_status == 'non_soutenable' %}
+                            <span style="display:inline-block;margin-top:4px;padding:3px 9px;border-radius:999px;font-size:0.76rem;font-weight:850;background:rgba(220,38,38,0.10);border:1px solid rgba(220,38,38,0.22);color:#7d1f1f;">
+                                PFE non soutenable
+                            </span>
+                        {% elif item.assignment.pfe_soutenable_status == 'soutenable' %}
+                            <span style="display:inline-block;margin-top:4px;padding:3px 9px;border-radius:999px;font-size:0.76rem;font-weight:850;background:rgba(22,163,74,0.10);border:1px solid rgba(22,163,74,0.20);color:#14532d;">
+                                PFE soutenable
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="jury-info">
+                    <strong>{{ item.assignment.jury.name }}</strong>
+                    <span>{{ item.assignment.jury.defense_date|date:"d/m/Y" }}</span>
+                </div>
+
+                <div class="result-value">
+                    {% if item.assignment.pfe_soutenable_status == 'non_soutenable' %}
+                        <span class="soft-pill muted">Non soutenable — pas de note</span>
+                    {% elif item.result and item.result.average %}
+                        <span class="average-pill">{{ item.result.average }}/20</span>
+                    {% elif item.ready and item.computed_average %}
+                        <span class="average-pill">{{ item.computed_average }}/20</span>
+                        <span class="soft-pill warning">Prêt à publier</span>
+                    {% else %}
+                        <span class="soft-pill muted">{{ item.evaluations|length }}/3 évaluation(s)</span>
+                    {% endif %}
+
+                    {% if not item.assignment.pfe_soutenable_status == 'non_soutenable' %}
+                        {% if item.result and item.result.has_note_gap_alert %}
+                            <span class="gap-alert-pill">&#9888; Écart {{ item.result.note_gap_value }}</span>
+                        {% elif item.result and item.result.note_gap_value %}
+                            <span class="soft-pill muted">Écart {{ item.result.note_gap_value }}</span>
+                        {% elif item.computed_gap_alert %}
+                            <span class="gap-alert-pill">&#9888; Écart {{ item.computed_gap }}</span>
+                        {% elif item.computed_gap %}
+                            <span class="soft-pill muted">Écart {{ item.computed_gap }}</span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+                <div class="result-actions">
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'export_student_pv_pdf' item.assignment.id %}">
+                        PV
+                    </a>
+
+                    {% if item.assignment.pfe_soutenable_status == 'non_soutenable' %}
+                        <span class="soft-pill muted">Non soutenable</span>
+                    {% elif item.ready %}
+                        {% if item.result and item.result.is_published %}
+                            <span class="soft-pill success">Publié</span>
+                        {% else %}
+                            <form method="post" action="{% url 'admin_publish_result' item.assignment.id %}">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-primary" type="submit">
+                                    Publier
+                                </button>
+                            </form>
+                        {% endif %}
+                    {% else %}
+                        <span class="soft-pill muted">En attente</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="evaluations-list">
+                {% for evaluation in item.evaluations %}
+                    <div class="evaluation-card">
+                        <div class="evaluation-prof">
+                            <strong>{{ evaluation.professor.full_name }}</strong>
+                            <span>
+                                {% if evaluation.submitted_at %}
+                                    Envoyée le {{ evaluation.submitted_at|date:"d/m/Y H:i" }}
+                                {% else %}
+                                    Date non renseignée
+                                {% endif %}
+                            </span>
+                        </div>
+
+                        <div class="note-line">
+                            <span class="note-chip">Rapport {{ evaluation.rapport_note }}/20</span>
+                            <span class="note-chip">Présentation {{ evaluation.presentation_note }}/20</span>
+                            <span class="note-chip">Questions {{ evaluation.questions_note }}/20</span>
+                            <span class="note-chip final">Final {{ evaluation.final_note }}/20</span>
+
+                            {% if evaluation.is_locked %}
+                                <span class="soft-pill success">Verrouillée</span>
+                            {% else %}
+                                <span class="soft-pill info">Brouillon</span>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <form method="post" action="{% url 'admin_unlock_evaluation' evaluation.id %}">
+                                {% csrf_token %}
+                                <button
+                                    class="btn btn-sm btn-outline-danger"
+                                    type="submit"
+                                    data-confirm="Déverrouiller cette évaluation ?"
+                                >
+                                    Déverrouiller
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="empty-evaluations">
+                        Aucune évaluation envoyée pour le moment.
+                    </div>
+                {% endfor %}
+            </div>
+        </article>
+        {% endwith %}
+    {% empty %}
+        <div class="empty-state">
+            Aucun étudiant affecté à un jury pour le moment.
+        </div>
+    {% endfor %}
+
+    <div class="empty-state no-result" id="noResultFound">
+        Aucun résultat ne correspond à votre recherche.
+    </div>
+</section>
+
+<script>
+const resultSearch = document.getElementById('resultSearch');
+const resultCards = document.querySelectorAll('.result-card');
+const noResultFound = document.getElementById('noResultFound');
+const filterTabs = document.querySelectorAll('.filter-tab');
+
+let activeFilter = 'all';
+
+function resultMatchesFilter(card) {
+    const status = card.getAttribute('data-status');
+    const alertState = card.getAttribute('data-alert');
+
+    if (activeFilter === 'all') {
+        return true;
+    }
+
+    if (activeFilter === 'alert') {
+        return alertState === 'alert';
+    }
+
+    return status === activeFilter;
+}
+
+function refreshResults() {
+    const query = resultSearch ? resultSearch.value.toLowerCase().trim() : '';
+    let visibleCount = 0;
+
+    resultCards.forEach(function (card) {
+        const text = card.innerText.toLowerCase();
+        const visible = text.includes(query) && resultMatchesFilter(card);
+
+        card.style.display = visible ? '' : 'none';
+
+        if (visible) {
+            visibleCount += 1;
+        }
+    });
+
+    if (noResultFound) {
+        noResultFound.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+}
+
+if (resultSearch) {
+    resultSearch.addEventListener('input', refreshResults);
+}
+
+filterTabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+        filterTabs.forEach(function (item) {
+            item.classList.remove('active');
+        });
+
+        tab.classList.add('active');
+        activeFilter = tab.getAttribute('data-filter');
+        refreshResults();
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,464 @@
+{% extends 'base.html' %}
+
+{% block title %}Notes envoyées{% endblock %}
+
+{% block extra_css %}
+<style>
+    .submitted-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .submitted-panel,
+    .submitted-tools,
+    .submitted-card {
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.78);
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px);
+    }
+
+    .submitted-panel {
+        position: relative;
+        overflow: hidden;
+        padding: 28px;
+        background:
+            radial-gradient(circle at 88% 16%, rgba(249, 115, 22, 0.16), transparent 34%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 247, 237, 0.72));
+    }
+
+    .submitted-panel h1 {
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(1.65rem, 2.7vw, 2.5rem);
+        line-height: 1.05;
+        font-weight: 950;
+        letter-spacing: -0.055em;
+    }
+
+    .submitted-panel p {
+        max-width: 720px;
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-weight: 680;
+    }
+
+    .submitted-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    .submitted-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+    }
+
+    .submitted-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        color: var(--orange-deep);
+        background: var(--orange-soft);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.82rem;
+        font-weight: 850;
+    }
+
+    .submitted-tools {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        justify-content: space-between;
+    }
+
+    .submitted-tools h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 1.15rem;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+    }
+
+    .submitted-tools p {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-weight: 650;
+    }
+
+    .submitted-board {
+        display: grid;
+        gap: 14px;
+    }
+
+    .submitted-card {
+        padding: 18px;
+        transition: 0.16s ease;
+    }
+
+    .submitted-card:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.9);
+    }
+
+    .submitted-inner {
+        display: grid;
+        grid-template-columns: minmax(270px, 1fr) minmax(220px, 0.75fr) minmax(170px, 0.55fr) auto;
+        gap: 16px;
+        align-items: center;
+        padding-bottom: 14px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid rgba(35, 31, 27, 0.08);
+    }
+
+    .student-main {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .student-avatar {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+        display: grid;
+        place-items: center;
+        border-radius: 18px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        box-shadow: 0 12px 24px rgba(249, 115, 22, 0.18);
+        font-weight: 950;
+    }
+
+    .student-info strong,
+    .jury-info strong,
+    .date-info strong {
+        display: block;
+        color: var(--text);
+        font-weight: 950;
+        line-height: 1.18;
+    }
+
+    .student-info span,
+    .jury-info span,
+    .date-info span {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        font-weight: 700;
+    }
+
+    .final-note {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 40px;
+        width: fit-content;
+        padding: 8px 14px;
+        border-radius: 999px;
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        width: fit-content;
+        padding: 7px 11px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 920;
+        white-space: nowrap;
+    }
+
+    .status-pill.success {
+        color: #14543a;
+        background: rgba(36, 144, 96, 0.13);
+        border: 1px solid rgba(36, 144, 96, 0.16);
+    }
+
+    .status-pill.muted {
+        color: var(--muted);
+        background: rgba(35, 31, 27, 0.07);
+        border: 1px solid rgba(35, 31, 27, 0.09);
+    }
+
+    .submitted-actions-card {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .notes-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .note-box {
+        padding: 13px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid rgba(35, 31, 27, 0.07);
+    }
+
+    .note-box span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.76rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+    }
+
+    .note-box strong {
+        display: block;
+        margin-top: 6px;
+        color: var(--text);
+        font-size: 1rem;
+        font-weight: 950;
+        line-height: 1.15;
+    }
+
+    .note-box.final {
+        background: var(--orange-soft);
+        border-color: rgba(249, 115, 22, 0.14);
+    }
+
+    .note-box.final span {
+        color: var(--orange-deep);
+    }
+
+    .no-result {
+        display: none;
+    }
+
+    @media (max-width: 1050px) {
+        .submitted-hero {
+            grid-template-columns: 1fr;
+        }
+
+        .submitted-inner {
+            grid-template-columns: 1fr;
+            align-items: start;
+        }
+
+        .submitted-actions-card {
+            justify-content: flex-start;
+        }
+
+        .notes-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .submitted-panel,
+        .submitted-tools,
+        .submitted-card {
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .submitted-actions .btn {
+            width: 100%;
+        }
+
+        .notes-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="submitted-hero">
+    <div class="submitted-panel">
+        <span class="eyebrow">Notes envoyées</span>
+        <h1>Historique des évaluations</h1>
+        <p>
+            Consultez les notes déjà envoyées définitivement. Une évaluation envoyée reste verrouillée sauf déverrouillage par l’administration.
+        </p>
+
+        <div class="submitted-actions">
+            <a href="{% url 'professor_dashboard' %}" class="btn btn-outline-secondary">
+                Accueil professeur
+            </a>
+
+            <a href="{% url 'professor_evaluations' %}" class="btn btn-primary">
+                Voir évaluations
+            </a>
+        </div>
+
+        <div class="submitted-chip-row">
+            <span class="submitted-chip">Évaluations verrouillées</span>
+            <span class="submitted-chip">Rapport 30%</span>
+            <span class="submitted-chip">Présentation 30%</span>
+            <span class="submitted-chip">Questions 40%</span>
+        </div>
+    </div>
+
+    <aside class="submitted-tools">
+        <div>
+            <span class="eyebrow">Recherche</span>
+            <h2>Filtrer l’historique</h2>
+            <p>Recherchez par étudiant, matricule, filière, jury, note ou date.</p>
+        </div>
+
+        <input
+            type="text"
+            id="submittedSearch"
+            class="form-control"
+            placeholder="Rechercher..."
+        >
+    </aside>
+</section>
+
+<section class="submitted-board" id="submittedBoard">
+    {% for item in evaluations %}
+        <article class="submitted-card">
+            <div class="submitted-inner">
+                <div class="student-main">
+                    <div class="student-avatar">
+                        {{ item.jury_student.student.full_name|slice:":1"|upper }}
+                    </div>
+
+                    <div class="student-info">
+                        <strong>{{ item.jury_student.student.full_name }}</strong>
+                        <span>
+                            {{ item.jury_student.student.matricule }}
+                            {% if item.jury_student.student.filiere %}
+                                · {{ item.jury_student.student.filiere }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="jury-info">
+                    <strong>{{ item.jury_student.jury.name }}</strong>
+                    <span>Jury de soutenance</span>
+                </div>
+
+                <div class="date-info">
+                    {% if item.submitted_at %}
+                        <strong>{{ item.submitted_at|date:"d/m/Y" }}</strong>
+                        <span>{{ item.submitted_at|date:"H:i" }}</span>
+                    {% else %}
+                        <strong>-</strong>
+                        <span>Date non renseignée</span>
+                    {% endif %}
+
+                    <div class="mt-2">
+                        <span class="status-pill success">Verrouillée</span>
+                    </div>
+                </div>
+
+                <div class="submitted-actions-card">
+                    <a href="{% url 'professor_evaluation_detail' item.jury_student.id %}" class="btn btn-sm btn-primary">
+                        Voir
+                    </a>
+                </div>
+            </div>
+
+            <div class="notes-grid">
+                <div class="note-box">
+                    <span>Rapport</span>
+                    <strong>
+                        {% if item.rapport_note %}
+                            {{ item.rapport_note }}/20
+                        {% else %}
+                            -
+                        {% endif %}
+                    </strong>
+                </div>
+
+                <div class="note-box">
+                    <span>Présentation</span>
+                    <strong>
+                        {% if item.presentation_note %}
+                            {{ item.presentation_note }}/20
+                        {% else %}
+                            -
+                        {% endif %}
+                    </strong>
+                </div>
+
+                <div class="note-box">
+                    <span>Questions</span>
+                    <strong>
+                        {% if item.questions_note %}
+                            {{ item.questions_note }}/20
+                        {% else %}
+                            -
+                        {% endif %}
+                    </strong>
+                </div>
+
+                <div class="note-box final">
+                    <span>Note finale</span>
+                    <strong>
+                        {% if item.final_note %}
+                            {{ item.final_note }}/20
+                        {% elif item.value %}
+                            {{ item.value }}/20
+                        {% else %}
+                            -
+                        {% endif %}
+                    </strong>
+                </div>
+            </div>
+        </article>
+    {% empty %}
+        <div class="empty-state">
+            Aucune note envoyée pour le moment.
+        </div>
+    {% endfor %}
+
+    <div class="empty-state no-result" id="noSubmittedResult">
+        Aucune note ne correspond à votre recherche.
+    </div>
+</section>
+
+<script>
+const submittedSearch = document.getElementById('submittedSearch');
+const submittedCards = document.querySelectorAll('.submitted-card');
+const noSubmittedResult = document.getElementById('noSubmittedResult');
+
+if (submittedSearch) {
+    submittedSearch.addEventListener('input', function () {
+        const value = this.value.toLowerCase().trim();
+        let visibleCount = 0;
+
+        submittedCards.forEach(function (card) {
+            const text = card.innerText.toLowerCase();
+            const visible = text.includes(value);
+
+            card.style.display = visible ? '' : 'none';
+
+            if (visible) {
+                visibleCount += 1;
+            }
+        });
+
+        if (noSubmittedResult) {
+            noSubmittedResult.style.display = visibleCount === 0 ? 'block' : 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

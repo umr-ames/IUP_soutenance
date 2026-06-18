@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Professeurs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Professeurs</h1>
+        <p>Encadrants et membres de jury, un seul professeur par ligne.</p>
+    </div>
+    <a class="btn btn-primary" href="{% url 'admin_import_people' %}">Importer</a>
+</div>
+
+<section class="content-panel">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Nom complet</th>
+                    <th>Téléphone</th>
+                    <th>Compte</th>
+                    <th>Étudiants encadrés</th>
+                    <th>Jurys</th>
+                    <th>Disponibilités</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for professor in professors %}
+                    <tr>
+                        <td><strong>{{ professor.full_name }}</strong></td>
+                        <td>{{ professor.user.phone_number|default:professor.phone|default:"-" }}</td>
+                        <td>
+                            {% if professor.user %}
+                                <span class="status-pill success">Compte lié</span>
+                            {% else %}
+                                <span class="status-pill warning">Compte non lié</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ professor.supervised_count }}</td>
+                        <td>{{ professor.jury_count }}</td>
+                        <td>{{ professor.availability_count }}</td>
+                        <td>
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_professor_availability' %}?professor={{ professor.id }}">
+                                Voir disponibilités
+                            </a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7"><div class="empty-state">Aucun professeur.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

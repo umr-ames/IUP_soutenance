@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Etudiants{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Etudiants</h1>
+        <p>Liste des profils etudiants et de leurs encadrants.</p>
+    </div>
+    <a class="btn btn-primary" href="{% url 'admin_import_people' %}">Importer</a>
+</div>
+
+<section class="content-panel">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Matricule</th>
+                    <th>Nom complet</th>
+                    <th>Filiere</th>
+                    <th>Encadrant</th>
+                    <th>Telephone</th>
+                    <th>Demande</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                    <tr>
+                        <td>{{ student.matricule }}</td>
+                        <td>{{ student.full_name }}</td>
+                        <td>{{ student.filiere }}</td>
+                        <td>{{ student.encadrant.full_name }}</td>
+                        <td>{{ student.user.phone_number|default:"-" }}</td>
+                        <td>
+                            {% if student.pfe_request %}
+                                {{ student.pfe_request.get_status_display }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6"><div class="empty-state">Aucun etudiant.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

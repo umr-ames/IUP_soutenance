@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+
+{% block title %}Mes disponibilités{% endblock %}
+
+{% block extra_css %}
+<style>
+    .availability-hero {
+        margin-bottom: 18px;
+    }
+
+    .availability-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+    }
+
+    .availability-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 850;
+    }
+
+    .grid-card {
+        padding: 22px;
+        margin-bottom: 18px;
+    }
+
+    .hour-col {
+        width: 90px;
+    }
+
+    @media (max-width: 640px) {
+        .grid-card {
+            padding: 14px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="availability-hero hero-panel">
+    <div>
+        <span class="eyebrow">Disponibilités</span>
+        <h1>Mes créneaux disponibles</h1>
+        <p class="muted">
+            Cochez les heures où vous êtes disponible cette semaine. Ces créneaux
+            permettent au système de choisir automatiquement les jurys.
+        </p>
+
+        <div class="availability-chip-row">
+            <span class="availability-chip status-pill info">Grille hebdomadaire</span>
+            <span class="availability-chip status-pill info">09h - 19h</span>
+            <span class="availability-chip status-pill warning">Session jusqu'au {{ session_end_date|date:"d/m/Y" }}</span>
+        </div>
+    </div>
+
+    <div class="hero-actions">
+        <a href="{% url 'professor_dashboard' %}" class="btn btn-outline-secondary">
+            Accueil professeur
+        </a>
+    </div>
+</section>
+
+<section class="grid-card glass-card">
+    <form method="post" id="availabilityGridForm">
+        {% csrf_token %}
+        <input type="hidden" name="week_start" value="{{ week_start|date:'Y-m-d' }}">
+
+        <div class="week-nav">
+            <div>
+                {% if can_go_prev %}
+                    <a class="btn btn-sm btn-outline-secondary" href="?week={{ prev_week }}">
+                        ← Semaine précédente
+                    </a>
+                {% else %}
+                    <button class="btn btn-sm btn-outline-secondary" type="button" disabled>
+                        ← Semaine précédente
+                    </button>
+                {% endif %}
+            </div>
+
+            <div class="week-nav-label">
+                Semaine du {{ week_start|date:"d/m/Y" }} au {{ week_end|date:"d/m/Y" }}
+            </div>
+
+            <div>
+                {% if can_go_next %}
+                    <a class="btn btn-sm btn-outline-secondary" href="?week={{ next_week }}">
+                        Semaine suivante →
+                    </a>
+                {% else %}
+                    <button class="btn btn-sm btn-outline-secondary" type="button" disabled>
+                        Semaine suivante →
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="week-grid-wrapper">
+            <table class="week-grid">
+                <thead>
+                    <tr>
+                        <th class="hour-col-header">Heure</th>
+                        {% for day in week_days %}
+                            <th>
+                                {{ day|date:"D" }}<br>{{ day|date:"d/m" }}
+                            </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in grid_rows %}
+                        <tr>
+                            <td class="hour-label">{{ row.hour }}h - {{ row.hour|add:1 }}h</td>
+                            {% for cell in row.cells %}
+                                <td class="week-cell {% if cell.disabled %}disabled-cell{% endif %}">
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            name="slot_{{ cell.date|date:'Y-m-d' }}_{{ cell.hour }}"
+                                            {% if cell.checked %}checked{% endif %}
+                                            {% if cell.disabled %}disabled{% endif %}
+                                        >
+                                    </label>
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap mt-3">
+            <button type="submit" class="btn btn-primary">
+                Enregistrer mes disponibilités
+            </button>
+
+            <span class="form-help align-self-center">
+                L'enregistrement remplace les créneaux de cette semaine uniquement.
+            </span>
+        </div>
+    </form>
+</section>
+
+<section class="grid-card glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Récapitulatif</span>
+            <h3>Toutes mes disponibilités enregistrées</h3>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Début</th>
+                    <th>Fin</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in availabilities %}
+                    <tr>
+                        <td>{{ item.date|date:"d/m/Y" }}</td>
+                        <td>{{ item.start_time|time:"H:i" }}</td>
+                        <td>{{ item.end_time|time:"H:i" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="3">
+                            <div class="empty-state">
+                                Aucune disponibilité enregistrée pour le moment.
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

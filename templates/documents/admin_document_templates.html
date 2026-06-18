@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}Documents officiels{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Documents officiels</h1>
+        <p>Gestion des documents téléchargeables par les étudiants.</p>
+    </div>
+</div>
+
+<div class="glass-card">
+    <div class="card-header-flex">
+        <h3>Templates disponibles</h3>
+        <a href="/django-admin/documents/documenttemplate/add/" class="btn btn-primary">
+            Ajouter un document
+        </a>
+    </div>
+
+    <div class="table-responsive mt-3">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Titre</th>
+                    <th>Description</th>
+                    <th>Actif</th>
+                    <th>Date ajout</th>
+                    <th>Fichier</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in templates %}
+                    <tr>
+                        <td>{{ item.title }}</td>
+                        <td>{{ item.description|default:"-" }}</td>
+                        <td>
+                            {% if item.is_active %}
+                                <span class="badge bg-success">Actif</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactif</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.uploaded_at }}</td>
+                        <td>
+                            {% if item.file %}
+                                <a href="{{ item.file.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    Télécharger
+                                </a>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">
+                            Aucun document officiel disponible.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

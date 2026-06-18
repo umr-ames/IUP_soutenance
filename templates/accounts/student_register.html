@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Inscription étudiant - IUP{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card register-card-wide">
+        <div class="auth-brand">
+            <div class="auth-brand-mark">
+                <img src="{% static 'img/logo-isgi.jpeg' %}" alt="ISGI" class="auth-brand-logo">
+            </div>
+            <h1>Inscription étudiant</h1>
+        </div>
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger mt-3">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+
+        <form method="post" class="mt-3">
+            {% csrf_token %}
+
+            <div class="auth-form-grid">
+                <div class="full-width">
+                    <label class="form-label">{{ form.matricule.label }}</label>
+                    {{ form.matricule }}
+
+                    {% if form.matricule.errors %}
+                        <div class="form-error">{{ form.matricule.errors }}</div>
+                    {% endif %}
+
+                    <small class="form-help">
+                        Saisissez votre matricule puis cliquez ailleurs : vos informations
+                        officielles se complètent automatiquement si elles existent.
+                    </small>
+                </div>
+
+                <div class="reference-card" id="referenceCard">
+                    <p class="reference-title">Informations officielles trouvées</p>
+                    <div class="reference-row">
+                        <span><strong>Nom</strong><span id="refFullName">-</span></span>
+                        <span><strong>Filière</strong><span id="refFiliere">-</span></span>
+                        <span><strong>Encadrant</strong><span id="refEncadrant">-</span></span>
+                    </div>
+                </div>
+
+                <div class="reference-card not-found" id="referenceCardNotFound">
+                    <p class="reference-title">Matricule non reconnu</p>
+                    <p class="mb-0 text-muted">
+                        Complétez vos informations manuellement ci-dessous.
+                    </p>
+                </div>
+
+                <div class="full-width">
+                    <label class="form-label">{{ form.full_name.label }}</label>
+                    {{ form.full_name }}
+
+                    {% if form.full_name.errors %}
+                        <div class="form-error">{{ form.full_name.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="form-label">{{ form.filiere.label }}</label>
+                    {{ form.filiere }}
+
+                    {% if form.filiere.errors %}
+                        <div class="form-error">{{ form.filiere.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="form-label">{{ form.encadrant.label }}</label>
+
+                    <div id="encadrantDisplay" class="form-control" style="display: none; cursor: default;">
+                        <span id="encadrantDisplayName">-</span>
+                        <button type="button" id="encadrantChangeBtn" class="btn btn-sm btn-light ms-2">
+                            Changer
+                        </button>
+                    </div>
+
+                    <div id="encadrantManual">
+                        <input
+                            type="text"
+                            class="form-control mb-2"
+                            id="professorSearch"
+                            placeholder="Rechercher un professeur..."
+                        >
+                        {{ form.encadrant }}
+                    </div>
+
+                    {% if form.encadrant.errors %}
+                        <div class="form-error">{{ form.encadrant.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="form-label">{{ form.phone_number.label }}</label>
+                    {{ form.phone_number }}
+
+                    {% if form.phone_number.errors %}
+                        <div class="form-error">{{ form.phone_number.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="form-label">{{ form.email.label }}</label>
+                    {{ form.email }}
+
+                    {% if form.email.errors %}
+                        <div class="form-error">{{ form.email.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="form-label">{{ form.password1.label }}</label>
+                    {{ form.password1 }}
+
+                    {% if form.password1.errors %}
+                        <div class="form-error">{{ form.password1.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="form-label">{{ form.password2.label }}</label>
+                    {{ form.password2 }}
+
+                    {% if form.password2.errors %}
+                        <div class="form-error">{{ form.password2.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap justify-content-center mt-4">
+                <button class="btn btn-primary" type="submit">
+                    Créer mon compte
+                </button>
+
+                <a href="{% url 'login' %}" class="btn btn-outline-secondary">
+                    Retour connexion
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const matriculeInput = document.getElementById('id_matricule');
+const fullNameInput = document.getElementById('id_full_name');
+const filiereSelect = document.getElementById('id_filiere');
+const encadrantSelect = document.querySelector('select[name="encadrant"]');
+const lookupUrl = "{% url 'lookup_student_reference' %}";
+
+const referenceCard = document.getElementById('referenceCard');
+const referenceCardNotFound = document.getElementById('referenceCardNotFound');
+const refFullName = document.getElementById('refFullName');
+const refFiliere = document.getElementById('refFiliere');
+const refEncadrant = document.getElementById('refEncadrant');
+
+const encadrantDisplay = document.getElementById('encadrantDisplay');
+const encadrantDisplayName = document.getElementById('encadrantDisplayName');
+const encadrantManual = document.getElementById('encadrantManual');
+const encadrantChangeBtn = document.getElementById('encadrantChangeBtn');
+
+function selectOptionByText(selectEl, text) {
+    if (!selectEl || !text) {
+        return false;
+    }
+
+    const normalized = text.trim().toLowerCase();
+
+    for (const option of selectEl.options) {
+        if (option.text.trim().toLowerCase().startsWith(normalized) || option.text.trim().toLowerCase() === normalized) {
+            selectEl.value = option.value;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function showEncadrantDisplay(name) {
+    if (encadrantDisplay && encadrantManual) {
+        encadrantDisplayName.textContent = name || 'Non renseigné';
+        encadrantDisplay.style.display = 'flex';
+        encadrantDisplay.style.alignItems = 'center';
+        encadrantDisplay.style.justifyContent = 'space-between';
+        encadrantManual.style.display = 'none';
+    }
+}
+
+function showEncadrantManual() {
+    if (encadrantDisplay && encadrantManual) {
+        encadrantDisplay.style.display = 'none';
+        encadrantManual.style.display = 'block';
+    }
+}
+
+if (encadrantChangeBtn) {
+    encadrantChangeBtn.addEventListener('click', showEncadrantManual);
+}
+
+if (matriculeInput) {
+    matriculeInput.addEventListener('blur', function () {
+        const matricule = this.value.trim();
+
+        if (!matricule) {
+            return;
+        }
+
+        fetch(lookupUrl + '?matricule=' + encodeURIComponent(matricule))
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                if (data.found) {
+                    if (referenceCardNotFound) {
+                        referenceCardNotFound.classList.remove('is-visible');
+                    }
+
+                    if (referenceCard) {
+                        referenceCard.classList.add('is-visible');
+                    }
+
+                    if (fullNameInput && data.full_name) {
+                        fullNameInput.value = data.full_name;
+                    }
+
+                    selectOptionByText(filiereSelect, data.filiere);
+                    const matched = selectOptionByText(encadrantSelect, data.encadrant_name);
+
+                    refFullName.textContent = data.full_name || '-';
+                    refFiliere.textContent = data.filiere || '-';
+                    refEncadrant.textContent = data.encadrant_name || '-';
+
+                    if (matched && data.encadrant_name) {
+                        showEncadrantDisplay(data.encadrant_name);
+                    } else {
+                        showEncadrantManual();
+                    }
+                } else {
+                    if (referenceCard) {
+                        referenceCard.classList.remove('is-visible');
+                    }
+
+                    if (referenceCardNotFound) {
+                        referenceCardNotFound.classList.add('is-visible');
+                    }
+
+                    showEncadrantManual();
+                }
+            })
+            .catch(function () {});
+    });
+}
+
+const searchInput = document.getElementById('professorSearch');
+
+if (searchInput && encadrantSelect) {
+    searchInput.addEventListener('input', function () {
+        const filter = this.value.toLowerCase().trim();
+
+        for (let option of encadrantSelect.options) {
+            const text = option.text.toLowerCase();
+            option.hidden = filter ? !text.includes(filter) : false;
+        }
+    });
+}
+</script>
+{% endblock %}

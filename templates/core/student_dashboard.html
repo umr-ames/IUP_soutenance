@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+
+{% block title %}Espace étudiant{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ── Hero identité ─────────────────────────────────────────────────── */
+    .student-hero {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 26px 28px;
+    }
+
+    .student-header-id {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .student-avatar-sm {
+        width: 56px;
+        height: 56px;
+        flex: 0 0 56px;
+        display: grid;
+        place-items: center;
+        border-radius: 18px;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        color: #ffffff;
+        font-weight: 900;
+        font-size: 1.4rem;
+    }
+
+    .student-header-id h1 {
+        margin: 0;
+        font-size: 1.45rem;
+        font-weight: 800;
+    }
+
+    .student-meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .student-meta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        min-height: 30px;
+        border-radius: 999px;
+        background: var(--surface-soft);
+        border: 1px solid var(--line);
+        color: var(--text);
+        font-size: 0.82rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .student-meta-chip .meta-label {
+        color: var(--muted);
+        font-weight: 600;
+    }
+
+    /* ── Bloc autorisation dans le hero ───────────────────────────────── */
+    .auth-action-block {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0;
+    }
+
+    .auth-hint {
+        margin-top: 6px;
+        font-size: 0.78rem;
+        color: var(--muted);
+        line-height: 1.4;
+        text-align: left;
+    }
+
+    /* ── Status hero ──────────────────────────────────────────────────── */
+    .status-hero {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 24px;
+        margin-top: 18px;
+    }
+
+    .mini-steps {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+    }
+
+    .mini-step {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--surface-soft);
+        border: 1px solid var(--line);
+        font-weight: 700;
+        font-size: 0.84rem;
+    }
+
+    .mini-step.done {
+        background: rgba(22, 163, 74, 0.08);
+        border-color: rgba(22, 163, 74, 0.22);
+        color: #15803d;
+    }
+
+    /* ── Layout inférieur pleine largeur ─────────────────────────────── */
+    .main-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        margin-top: 18px;
+    }
+
+    /* ── Carte jury ───────────────────────────────────────────────────── */
+    .jury-members-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    /* ── Carte résultat ───────────────────────────────────────────────── */
+    .result-hero-row {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+    }
+
+    .result-score {
+        font-size: 2.4rem;
+        font-weight: 900;
+        color: var(--heading);
+        line-height: 1;
+    }
+
+    .result-score span {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--muted);
+    }
+
+    /* ── État vide ────────────────────────────────────────────────────── */
+    .empty-state-light {
+        padding: 20px 0 4px;
+        color: var(--muted);
+        font-size: 0.92rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if not student %}
+    <section class="glass-card">
+        <div class="alert alert-warning mb-0">
+            Votre profil étudiant n'est pas encore configuré.
+        </div>
+    </section>
+{% else %}
+
+    <!-- ── Hero identité + autorisation ──────────────────────────────────── -->
+    <section class="glass-card student-hero">
+        <div class="student-header-id">
+            <div class="student-avatar-sm">{{ student.full_name|slice:":1"|upper }}</div>
+            <div>
+                <h1>{{ student.full_name }}</h1>
+                <div class="student-meta-row">
+                    <span class="student-meta-chip"><span class="meta-label">Matricule</span> {{ student.matricule }}</span>
+                    <span class="student-meta-chip"><span class="meta-label">Filière</span> {{ student.filiere|default:"-" }}</span>
+                    <span class="student-meta-chip"><span class="meta-label">Encadrant</span> {{ student.encadrant.full_name }}</span>
+                    <span class="student-meta-chip"><span class="meta-label">Tél.</span> {{ request.user.phone_number|default:"-" }}</span>
+                    <span class="student-meta-chip"><span class="meta-label">Email</span> {{ request.user.email|default:"-" }}</span>
+                </div>
+            </div>
+        </div>
+
+        {% if official_template %}
+            <div class="auth-action-block">
+                <a class="btn btn-primary" href="{{ official_template.file.url }}" download>
+                    Télécharger l'autorisation de soutenance
+                </a>
+                <div class="auth-hint">
+                    Document à faire signer uniquement par l'encadrant de l'entreprise.
+                </div>
+            </div>
+        {% endif %}
+    </section>
+
+    <!-- ── Statut de ma soutenance ────────────────────────────────────────── -->
+    <section class="glass-card status-hero">
+        <div>
+            <span class="eyebrow">Statut de ma soutenance</span>
+            <div class="mt-2">
+                {% if pfe_request %}
+                    {% if pfe_request.status == 'accepted' %}
+                        <span class="status-pill success">{{ pfe_request.get_status_display }}</span>
+                    {% elif pfe_request.status == 'refused_by_professor' or pfe_request.status == 'refused_by_admin' %}
+                        <span class="status-pill danger">{{ pfe_request.get_status_display }}</span>
+                    {% elif pfe_request.status == 'pending_admin' %}
+                        <span class="status-pill info">{{ pfe_request.get_status_display }}</span>
+                    {% else %}
+                        <span class="status-pill warning">{{ pfe_request.get_status_display }}</span>
+                    {% endif %}
+                {% else %}
+                    {% if deadline_closed %}
+                        <span class="status-pill danger">Date limite dépassée</span>
+                    {% else %}
+                        <span class="status-pill muted">Aucune demande envoyée</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+
+            {% if pfe_request %}
+                <div class="mini-steps">
+                    <span class="mini-step done">✓ Dépôt</span>
+                    <span class="mini-step {% if pfe_request.professor_reviewed_at %}done{% endif %}">
+                        {% if pfe_request.professor_reviewed_at %}✓{% else %}2{% endif %} Encadrant
+                    </span>
+                    <span class="mini-step {% if pfe_request.admin_reviewed_at %}done{% endif %}">
+                        {% if pfe_request.admin_reviewed_at %}✓{% else %}3{% endif %} Administration
+                    </span>
+                </div>
+            {% endif %}
+        </div>
+
+        <div>
+            {% if not pfe_request and not deadline_closed %}
+                <a class="btn btn-primary" href="{% url 'submit_pfe_request' %}">
+                    Envoyer ma demande de soutenance
+                </a>
+            {% elif pfe_request.status == 'refused_by_professor' or pfe_request.status == 'refused_by_admin' %}
+                {% if not deadline_closed %}
+                    <a class="btn btn-primary" href="{% url 'submit_pfe_request' %}">
+                        Renvoyer ma demande
+                    </a>
+                {% endif %}
+            {% elif deadline and not pfe_request %}
+                <span style="color:var(--muted); font-size:0.9rem;">Date limite : {{ deadline.deadline_date|date:"d/m/Y H:i" }}</span>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- ── Commentaires de refus ──────────────────────────────────────────── -->
+    {% if pfe_request.professor_comment or pfe_request.admin_comment %}
+        <section class="glass-card" style="margin-top:18px;">
+            {% if pfe_request.professor_comment %}
+                <div class="comment-box mb-2">
+                    <strong>Commentaire encadrant</strong>
+                    <p class="mb-0">{{ pfe_request.professor_comment }}</p>
+                </div>
+            {% endif %}
+            {% if pfe_request.admin_comment %}
+                <div class="comment-box danger">
+                    <strong>Commentaire administration</strong>
+                    <p class="mb-0">{{ pfe_request.admin_comment }}</p>
+                </div>
+            {% endif %}
+        </section>
+    {% endif %}
+
+    <!-- ── Jury + Résultat (pleine largeur) ──────────────────────────────── -->
+    <div class="main-stack">
+
+        {% if jury_assignment %}
+            <section class="glass-card">
+                <div class="card-header-flex">
+                    <div>
+                        <span class="eyebrow">Mon jury</span>
+                        <h3>{{ jury_assignment.jury.name }}</h3>
+                    </div>
+                    <span class="status-pill info">{{ jury_assignment.jury.defense_date|date:"d/m/Y" }}</span>
+                </div>
+
+                <div class="jury-members-row">
+                    {% if schedule %}
+                        <span class="status-pill success">
+                            Horaire : {{ schedule.start_time|time:"H:i" }} – {{ schedule.end_time|time:"H:i" }}
+                        </span>
+                    {% else %}
+                        <span class="status-pill warning">Horaire non encore planifié</span>
+                    {% endif %}
+
+                    {% for member in jury_assignment.jury.members.all %}
+                        <span class="member-chip">{{ member.professor.full_name }}</span>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        {# ── PFE non soutenable ──────────────────────────────────────────── #}
+        {% if jury_assignment and jury_assignment.pfe_soutenable_status == 'non_soutenable' %}
+            <section class="glass-card" style="border-color:rgba(220,38,38,0.22);">
+                <div class="card-header-flex">
+                    <div>
+                        <span class="eyebrow">Décision du jury</span>
+                        <h3>PFE non soutenable</h3>
+                    </div>
+                    <span class="status-pill danger">Non soutenable</span>
+                </div>
+                <p style="margin-top:12px; color:var(--text); line-height:1.6;">
+                    Votre PFE a été déclaré non soutenable par le jury. Veuillez vous rapprocher du chef de département pour connaître les démarches à suivre.
+                </p>
+            </section>
+        {% endif %}
+
+        {# ── Résultat publié ─────────────────────────────────────────────── #}
+        {% if result %}
+            <section class="glass-card">
+                <div class="card-header-flex">
+                    <div>
+                        <span class="eyebrow">Résultat publié</span>
+                        <h3>Ma note finale</h3>
+                    </div>
+                    {% if result.average >= 10 %}
+                        <span class="status-pill success">Admis</span>
+                    {% else %}
+                        <span class="status-pill danger">Non admis</span>
+                    {% endif %}
+                </div>
+
+                <div class="result-hero-row">
+                    <div class="result-score">
+                        {{ result.average }}<span>/20</span>
+                    </div>
+                    <div>
+                        {# Appréciation professionnelle selon la moyenne #}
+                        {% if result.average >= 18 %}
+                            <p class="mb-0" style="font-weight:800; color:#14532d; font-size:1rem;">
+                                Félicitations. Votre soutenance est validée avec la mention <strong>Excellent</strong>.
+                            </p>
+                        {% elif result.average >= 16 %}
+                            <p class="mb-0" style="font-weight:800; color:#166534; font-size:1rem;">
+                                Votre soutenance est validée avec la mention <strong>Très bien</strong>.
+                            </p>
+                        {% elif result.average >= 14 %}
+                            <p class="mb-0" style="font-weight:800; color:#15803d; font-size:1rem;">
+                                Votre soutenance est validée avec la mention <strong>Bien</strong>.
+                            </p>
+                        {% elif result.average >= 12 %}
+                            <p class="mb-0" style="font-weight:700; color:#3f6212; font-size:1rem;">
+                                Votre soutenance est validée avec la mention <strong>Passable</strong>.
+                            </p>
+                        {% else %}
+                            <p class="mb-0" style="font-weight:700; color:#dc2626; font-size:1rem;">
+                                Votre soutenance n'est pas validée — <strong>Insuffisant</strong>.
+                            </p>
+                        {% endif %}
+                        {% if result.has_note_gap_alert %}
+                            <p class="mb-0 mt-1" style="color:#dc2626; font-size:0.85rem;">
+                                Écart important entre les notes des membres du jury.
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
+        {% endif %}
+
+        {% if not jury_assignment and not result %}
+            <section class="glass-card">
+                <div class="empty-state-light">
+                    {% if pfe_request and pfe_request.status == 'accepted' %}
+                        Votre jury n'est pas encore affecté. Il apparaîtra ici dès qu'il sera publié.
+                    {% else %}
+                        Le jury et le résultat apparaîtront ici une fois votre demande acceptée.
+                    {% endif %}
+                </div>
+            </section>
+        {% endif %}
+
+    </div>
+
+{% endif %}
+{% endblock %}

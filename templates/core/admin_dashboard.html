@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil administration{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin: 18px 0;
+    }
+
+    .kpi-card {
+        padding: 18px 20px;
+        border-radius: var(--radius-lg);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow-soft);
+    }
+
+    .kpi-card .kpi-label {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .kpi-card .kpi-value {
+        margin-top: 8px;
+        color: var(--heading);
+        font-size: 2rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .kpi-card .kpi-sub {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        font-weight: 600;
+    }
+
+    .quick-actions-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .quick-action {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border-radius: var(--radius-lg);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        color: var(--text);
+        font-weight: 800;
+        transition: 0.15s var(--ease);
+    }
+
+    .quick-action:hover {
+        color: #ffffff;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        border-color: transparent;
+        transform: translateY(-1px);
+    }
+
+    .admin-workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+        gap: 18px;
+        align-items: start;
+        margin-top: 18px;
+    }
+
+    .section-card {
+        padding: 22px;
+    }
+
+    .section-title {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 14px;
+    }
+
+    .section-title h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 800;
+    }
+
+    .section-title p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+    }
+
+    .todo-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .todo-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 12px 14px;
+        border-radius: var(--radius-md);
+        background: var(--surface-soft);
+        border: 1px solid var(--line);
+    }
+
+    .todo-row .item-title {
+        color: var(--heading);
+        font-weight: 800;
+    }
+
+    .todo-row .item-subtitle {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 600;
+    }
+
+    .side-stack {
+        display: grid;
+        gap: 18px;
+    }
+
+    @media (max-width: 1050px) {
+        .kpi-grid,
+        .quick-actions-row {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .admin-workspace {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .kpi-grid,
+        .quick-actions-row {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Administration</span>
+        <h1>Tableau de bord</h1>
+    </div>
+
+    <a href="{% url 'admin_pfe_requests' %}" class="btn btn-primary">
+        Traiter les demandes
+    </a>
+</div>
+
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-label">Demandes en attente</div>
+        <div class="kpi-value">{{ stats.pending_professor_requests|add:stats.pending_admin_requests }}</div>
+        <div class="kpi-sub">{{ stats.pending_professor_requests }} encadrant · {{ stats.pending_admin_requests }} administration</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-label">Jurys</div>
+        <div class="kpi-value">{{ stats.published_juries }}</div>
+        <div class="kpi-sub">publiés · {{ stats.draft_juries }} brouillon(s)</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-label">Passages planifiés</div>
+        <div class="kpi-value">{{ stats.planned_defenses }}</div>
+        <div class="kpi-sub">créneaux de 30 minutes</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-label">Résultats à publier</div>
+        <div class="kpi-value">{{ stats.unpublished_results }}</div>
+        <div class="kpi-sub">{{ stats.note_gap_alerts }} alerte(s) d'écart</div>
+    </div>
+</div>
+
+<div class="quick-actions-row">
+    <a href="{% url 'admin_pfe_requests' %}" class="quick-action">Traiter les demandes</a>
+    <a href="{% url 'admin_jury_list' %}" class="quick-action">Générer les jurys</a>
+    <a href="{% url 'admin_planning' %}" class="quick-action">Voir le planning</a>
+    <a href="{% url 'admin_results' %}" class="quick-action">Publier les résultats</a>
+</div>
+
+<div class="admin-workspace">
+    <div class="main-stack">
+        <section class="section-card glass-card">
+            <div class="section-title">
+                <div>
+                    <h2>À traiter maintenant</h2>
+                    <p>Dernières demandes, jurys à publier et résultats prêts.</p>
+                </div>
+            </div>
+
+            <div class="todo-list">
+                {% for demande in recent_requests %}
+                    <div class="todo-row">
+                        <div>
+                            <div class="item-title">{{ demande.student.full_name }}</div>
+                            <div class="item-subtitle">
+                                {{ demande.student.matricule }} · Encadrant : {{ demande.student.encadrant.full_name }}
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-2">
+                            {% if demande.status == 'accepted' %}
+                                <span class="status-pill success">{{ demande.get_status_display }}</span>
+                            {% elif demande.status == 'refused_by_professor' or demande.status == 'refused_by_admin' %}
+                                <span class="status-pill danger">{{ demande.get_status_display }}</span>
+                            {% elif demande.status == 'pending_admin' %}
+                                <span class="status-pill info">{{ demande.get_status_display }}</span>
+                            {% else %}
+                                <span class="status-pill warning">{{ demande.get_status_display }}</span>
+                            {% endif %}
+
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_pfe_request_detail' demande.id %}">
+                                Ouvrir
+                            </a>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="empty-state">Aucune demande pour le moment.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        {% if draft_juries %}
+            <section class="section-card glass-card mt-3">
+                <div class="section-title">
+                    <div>
+                        <h2>Jurys à publier</h2>
+                        <p>Brouillons générés, en attente de publication.</p>
+                    </div>
+
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_jury_list' %}">Tout voir</a>
+                </div>
+
+                <div class="todo-list">
+                    {% for jury in draft_juries %}
+                        <div class="todo-row">
+                            <div>
+                                <div class="item-title">{{ jury.name }}</div>
+                                <div class="item-subtitle">{{ jury.defense_date|date:"d/m/Y" }}</div>
+                            </div>
+
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_jury_detail' jury.pk %}">
+                                Ouvrir
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        {% if results_to_publish %}
+            <section class="section-card glass-card mt-3">
+                <div class="section-title">
+                    <div>
+                        <h2>Résultats prêts à publier</h2>
+                        <p>Moyenne déjà calculée, publication en attente.</p>
+                    </div>
+
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_results' %}">Tout voir</a>
+                </div>
+
+                <div class="todo-list">
+                    {% for result in results_to_publish %}
+                        <div class="todo-row">
+                            <div>
+                                <div class="item-title">{{ result.jury_student.student.full_name }}</div>
+                                <div class="item-subtitle">{{ result.jury_student.jury.name }}</div>
+                            </div>
+
+                            <span class="status-pill success">{{ result.average }}/20</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+    </div>
+
+    <aside class="side-stack">
+        {% if gap_alerts %}
+            <section class="section-card glass-card">
+                <div class="section-title">
+                    <div>
+                        <h2>Écarts de notes</h2>
+                        <p>À vérifier avant publication.</p>
+                    </div>
+                </div>
+
+                <div class="todo-list">
+                    {% for result in gap_alerts %}
+                        <div class="todo-row">
+                            <div>
+                                <div class="item-title">{{ result.jury_student.student.full_name }}</div>
+                                <div class="item-subtitle">{{ result.jury_student.jury.name }}</div>
+                            </div>
+
+                            <span class="status-pill danger">Écart {{ result.note_gap_value }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        <section class="section-card glass-card">
+            <div class="section-title">
+                <div>
+                    <h2>Prochains passages</h2>
+                </div>
+
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_planning' %}">Planning</a>
+            </div>
+
+            <div class="todo-list">
+                {% for schedule in upcoming_schedules %}
+                    <div class="todo-row">
+                        <div>
+                            <div class="item-title">{{ schedule.jury_student.student.full_name }}</div>
+                            <div class="item-subtitle">{{ schedule.jury_student.jury.defense_date|date:"d/m" }} à {{ schedule.start_time|time:"H:i" }}</div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="empty-state">Aucun passage planifié.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="section-card glass-card">
+            <div class="section-title">
+                <div>
+                    <h2>Accès rapides</h2>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2">
+                <a href="{% url 'admin_professor_availability' %}" class="btn btn-outline-primary">
+                    Disponibilités des professeurs
+                </a>
+
+                <a href="{% url 'admin_document_templates' %}" class="btn btn-outline-secondary">
+                    Documents officiels
+                </a>
+
+                <a href="{% url 'admin_deadline' %}" class="btn btn-outline-secondary">
+                    Date limite
+                </a>
+            </div>
+        </section>
+    </aside>
+</div>
+{% endblock %}

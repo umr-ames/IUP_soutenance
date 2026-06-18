@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Inscription professeur - IUP{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card register-card-wide">
+        <div class="auth-brand">
+            <div class="auth-brand-mark">
+                <img src="{% static 'img/logo-isgi.jpeg' %}" alt="ISGI" class="auth-brand-logo">
+            </div>
+            <h1>Inscription professeur</h1>
+        </div>
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger mt-3">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+
+        <form method="post" class="mt-3">
+            {% csrf_token %}
+
+            <div class="auth-form-grid">
+                <div class="full-width">
+                    <label class="form-label">{{ form.professor.label }}</label>
+
+                    <input
+                        type="text"
+                        class="form-control mb-2"
+                        id="professorSearch"
+                        placeholder="Rechercher votre nom..."
+                    >
+
+                    {{ form.professor }}
+
+                    {% if form.professor.errors %}
+                        <div class="form-error">{{ form.professor.errors }}</div>
+                    {% endif %}
+
+                    <small class="form-help">
+                        Si votre nom n'apparaît pas, contactez l'administration.
+                    </small>
+                </div>
+
+                <div>
+                    <label class="form-label">{{ form.phone_number.label }}</label>
+                    {{ form.phone_number }}
+
+                    {% if form.phone_number.errors %}
+                        <div class="form-error">{{ form.phone_number.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="form-label">{{ form.email.label }}</label>
+                    {{ form.email }}
+
+                    {% if form.email.errors %}
+                        <div class="form-error">{{ form.email.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="form-label">{{ form.password1.label }}</label>
+                    {{ form.password1 }}
+
+                    {% if form.password1.errors %}
+                        <div class="form-error">{{ form.password1.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="form-label">{{ form.password2.label }}</label>
+                    {{ form.password2 }}
+
+                    {% if form.password2.errors %}
+                        <div class="form-error">{{ form.password2.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap justify-content-center mt-4">
+                <button class="btn btn-primary" type="submit">
+                    Créer mon compte
+                </button>
+
+                <a href="{% url 'login' %}" class="btn btn-outline-secondary">
+                    Retour connexion
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const searchInput = document.getElementById('professorSearch');
+const professorSelect = document.querySelector('select[name="professor"]');
+
+if (searchInput && professorSelect) {
+    searchInput.addEventListener('input', function () {
+        const filter = this.value.toLowerCase().trim();
+
+        for (let option of professorSelect.options) {
+            const text = option.text.toLowerCase();
+            option.hidden = filter ? !text.includes(filter) : false;
+        }
+    });
+}
+</script>
+{% endblock %}

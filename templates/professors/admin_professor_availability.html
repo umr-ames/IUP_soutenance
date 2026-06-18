@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block title %}Disponibilités des professeurs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Disponibilités des professeurs</h1>
+        <p>
+            {% if filtered_professor %}
+                Créneaux déclarés par <strong>{{ filtered_professor.full_name }}</strong>.
+            {% else %}
+                Un professeur = une ligne. Cliquez sur "Détails" pour voir ses créneaux.
+            {% endif %}
+        </p>
+    </div>
+
+    {% if filtered_professor %}
+        <a href="{% url 'admin_professor_availability' %}" class="btn btn-outline-secondary">
+            Voir tous les professeurs
+        </a>
+    {% else %}
+        <a href="{% url 'admin_professor_list' %}" class="btn btn-outline-secondary">
+            Retour professeurs
+        </a>
+    {% endif %}
+</div>
+
+<div class="glass-card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Professeur</th>
+                    <th>Jours disponibles</th>
+                    <th>Créneaux déclarés</th>
+                    <th>Prochaine disponibilité</th>
+                    <th></th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for row in professor_rows %}
+                    <tr>
+                        <td><strong>{{ row.professor.full_name }}</strong></td>
+                        <td>{{ row.days_count }}</td>
+                        <td>{{ row.slots_count }}</td>
+                        <td>
+                            {% if row.next_date %}
+                                {{ row.next_date|date:"d/m/Y" }}
+                            {% else %}
+                                <span class="text-muted">Aucune à venir</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-primary"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#details-{{ row.professor.id }}"
+                            >
+                                Détails
+                            </button>
+                        </td>
+                    </tr>
+                    <tr class="collapse" id="details-{{ row.professor.id }}">
+                        <td colspan="5">
+                            <div class="p-2">
+                                {% for day in row.days %}
+                                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                        <span class="status-pill info">{{ day.date|date:"d/m/Y" }}</span>
+                                        {% for slot in day.slots %}
+                                            <span class="status-pill">
+                                                {{ slot.start_time|time:"H:i" }}–{{ slot.end_time|time:"H:i" }}
+                                            </span>
+                                        {% endfor %}
+                                    </div>
+                                {% empty %}
+                                    <div class="empty-state">Aucun créneau.</div>
+                                {% endfor %}
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state">
+                                Aucune disponibilité déclarée pour le moment.
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
