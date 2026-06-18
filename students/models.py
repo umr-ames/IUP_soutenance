@@ -42,6 +42,8 @@ class StudentProfile(models.Model):
         related_name='students'
     )
 
+    entreprise = models.CharField(max_length=255, blank=True, default='')
+
     def __str__(self):
         return f"{self.matricule} - {self.full_name}"
 

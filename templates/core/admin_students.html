@@ -20,6 +20,7 @@
                     <th>Nom complet</th>
                     <th>Filière</th>
                     <th>Encadrant</th>
+                    <th>Entreprise</th>
                     <th>Téléphone</th>
                     <th>Demande</th>
                 </tr>
@@ -31,6 +32,7 @@
                         <td>{{ student.full_name }}</td>
                         <td>{{ student.filiere }}</td>
                         <td>{{ student.encadrant.full_name }}</td>
+                        <td>{{ student.entreprise|default:"-" }}</td>
                         <td>{{ student.user.phone_number|default:"-" }}</td>
                         <td>
                             {% if student.pfe_request %}
@@ -41,7 +43,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="6"><div class="empty-state">Aucun étudiant.</div></td></tr>
+                    <tr><td colspan="7"><div class="empty-state">Aucun étudiant.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>

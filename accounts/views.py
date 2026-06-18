@@ -45,6 +45,7 @@ def student_register_view(request):
             phone_number = form.cleaned_data['phone_number']
             filiere = form.cleaned_data['filiere']
             encadrant = form.cleaned_data['encadrant']
+            entreprise = form.cleaned_data['entreprise']
             password = form.cleaned_data['password1']
 
             username = matricule.lower()
@@ -62,7 +63,8 @@ def student_register_view(request):
                 matricule=matricule,
                 full_name=full_name,
                 filiere=filiere,
-                encadrant=encadrant
+                encadrant=encadrant,
+                entreprise=entreprise,
             )
 
             login(request, user, backend='accounts.backends.PhoneOrUsernameBackend')

@@ -110,6 +110,15 @@ class StudentRegisterForm(forms.Form):
         })
     )
 
+    entreprise = forms.CharField(
+        label="Entreprise de stage",
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Ex: Mauritel, Banque Populaire, Ministere...'
+        })
+    )
+
     password1 = forms.CharField(
         label="Mot de passe",
         widget=forms.PasswordInput(attrs={

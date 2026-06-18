@@ -1,0 +1,1029 @@
+{% extends "base.html" %}
+{% load dict_filters %}
+{% load static %}
+{% block title %}Statistiques{% endblock %}
+
+{% block extra_css %}
+<!-- Chart.js : fichier local prioritaire, CDN en fallback -->
+<script src="{% static 'vendor/chartjs/chart.umd.min.js' %}"></script>
+<script>
+if (typeof Chart === 'undefined') {
+    var _s = document.createElement('script');
+    _s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js';
+    document.head.appendChild(_s);
+}
+</script>
+<style>
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.stats-header {
+    padding: 28px 28px 20px;
+    background: rgba(255,255,255,0.78);
+    border-radius: 28px;
+    border: 1px solid rgba(255,255,255,0.78);
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(24px);
+    margin-bottom: 18px;
+}
+.stats-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.stats-header h1 { margin: 4px 0 4px; font-size: clamp(1.5rem,2.4vw,2.2rem); font-weight: 950; letter-spacing: -0.05em; color: var(--heading); }
+.stats-header p  { margin: 0; color: var(--muted); font-size: 0.92rem; font-weight: 650; }
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+.stats-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 18px; }
+.stats-tab  {
+    padding: 9px 20px; border-radius: 999px; font-size: 0.87rem; font-weight: 800;
+    border: 1.5px solid rgba(13,148,136,0.18);
+    background: rgba(240,253,250,0.7); color: #0d9488; cursor: pointer;
+    transition: .16s ease;
+}
+.stats-tab:hover  { background: rgba(13,148,136,0.10); }
+.stats-tab.active { background: var(--orange); border-color: transparent; color: #fff; }
+
+/* ── KPI grid ────────────────────────────────────────────────────────────── */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(145px,1fr)); gap: 10px; margin-bottom: 12px; }
+.kpi-card {
+    padding: 14px 16px 12px;
+    background: rgba(255,255,255,0.82); border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.82); box-shadow: var(--shadow-soft);
+}
+.kpi-eyebrow { font-size: 0.69rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.kpi-value   { font-size: 1.65rem; font-weight: 950; color: var(--heading); line-height: 1.1; margin: 3px 0 2px; }
+.kpi-sub     { font-size: 0.74rem; color: var(--muted); font-weight: 650; }
+.kpi-icon    { font-size: 1.3rem; margin-bottom: 6px; }
+
+/* ── Section cards ───────────────────────────────────────────────────────── */
+.stat-card {
+    background: rgba(255,255,255,0.82); border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.82); box-shadow: var(--shadow-soft);
+    padding: 16px 18px; margin-bottom: 12px;
+}
+.stat-card h3 { font-size: 0.93rem; font-weight: 850; color: var(--heading); margin: 0 0 10px; }
+
+/* ── Grid 2 / 3 cols ─────────────────────────────────────────────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+@media(max-width:900px){ .grid-2,.grid-3{ grid-template-columns:1fr; } }
+
+/* ── Workflow pipeline ───────────────────────────────────────────────────── */
+.workflow-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(100px,1fr)); gap: 6px; }
+.workflow-step { text-align: center; padding: 10px 8px; }
+.workflow-step .ws-count { font-size: 1.25rem; font-weight: 950; color: var(--orange); }
+.workflow-step .ws-label { font-size: 0.68rem; font-weight: 750; color: var(--muted); margin: 3px 0; }
+.workflow-step .ws-pct   { font-size: 0.7rem; font-weight: 800; color: var(--heading); margin-bottom: 5px; }
+.ws-bar { height: 5px; border-radius: 999px; background: rgba(13,148,136,0.12); overflow: hidden; }
+.ws-bar-fill { height: 100%; background: linear-gradient(90deg,var(--orange),#0d9488); border-radius: 999px; }
+
+/* ── Filière table ───────────────────────────────────────────────────────── */
+.stats-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.stats-table th { color: var(--muted); font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: .04em; padding: 8px 12px; text-align: left; border-bottom: 2px solid var(--line); }
+.stats-table td { padding: 9px 12px; border-bottom: 1px solid rgba(0,0,0,0.05); color: var(--text); font-weight: 650; }
+.stats-table tr:last-child td { border-bottom: none; }
+.stats-table tr:hover td { background: rgba(13,148,136,0.04); }
+.taux-bar { height: 5px; border-radius: 999px; background: rgba(13,148,136,0.10); min-width:60px; overflow:hidden; display:inline-block; vertical-align:middle; }
+.taux-fill { height: 100%; background: var(--orange); border-radius: 999px; }
+
+/* ── Alertes ─────────────────────────────────────────────────────────────── */
+.alerte-list { display: flex; flex-direction: column; gap: 6px; }
+.alerte-item { display: flex; align-items: center; gap: 8px; padding: 7px 11px; border-radius: 10px; font-size: 0.78rem; font-weight: 700; }
+.alerte-item.warning { background: rgba(245,158,11,0.10); color: #92400e; border: 1px solid rgba(245,158,11,0.22); }
+.alerte-item.danger  { background: rgba(220,38,38,0.09);  color: #7f1d1d; border: 1px solid rgba(220,38,38,0.18); }
+.alerte-item.info    { background: rgba(13,148,136,0.08); color: #134e4a; border: 1px solid rgba(13,148,136,0.16); }
+.alerte-dot          { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.alerte-item.warning .alerte-dot { background: #f59e0b; }
+.alerte-item.danger  .alerte-dot { background: #dc2626; }
+.alerte-item.info    .alerte-dot { background: #0d9488; }
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+.badge-filiere { display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; font-size:0.74rem; font-weight:850; }
+.badge-DS      { background:rgba(13,148,136,.12); color:#0d9488; }
+.badge-FINTECH { background:rgba(110,231,183,.25); color:#065f46; }
+.badge-LGTR    { background:rgba(59,130,246,.12); color:#1d4ed8; }
+.badge-RXTL    { background:rgba(167,139,250,.18); color:#5b21b6; }
+.badge-MAEF    { background:rgba(251,146,60,.15); color:#c2410c; }
+.badge-MAN     { background:rgba(244,114,182,.15); color:#9d174d; }
+.badge-charge-1 { background:rgba(34,197,94,.12); color:#15803d; }
+.badge-charge-2 { background:rgba(245,158,11,.12); color:#92400e; }
+.badge-charge-3 { background:rgba(249,115,22,.15); color:#c2410c; }
+.badge-charge-4 { background:rgba(220,38,38,.12); color:#7f1d1d; }
+
+/* ── Mini repart bar ─────────────────────────────────────────────────────── */
+.repart-bar { display:flex; height:8px; border-radius:999px; overflow:hidden; min-width:80px; gap:1px; }
+.rb-seg { height:100%; }
+
+/* ── Priorite badges ─────────────────────────────────────────────────────── */
+.badge-prio-haute   { background:rgba(220,38,38,.1);  color:#b91c1c; padding:3px 9px; border-radius:999px; font-size:.75rem; font-weight:850; }
+.badge-prio-normale { background:rgba(13,148,136,.1); color:#0d9488; padding:3px 9px; border-radius:999px; font-size:.75rem; font-weight:850; }
+
+/* ── Chart containers ────────────────────────────────────────────────────── */
+.chart-wrap { position:relative; width:100%; }
+.chart-wrap canvas { max-width:100%; }
+
+/* ── Section tab panels ──────────────────────────────────────────────────── */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Responsive statistiques ─────────────────────────────────────────────── */
+@media (max-width: 720px) {
+    .stats-header { padding: 18px; }
+    .stats-header-top { flex-direction: column; gap: 10px; }
+    .stats-tab { padding: 7px 14px; font-size: 0.82rem; }
+    .chart-wrap canvas { max-height: 220px !important; }
+}
+@media (max-width: 480px) {
+    .stats-header { padding: 14px; border-radius: 20px; }
+    .kpi-value { font-size: 1.35rem; }
+    .chart-wrap canvas { max-height: 180px !important; }
+    .stats-table { font-size: 0.78rem; }
+    .stats-table th, .stats-table td { padding: 7px 8px; }
+}
+
+/* ── Mention badges ──────────────────────────────────────────────────────── */
+.badge-mention-Excellent  { background:rgba(13,148,136,.15); color:#134e4a; padding:3px 10px; border-radius:999px; font-size:.77rem; font-weight:850; }
+.badge-mention-Tres_bien  { background:rgba(34,197,94,.13);  color:#14532d; padding:3px 10px; border-radius:999px; font-size:.77rem; font-weight:850; }
+.badge-mention-Bien       { background:rgba(132,204,22,.16); color:#365314; padding:3px 10px; border-radius:999px; font-size:.77rem; font-weight:850; }
+.badge-mention-Passable   { background:rgba(251,146,60,.15); color:#c2410c; padding:3px 10px; border-radius:999px; font-size:.77rem; font-weight:850; }
+.badge-mention-Insuffisant{ background:rgba(220,38,38,.13);  color:#7f1d1d; padding:3px 10px; border-radius:999px; font-size:.77rem; font-weight:850; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<div class="stats-header">
+    <div class="stats-header-top">
+        <div>
+            <span class="eyebrow">ADMINISTRATION</span>
+            <h1>Statistiques</h1>
+            <p>
+                {% if active_tab == 'global' %}Vue d'ensemble du suivi de soutenance
+                {% elif active_tab == 'encadrants' %}Analyse des encadrants et de la charge de supervision
+                {% elif active_tab == 'entreprises' %}Analyse des entreprises et de la repartition des etudiants
+                {% else %}Resultats des soutenances par specialite et composante
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    <div class="stats-tabs">
+        <button class="stats-tab {% if active_tab == 'global' %}active{% endif %}" data-tab="global">Statistique global</button>
+        <button class="stats-tab {% if active_tab == 'encadrants' %}active{% endif %}" data-tab="encadrants">Encadrant</button>
+        <button class="stats-tab {% if active_tab == 'entreprises' %}active{% endif %}" data-tab="entreprises">Entreprise</button>
+        <button class="stats-tab {% if active_tab == 'resultats' %}active{% endif %}" data-tab="resultats">Resultats</button>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!--  TAB 1 — GLOBAL                                                         -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel {% if active_tab == 'global' %}active{% endif %}" id="panel-global">
+
+    <!-- KPI -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Etudiants officiels</div>
+            <div class="kpi-value">{{ total_ref }}</div>
+            <div class="kpi-sub">Liste de reference</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Comptes crees</div>
+            <div class="kpi-value" style="color:var(--orange)">{{ total_profiles }}</div>
+            <div class="kpi-sub">{{ total_profiles }} inscrits sur {{ total_ref }}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Sans compte</div>
+            <div class="kpi-value" style="color:#dc2626">{{ total_sans_compte }}</div>
+            <div class="kpi-sub">Pas encore inscrits</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Demandes deposees</div>
+            <div class="kpi-value">{{ total_demandes }}</div>
+            <div class="kpi-sub">Toutes demandes</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Demandes acceptees</div>
+            <div class="kpi-value" style="color:#16a34a">{{ total_acceptees }}</div>
+            <div class="kpi-sub">Validees par admin</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Acceptes sans jury</div>
+            <div class="kpi-value" style="color:#f59e0b">{{ acceptes_sans_jury_count }}</div>
+            <div class="kpi-sub">En attente d'affectation</div>
+        </div>
+    </div>
+
+    <!-- Progression workflow -->
+    <div class="stat-card">
+        <h3>Progression du workflow</h3>
+        <div class="workflow-grid">
+            {% for step in workflow %}
+            <div class="workflow-step">
+                <div class="ws-count">{{ step.count }}</div>
+                <div class="ws-label">{{ step.label }}</div>
+                <div class="ws-pct">{{ step.pct }}%</div>
+                <div class="ws-bar"><div class="ws-bar-fill" style="width:{{ step.pct }}%"></div></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="grid-3">
+        <!-- Repartition par filiere -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Repartition par filiere</h3>
+            <div style="overflow-x:auto;"><table class="stats-table">
+                <thead><tr>
+                    <th>Filiere</th><th>Off.</th><th>Ins.</th><th>Sans</th><th>Taux</th>
+                </tr></thead>
+                <tbody>
+                {% for r in filiere_stats %}
+                <tr>
+                    <td><span class="badge-filiere badge-{{ r.filiere }}">{{ r.filiere }}</span></td>
+                    <td>{{ r.officiels }}</td>
+                    <td>{{ r.inscrits }}</td>
+                    <td>{{ r.sans_compte }}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:5px;">
+                            <div class="taux-bar" style="width:40px"><div class="taux-fill" style="width:{{ r.taux }}%"></div></div>
+                            <span style="font-size:.75rem;font-weight:800;">{{ r.taux }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table></div>
+        </div>
+
+        <!-- Statut des demandes -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Statut des demandes</h3>
+            <div class="chart-wrap" style="max-height:190px;">
+                <canvas id="chartStatutDemandes"></canvas>
+            </div>
+        </div>
+
+        <!-- Alertes administratives -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Alertes administratives</h3>
+            <div class="alerte-list">
+                {% if not alertes %}
+                    <div class="alerte-item info"><span class="alerte-dot"></span>Aucune alerte en cours.</div>
+                {% endif %}
+                {% for a in alertes %}
+                <div class="alerte-item {{ a.level }}">
+                    <span class="alerte-dot"></span>{{ a.msg }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Acceptes sans jury -->
+    {% if acceptes_sans_jury_list %}
+    <div class="stat-card">
+        <h3>Etudiants acceptes sans jury</h3>
+        <div style="overflow-x:auto;"><table class="stats-table">
+            <thead><tr><th>Etudiant</th><th>Filiere</th><th>Encadrant</th><th>Anciennete</th><th>Priorite</th></tr></thead>
+            <tbody>
+            {% for row in acceptes_sans_jury_list %}
+            <tr>
+                <td style="font-weight:800;">{{ row.name }}</td>
+                <td><span class="badge-filiere badge-{{ row.filiere }}">{{ row.filiere }}</span></td>
+                <td>{{ row.encadrant }}</td>
+                <td>{{ row.anciennete }}</td>
+                <td>
+                    {% if row.priorite == 'Haute' %}
+                        <span class="badge-prio-haute">Haute</span>
+                    {% else %}
+                        <span class="badge-prio-normale">Normale</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+    {% endif %}
+
+    <!-- Synthese par encadrant -->
+    <div class="stat-card">
+        <h3>Synthese operationnelle par encadrant</h3>
+        <div style="overflow-x:auto;">
+        <table class="stats-table">
+            <thead><tr>
+                <th>Encadrant</th><th>Total</th>
+                {% for f in filieres %}<th>{{ f }}</th>{% endfor %}
+                <th>Att. enc.</th><th>Att. adm.</th><th>Acceptes</th><th>Sans jury</th><th>Taux</th>
+            </tr></thead>
+            <tbody>
+            {% for row in synthese_encadrants %}
+            <tr>
+                <td style="font-weight:800;white-space:nowrap;">{{ row.prof }}</td>
+                <td style="font-weight:900;color:var(--orange)">{{ row.total }}</td>
+                {% for f in filieres %}<td>{{ row.by_f|get_item:f|default:"0" }}</td>{% endfor %}
+                <td>{{ row.pend_enc }}</td>
+                <td>{{ row.pend_adm }}</td>
+                <td style="color:#16a34a;font-weight:800;">{{ row.acc }}</td>
+                <td style="color:#f59e0b;font-weight:800;">{{ row.sans_jury }}</td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <div class="taux-bar" style="width:50px"><div class="taux-fill" style="width:{{ row.taux }}%"></div></div>
+                        {{ row.taux }}%
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="14" style="color:var(--muted);text-align:center;padding:20px;">Aucune donnee disponible.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div><!-- /panel-global -->
+
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!--  TAB 2 — ENCADRANTS                                                      -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel {% if active_tab == 'encadrants' %}active{% endif %}" id="panel-encadrants">
+
+    <!-- KPI -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Encadrants actifs</div>
+            <div class="kpi-value" style="color:var(--orange)">{{ enc_actifs_count }}</div>
+            <div class="kpi-sub">Avec au moins 1 etudiant</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Charge moyenne</div>
+            <div class="kpi-value">{{ enc_charge_moyenne }}</div>
+            <div class="kpi-sub">Etudiants par encadrant</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Encadrant le plus sollicite</div>
+            <div class="kpi-value" style="font-size:1.1rem;line-height:1.2;">{{ enc_top_prof_name }}</div>
+            <div class="kpi-sub">{{ enc_top_prof_count }} etudiants suivis</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Specialite la plus encadree</div>
+            <div class="kpi-value" style="color:var(--orange)">{{ enc_spec_dominante }}</div>
+            <div class="kpi-sub">{{ enc_spec_pct }}% des encadrements</div>
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <!-- Top encadrants bar chart — limité au top 8 dans le JS -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Top encadrants par nombre d'etudiants suivis</h3>
+            <div style="position:relative;height:240px;">
+                <canvas id="chartTopEncadrants"></canvas>
+            </div>
+        </div>
+        <!-- Repartition par specialite stacked — top 8 dans le JS -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Repartition des etudiants suivis par specialite</h3>
+            <div style="position:relative;height:240px;">
+                <canvas id="chartSpecEncadrants"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-2" style="margin-top:12px;">
+        <!-- Equilibre -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Equilibre de la charge</h3>
+            <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+                <div style="width:140px;height:140px;flex-shrink:0;">
+                    <canvas id="chartEquilibre"></canvas>
+                </div>
+                <div style="flex:1;min-width:120px;">
+                    {% for eq in enc_equilibre %}
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+                        <span style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:{% if forloop.counter == 1 %}#0d9488{% elif forloop.counter == 2 %}#6ee7b7{% elif forloop.counter == 3 %}#a78bfa{% else %}#fb923c{% endif %};"></span>
+                        <span style="font-size:.8rem;font-weight:750;flex:1;">{{ eq.label }}</span>
+                        <span style="font-size:.82rem;font-weight:900;color:var(--heading)">{{ eq.count }}</span>
+                        <span style="font-size:.77rem;color:var(--muted);min-width:32px;text-align:right;">{{ eq.pct }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <!-- Couverture par specialite — top 15 -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Couverture par specialite</h3>
+            <div style="overflow-x:auto;">
+            <table class="stats-table" style="font-size:0.8rem;">
+                <thead><tr>
+                    <th>Encadrant</th>
+                    {% for f in filieres %}<th style="text-align:center;">{{ f }}</th>{% endfor %}
+                </tr></thead>
+                <tbody>
+                {% for row in enc_rows %}
+                <tr>
+                    <td style="font-weight:750;white-space:nowrap;font-size:.78rem;">{{ row.prof }}</td>
+                    {% for f in filieres %}
+                    <td style="text-align:center;">
+                        {% with cnt=row.by_f|get_item:f %}
+                        {% if cnt %}<strong>{{ cnt }}</strong>{% else %}<span style="color:var(--muted)">—</span>{% endif %}
+                        {% endwith %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" style="color:var(--muted);text-align:center;padding:16px;">Aucune donnee.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tableau detail encadrants — TOUS les encadrants ({{ enc_rows_all_count }}) -->
+    <div class="stat-card" style="margin-top:12px;">
+        <h3>Detail des encadrants <span style="font-weight:600;font-size:.82rem;color:var(--muted);">({{ enc_rows_all_count }} encadrants)</span></h3>
+        <div style="overflow-x:auto;">
+        <table class="stats-table">
+            <thead><tr>
+                <th>Encadrant</th><th>Total</th><th>Specialite dominante</th><th>Repartition</th><th>Charge</th>
+            </tr></thead>
+            <tbody>
+            {% for row in enc_rows_all %}
+            <tr>
+                <td style="font-weight:800;white-space:nowrap;">{{ row.prof }}</td>
+                <td style="font-weight:900;color:var(--orange)">{{ row.total }}</td>
+                <td><span class="badge-filiere badge-{{ row.dominant }}">{{ row.dominant }}</span></td>
+                <td>
+                    <div class="repart-bar">
+                        {% for seg in row.repart %}
+                        {% if seg.pct > 0 %}
+                        <div class="rb-seg" title="{{ seg.f }}: {{ seg.pct }}%"
+                             style="width:{{ seg.pct }}%;background:{% if seg.f == 'DS' %}#0d9488{% elif seg.f == 'FINTECH' %}#6ee7b7{% elif seg.f == 'LGTR' %}#3b82f6{% elif seg.f == 'RXTL' %}#a78bfa{% elif seg.f == 'MAEF' %}#fb923c{% else %}#f472b6{% endif %}"></div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div style="font-size:.72rem;color:var(--muted);margin-top:3px;">
+                        {% for seg in row.repart %}{% if seg.pct > 0 %}{{ seg.f }} {{ seg.pct }}%{% if not forloop.last %} · {% endif %}{% endif %}{% endfor %}
+                    </div>
+                </td>
+                <td>
+                    <span class="badge-filiere badge-charge-{{ row.charge_level }}">{{ row.charge }}</span>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" style="color:var(--muted);text-align:center;padding:20px;">Aucun encadrant.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div><!-- /panel-encadrants -->
+
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!--  TAB 3 — ENTREPRISES                                                     -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel {% if active_tab == 'entreprises' %}active{% endif %}" id="panel-entreprises">
+
+    <!-- KPI -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Nombre d'entreprises</div>
+            <div class="kpi-value" style="color:var(--orange)">{{ ent_nb }}</div>
+            <div class="kpi-sub">Entreprises distinctes</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Etudiants rattaches</div>
+            <div class="kpi-value">{{ ent_total_rattaches }}</div>
+            <div class="kpi-sub">Avec entreprise renseignee</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Entreprise la plus representee</div>
+            <div class="kpi-value" style="font-size:1.1rem;line-height:1.2;">{{ ent_top_name }}</div>
+            <div class="kpi-sub">{{ ent_top_count }} etudiants ({{ ent_top_pct }}%)</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Specialite dominante</div>
+            <div class="kpi-value" style="color:var(--orange)">{{ ent_spec_dom }}</div>
+            <div class="kpi-sub">{{ ent_spec_dom_pct }}% des etudiants</div>
+        </div>
+    </div>
+
+    {% if ent_nb == 0 %}
+    <div class="stat-card" style="text-align:center;padding:32px;">
+        <p style="color:var(--muted);font-size:1rem;">
+            Aucune entreprise renseignee. Le champ <strong>Entreprise</strong> est disponible dans les profils etudiants.
+        </p>
+    </div>
+    {% else %}
+
+    <!-- Ligne 1 : 3 graphiques -->
+    <div class="grid-3">
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Repartition des etudiants par entreprise</h3>
+            <div style="position:relative;height:220px;">
+                <canvas id="chartEntBar"></canvas>
+            </div>
+        </div>
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Repartition des specialites par entreprise</h3>
+            <div style="position:relative;height:220px;">
+                <canvas id="chartEntStacked"></canvas>
+            </div>
+        </div>
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Top entreprises les plus representees</h3>
+            <div style="position:relative;height:220px;">
+                <canvas id="chartEntTop"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ligne 2 : Moyenne des étudiants par entreprise | Entreprise x Spécialité -->
+    <div class="grid-2" style="margin-top:12px;">
+        <!-- Moyenne par entreprise -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Moyenne des etudiants par entreprise</h3>
+            {% if ent_avg_labels_json != '[]' %}
+            <div style="position:relative;height:200px;">
+                <canvas id="chartEntAvg"></canvas>
+            </div>
+            {% else %}
+            <p style="color:var(--muted);font-size:.87rem;padding:16px 0;">
+                Aucun resultat publie disponible pour l'instant.
+            </p>
+            {% endif %}
+        </div>
+        <!-- Tableau croise Entreprise x Specialite -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Entreprise x Specialite <span style="font-size:.8rem;color:var(--muted);font-weight:600;">(nb d'etudiants)</span></h3>
+            <div style="overflow-x:auto;">
+            <table class="stats-table" style="font-size:.8rem;">
+                <thead><tr>
+                    <th>Entreprise</th>
+                    {% for f in filieres %}<th style="text-align:center;">{{ f }}</th>{% endfor %}
+                    <th style="text-align:center;">Total</th>
+                </tr></thead>
+                <tbody>
+                {% for row in ent_cross_data %}
+                <tr>
+                    <td style="font-weight:750;white-space:nowrap;">{{ row.name }}</td>
+                    {% for f in filieres %}
+                    <td style="text-align:center;">
+                        {% with cnt=row.by_f|get_item:f %}
+                        {% if cnt %}<strong>{{ cnt }}</strong>{% else %}<span style="color:var(--muted)">—</span>{% endif %}
+                        {% endwith %}
+                    </td>
+                    {% endfor %}
+                    <td style="text-align:center;font-weight:900;color:var(--orange)">{{ row.total }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="9" style="color:var(--muted);text-align:center;padding:14px;">Aucune donnee.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dernier : Tableau détail toutes les entreprises -->
+    <div class="stat-card" style="margin-top:12px;">
+        <h3>Detail des entreprises <span style="font-weight:600;font-size:.82rem;color:var(--muted);">({{ ent_rows_all_count }} entreprises)</span></h3>
+        <div style="overflow-x:auto;">
+        <table class="stats-table">
+            <thead><tr>
+                <th>Entreprise</th><th>Nb etudiants</th><th>Specialite dominante</th>
+                <th>Repartition</th><th>Moy. generale</th><th>Soutenances</th>
+            </tr></thead>
+            <tbody>
+            {% for row in ent_rows_all %}
+            <tr>
+                <td style="font-weight:800;white-space:nowrap;">{{ row.name }}</td>
+                <td style="font-weight:900;color:var(--orange)">{{ row.count }}</td>
+                <td><span class="badge-filiere badge-{{ row.dominant }}">{{ row.dominant }}</span></td>
+                <td>
+                    <div class="repart-bar">
+                        {% for seg in row.repart %}{% if seg.pct > 0 %}
+                        <div class="rb-seg" title="{{ seg.f }}: {{ seg.pct }}%"
+                             style="width:{{ seg.pct }}%;background:{% if seg.f == 'DS' %}#0d9488{% elif seg.f == 'FINTECH' %}#6ee7b7{% elif seg.f == 'LGTR' %}#3b82f6{% elif seg.f == 'RXTL' %}#a78bfa{% elif seg.f == 'MAEF' %}#fb923c{% else %}#f472b6{% endif %}"></div>
+                        {% endif %}{% endfor %}
+                    </div>
+                    <div style="font-size:.7rem;color:var(--muted);margin-top:3px;">
+                        {% for seg in row.repart %}{% if seg.pct > 0 %}{{ seg.f }} {{ seg.pct }}%{% if not forloop.last %} · {% endif %}{% endif %}{% endfor %}
+                    </div>
+                </td>
+                <td style="color:#16a34a;font-weight:800;">{{ row.avg }}</td>
+                <td>{{ row.soutenances }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:20px;">Aucune donnee.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    {% endif %}
+</div><!-- /panel-entreprises -->
+
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!--  TAB 4 — RESULTATS                                                       -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel {% if active_tab == 'resultats' %}active{% endif %}" id="panel-resultats">
+
+    <!-- KPI -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Moyenne generale des soutenances</div>
+            <div class="kpi-value" style="color:var(--orange)">{{ res_global_avg }} / 20</div>
+            <div class="kpi-sub">Sur {{ res_total }} soutenances publiees</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Specialite la plus performante</div>
+            <div class="kpi-value" style="color:var(--orange)">{{ res_best_filiere }}</div>
+            <div class="kpi-sub">Moyenne : {{ res_best_avg }} / 20</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Taux de reussite global</div>
+            <div class="kpi-value" style="color:#16a34a">{{ res_taux_reussite }} %</div>
+            <div class="kpi-sub">{{ res_passed }} / {{ res_total }} soutenances</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Composante la plus forte</div>
+            <div class="kpi-value" style="font-size:1.25rem;color:var(--orange)">{{ res_best_comp }}</div>
+            <div class="kpi-sub">Moyenne : {{ res_best_comp_avg }} / 20</div>
+        </div>
+    </div>
+
+    {% if res_total == 0 %}
+    <div class="stat-card" style="text-align:center;padding:32px;">
+        <p style="color:var(--muted);">Aucun resultat publie pour le moment.</p>
+    </div>
+    {% else %}
+
+    <!-- Ligne 1 : 3 graphiques côte à côte -->
+    <div class="grid-3">
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>1) Moyennes finales par specialite</h3>
+            <div style="position:relative;height:210px;">
+                <canvas id="chartResMoyennes"></canvas>
+            </div>
+        </div>
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>2) Moyennes des composantes par specialite</h3>
+            <div style="position:relative;height:210px;">
+                <canvas id="chartResComposantes"></canvas>
+            </div>
+        </div>
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>3) Repartition des mentions par specialite</h3>
+            <div style="position:relative;height:210px;">
+                <canvas id="chartResMentions"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ligne 2 : Analyse des écarts | Détail par spécialité -->
+    <div class="grid-2" style="margin-top:12px;">
+        <!-- 4 Ecarts -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>4) Analyse des ecarts <span style="font-size:.78rem;color:var(--muted);font-weight:600;">(ecart type des notes finales)</span></h3>
+            <div style="position:relative;height:200px;">
+                <canvas id="chartResEcarts"></canvas>
+            </div>
+            <div style="margin-top:10px;padding:10px 12px;background:rgba(13,148,136,0.06);border:1px solid rgba(13,148,136,0.14);border-radius:10px;display:flex;gap:8px;align-items:flex-start;">
+                <span style="font-size:.9rem;color:#0d9488;flex-shrink:0;margin-top:1px;">ⓘ</span>
+                <p style="font-size:.77rem;color:var(--muted);margin:0;line-height:1.5;">
+                    Plus l'ecart type est faible, plus les notes sont homogenes au sein de la specialite. Un ecart eleve indique une plus grande dispersion des resultats.
+                </p>
+            </div>
+        </div>
+        <!-- 5 Tableau detail par specialite -->
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>5) Detail des resultats par specialite</h3>
+            <div style="overflow-x:auto;">
+            <table class="stats-table" style="font-size:.82rem;">
+                <thead><tr>
+                    <th>Specialite</th>
+                    <th>Moy. finale</th>
+                    <th>Rapport</th>
+                    <th>Pres.</th>
+                    <th>Quest.</th>
+                    <th>Taux</th>
+                    <th>Mention</th>
+                </tr></thead>
+                <tbody>
+                {% for row in res_filiere_data %}
+                <tr>
+                    <td><span class="badge-filiere badge-{{ row.filiere }}">{{ row.filiere }}</span></td>
+                    <td style="font-weight:900;color:var(--orange)">{% if row.count %}{{ row.avg }}{% else %}—{% endif %}</td>
+                    <td>{% if row.count %}{{ row.avg_rapport }}{% else %}—{% endif %}</td>
+                    <td>{% if row.count %}{{ row.avg_pres }}{% else %}—{% endif %}</td>
+                    <td>{% if row.count %}{{ row.avg_quest }}{% else %}—{% endif %}</td>
+                    <td>{% if row.count %}<span style="color:{% if row.taux >= 90 %}#16a34a{% elif row.taux >= 75 %}#f59e0b{% else %}#dc2626{% endif %};font-weight:800;">{{ row.taux }}%</span>{% else %}—{% endif %}</td>
+                    <td>
+                        {% if row.mention != '-' %}
+                        <span class="badge-mention-{{ row.mention|cut:' ' }}">{{ row.mention }}</span>
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div><!-- /panel-resultats -->
+
+
+<!-- ─── Charts JS ─────────────────────────────────────────────────────────── -->
+<script>
+const FILIERES = {{ res_filieres_json|safe }};
+const FILIERE_COLORS = ['#0d9488','#6ee7b7','#3b82f6','#a78bfa','#fb923c','#f472b6'];
+
+// Protection : si Chart.js est toujours absent, afficher un message dans chaque canvas
+if (typeof Chart === 'undefined') {
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('canvas[id^="chart"]').forEach(function(canvas) {
+            var wrap = canvas.parentElement;
+            canvas.style.display = 'none';
+            var msg = document.createElement('div');
+            msg.style.cssText = 'padding:12px 14px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.22);border-radius:10px;font-size:.8rem;color:#92400e;font-weight:700;';
+            msg.textContent = 'Graphique indisponible hors ligne. Les tableaux restent disponibles.';
+            wrap.appendChild(msg);
+        });
+    });
+} else {
+    Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+    Chart.defaults.color = '#6b7280';
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+const tabs = document.querySelectorAll('.stats-tab');
+const panels = document.querySelectorAll('.tab-panel');
+tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+        const target = tab.dataset.tab;
+        tabs.forEach(function(t) { t.classList.remove('active'); });
+        panels.forEach(function(p) { p.classList.remove('active'); });
+        tab.classList.add('active');
+        document.getElementById('panel-' + target).classList.add('active');
+        // update URL without reload
+        const url = new URL(window.location);
+        url.searchParams.set('tab', target);
+        history.replaceState({}, '', url);
+    });
+});
+
+// ── Chart: Statut demandes (donut) ────────────────────────────────────────
+(function() {
+    const el = document.getElementById('chartStatutDemandes');
+    if (!el) return;
+    const labels = {{ statut_labels_json|safe }};
+    const data   = {{ statut_values_json|safe }};
+    new Chart(el, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{ data: data, backgroundColor: ['#94a3b8','#f59e0b','#3b82f6','#0d9488','#dc2626'], borderWidth: 2 }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'right', labels: { font: { size: 11, weight: '700' } } } } }
+    });
+})();
+
+// ── Chart: Top encadrants (horizontal bar) — top 8 pour la lisibilité ────
+(function() {
+    const el = document.getElementById('chartTopEncadrants');
+    if (!el) return;
+    const N = 8;
+    const labels = {{ enc_bar_labels_json|safe }}.slice(0, N);
+    const data   = {{ enc_bar_counts_json|safe }}.slice(0, N);
+    new Chart(el, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{ label: "Etudiants suivis", data: data, backgroundColor: '#0d9488', borderRadius: 5 }]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } },
+                y: { ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+})();
+
+// ── Chart: Repartition specialites par encadrant (stacked bar) — top 8 ───
+(function() {
+    const el = document.getElementById('chartSpecEncadrants');
+    if (!el) return;
+    const N = 8;
+    const labels      = {{ enc_stacked_labels_json|safe }}.slice(0, N);
+    const rawDatasets = {{ enc_stacked_json|safe }};
+    const datasets    = rawDatasets.map(function(ds) {
+        return Object.assign({}, ds, { data: ds.data.slice(0, N) });
+    });
+    new Chart(el, {
+        type: 'bar',
+        data: { labels: labels, datasets: datasets },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { font: { size: 10 }, boxWidth: 12 } } },
+            scales: {
+                x: { stacked: true, max: 100, ticks: { font: { size: 10 } } },
+                y: { stacked: true, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+})();
+
+// ── Chart: Equilibre de la charge (donut) ────────────────────────────────
+(function() {
+    const el = document.getElementById('chartEquilibre');
+    if (!el) return;
+    const data = {{ enc_equilibre_json|safe }};
+    new Chart(el, {
+        type: 'doughnut',
+        data: {
+            labels: ['1-3','4-6','7-9','10+'],
+            datasets: [{ data: data, backgroundColor: ['#0d9488','#6ee7b7','#a78bfa','#fb923c'], borderWidth: 2 }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+    });
+})();
+
+// ── Chart: Entreprises bar (vertical) ────────────────────────────────────
+(function() {
+    const el = document.getElementById('chartEntBar');
+    if (!el) return;
+    const labels = {{ ent_bar_labels_json|safe }}.slice(0, 8);
+    const data   = {{ ent_bar_counts_json|safe }}.slice(0, 8);
+    new Chart(el, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{ label: "Etudiants", data: data, backgroundColor: '#0d9488', borderRadius: 5 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 9 }, maxRotation: 35 } } }
+        }
+    });
+})();
+
+// ── Chart: Entreprises stacked specialites ────────────────────────────────
+(function() {
+    const el = document.getElementById('chartEntStacked');
+    if (!el) return;
+    const N = 8;
+    const labels   = {{ ent_stacked_labels_json|safe }}.slice(0, N);
+    const rawDs    = {{ ent_stacked_json|safe }};
+    const datasets = rawDs.map(function(ds) { return Object.assign({}, ds, { data: ds.data.slice(0, N) }); });
+    new Chart(el, {
+        type: 'bar',
+        data: { labels: labels, datasets: datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 9 }, boxWidth: 10 } } },
+            scales: { x: { stacked: true, ticks: { font: { size: 9 }, maxRotation: 35 } }, y: { stacked: true, ticks: { font: { size: 10 } } } }
+        }
+    });
+})();
+
+// ── Chart: Top entreprises horizontal ────────────────────────────────────
+(function() {
+    const el = document.getElementById('chartEntTop');
+    if (!el) return;
+    const N = 8;
+    const labels = {{ ent_bar_labels_json|safe }}.slice(0, N);
+    const data   = {{ ent_bar_counts_json|safe }}.slice(0, N);
+    new Chart(el, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{ label: "Etudiants", data: data, backgroundColor: '#0d9488', borderRadius: 5 }]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { beginAtZero: true, ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } }
+        }
+    });
+})();
+
+// ── Chart: Moyenne des etudiants par entreprise (line) ───────────────────
+(function() {
+    const el = document.getElementById('chartEntAvg');
+    if (!el) return;
+    const labels = {{ ent_avg_labels_json|safe }};
+    const raw    = {{ ent_avg_values_json|safe }};
+    if (!labels.length) return;
+    // Remplacer null par undefined pour que Chart.js affiche un vide propre
+    const data = raw.map(function(v) { return v === null ? undefined : v; });
+    new Chart(el, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Moyenne /20',
+                data: data,
+                borderColor: '#0d9488',
+                backgroundColor: 'rgba(13,148,136,0.10)',
+                pointBackgroundColor: '#0d9488',
+                pointRadius: 5,
+                fill: true,
+                tension: 0.3,
+                spanGaps: false
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: false, min: 0, max: 20, ticks: { font: { size: 10 } } },
+                x: { ticks: { font: { size: 9 }, maxRotation: 35 } }
+            }
+        }
+    });
+})();
+
+// ── Chart: Resultats moyennes finales ────────────────────────────────────
+(function() {
+    const el = document.getElementById('chartResMoyennes');
+    if (!el) return;
+    new Chart(el, {
+        type: 'bar',
+        data: {
+            labels: FILIERES,
+            datasets: [{ label: "Moyenne finale (/20)", data: {{ res_bar_avgs_json|safe }}, backgroundColor: '#0d9488', borderRadius: 5 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+            scales: { y: { beginAtZero: false, min: 8, max: 20, ticks: { stepSize: 2, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
+        }
+    });
+})();
+
+// ── Chart: Resultats composantes ─────────────────────────────────────────
+(function() {
+    const el = document.getElementById('chartResComposantes');
+    if (!el) return;
+    new Chart(el, {
+        type: 'bar',
+        data: {
+            labels: FILIERES,
+            datasets: [
+                { label: "Rapport",      data: {{ res_bar_rapport_json|safe }}, backgroundColor: '#0d9488', borderRadius: 3 },
+                { label: "Presentation", data: {{ res_bar_pres_json|safe }},   backgroundColor: '#3b82f6', borderRadius: 3 },
+                { label: "Questions",    data: {{ res_bar_quest_json|safe }},   backgroundColor: '#f59e0b', borderRadius: 3 }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+            scales: { y: { beginAtZero: false, min: 8, max: 20, ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
+        }
+    });
+})();
+
+// ── Chart: Mentions par specialite (barres horiz. empilees 100%) ─────────
+(function() {
+    const el = document.getElementById('chartResMentions');
+    if (!el) return;
+    const datasets = {{ res_mentions_ds_json|safe }};
+    new Chart(el, {
+        type: 'bar',
+        data: { labels: FILIERES, datasets: datasets },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 9 }, boxWidth: 10 } } },
+            scales: {
+                x: { stacked: true, max: 100, ticks: { callback: function(v) { return v + '%'; }, font: { size: 9 } } },
+                y: { stacked: true, ticks: { font: { size: 10 } } }
+            }
+        }
+    });
+})();
+
+// ── Chart: Ecart type (line) ─────────────────────────────────────────────
+(function() {
+    const el = document.getElementById('chartResEcarts');
+    if (!el) return;
+    new Chart(el, {
+        type: 'line',
+        data: {
+            labels: FILIERES,
+            datasets: [{ label: "Ecart type (/20)", data: {{ res_bar_std_json|safe }},
+                borderColor: '#0d9488', backgroundColor: 'rgba(13,148,136,.1)',
+                tension: 0.35, fill: true, pointBackgroundColor: '#0d9488', pointRadius: 5 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+            scales: { y: { beginAtZero: true, max: 5, ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
+        }
+    });
+})();
+</script>
+{% endblock %}

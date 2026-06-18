@@ -187,6 +187,7 @@
                     <span class="student-meta-chip"><span class="meta-label">Matricule</span> {{ student.matricule }}</span>
                     <span class="student-meta-chip"><span class="meta-label">Filière</span> {{ student.filiere|default:"-" }}</span>
                     <span class="student-meta-chip"><span class="meta-label">Encadrant</span> {{ student.encadrant.full_name }}</span>
+                    <span class="student-meta-chip"><span class="meta-label">Entreprise</span> {{ student.entreprise|default:"Non renseignée" }}</span>
                     <span class="student-meta-chip"><span class="meta-label">Tél.</span> {{ request.user.phone_number|default:"-" }}</span>
                     <span class="student-meta-chip"><span class="meta-label">Email</span> {{ request.user.email|default:"-" }}</span>
                 </div>
