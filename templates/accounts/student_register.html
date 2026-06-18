@@ -32,8 +32,8 @@
                     {% endif %}
 
                     <small class="form-help">
-                        Saisissez votre matricule puis cliquez ailleurs : vos informations
-                        officielles se complètent automatiquement si elles existent.
+                        Saisissez votre matricule et votre nom complet officiel :
+                        la filière et l'encadrant se complètent automatiquement.
                     </small>
                 </div>
 
@@ -49,7 +49,8 @@
                 <div class="reference-card not-found" id="referenceCardNotFound">
                     <p class="reference-title">Matricule non reconnu</p>
                     <p class="mb-0 text-muted">
-                        Complétez vos informations manuellement ci-dessous.
+                        Le matricule ou le nom complet ne correspond pas à la liste
+                        officielle. L'inscription ne pourra pas être validée.
                     </p>
                 </div>
 
@@ -74,20 +75,11 @@
                 <div>
                     <label class="form-label">{{ form.encadrant.label }}</label>
 
-                    <div id="encadrantDisplay" class="form-control" style="display: none; cursor: default;">
+                    <div id="encadrantDisplay" class="form-control" style="display: flex; cursor: default;">
                         <span id="encadrantDisplayName">-</span>
-                        <button type="button" id="encadrantChangeBtn" class="btn btn-sm btn-light ms-2">
-                            Changer
-                        </button>
                     </div>
 
-                    <div id="encadrantManual">
-                        <input
-                            type="text"
-                            class="form-control mb-2"
-                            id="professorSearch"
-                            placeholder="Rechercher un professeur..."
-                        >
+                    <div id="encadrantManual" style="display: none;">
                         {{ form.encadrant }}
                     </div>
 
@@ -162,7 +154,6 @@ const refEncadrant = document.getElementById('refEncadrant');
 const encadrantDisplay = document.getElementById('encadrantDisplay');
 const encadrantDisplayName = document.getElementById('encadrantDisplayName');
 const encadrantManual = document.getElementById('encadrantManual');
-const encadrantChangeBtn = document.getElementById('encadrantChangeBtn');
 
 function selectOptionByText(selectEl, text) {
     if (!selectEl || !text) {
@@ -193,78 +184,73 @@ function showEncadrantDisplay(name) {
 
 function showEncadrantManual() {
     if (encadrantDisplay && encadrantManual) {
-        encadrantDisplay.style.display = 'none';
-        encadrantManual.style.display = 'block';
+        encadrantDisplayName.textContent = 'En attente de la liste officielle';
+        encadrantDisplay.style.display = 'flex';
+        encadrantDisplay.style.alignItems = 'center';
+        encadrantDisplay.style.justifyContent = 'space-between';
+        encadrantManual.style.display = 'none';
     }
 }
 
-if (encadrantChangeBtn) {
-    encadrantChangeBtn.addEventListener('click', showEncadrantManual);
+function lookupReference() {
+    const matricule = matriculeInput ? matriculeInput.value.trim() : '';
+    const fullName = fullNameInput ? fullNameInput.value.trim() : '';
+
+    if (!matricule || !fullName) {
+        return;
+    }
+
+    const params = new URLSearchParams({
+        matricule: matricule,
+        full_name: fullName
+    });
+
+    fetch(lookupUrl + '?' + params.toString())
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (data.found) {
+                if (referenceCardNotFound) {
+                    referenceCardNotFound.classList.remove('is-visible');
+                }
+
+                if (referenceCard) {
+                    referenceCard.classList.add('is-visible');
+                }
+
+                if (fullNameInput && data.full_name) {
+                    fullNameInput.value = data.full_name;
+                }
+
+                selectOptionByText(filiereSelect, data.filiere);
+                selectOptionByText(encadrantSelect, data.encadrant_name);
+
+                refFullName.textContent = data.full_name || '-';
+                refFiliere.textContent = data.filiere || '-';
+                refEncadrant.textContent = data.encadrant_name || '-';
+
+                showEncadrantDisplay(data.encadrant_name);
+            } else {
+                if (referenceCard) {
+                    referenceCard.classList.remove('is-visible');
+                }
+
+                if (referenceCardNotFound) {
+                    referenceCardNotFound.classList.add('is-visible');
+                }
+
+                showEncadrantManual();
+            }
+        })
+        .catch(function () {});
 }
 
 if (matriculeInput) {
-    matriculeInput.addEventListener('blur', function () {
-        const matricule = this.value.trim();
-
-        if (!matricule) {
-            return;
-        }
-
-        fetch(lookupUrl + '?matricule=' + encodeURIComponent(matricule))
-            .then(function (response) { return response.json(); })
-            .then(function (data) {
-                if (data.found) {
-                    if (referenceCardNotFound) {
-                        referenceCardNotFound.classList.remove('is-visible');
-                    }
-
-                    if (referenceCard) {
-                        referenceCard.classList.add('is-visible');
-                    }
-
-                    if (fullNameInput && data.full_name) {
-                        fullNameInput.value = data.full_name;
-                    }
-
-                    selectOptionByText(filiereSelect, data.filiere);
-                    const matched = selectOptionByText(encadrantSelect, data.encadrant_name);
-
-                    refFullName.textContent = data.full_name || '-';
-                    refFiliere.textContent = data.filiere || '-';
-                    refEncadrant.textContent = data.encadrant_name || '-';
-
-                    if (matched && data.encadrant_name) {
-                        showEncadrantDisplay(data.encadrant_name);
-                    } else {
-                        showEncadrantManual();
-                    }
-                } else {
-                    if (referenceCard) {
-                        referenceCard.classList.remove('is-visible');
-                    }
-
-                    if (referenceCardNotFound) {
-                        referenceCardNotFound.classList.add('is-visible');
-                    }
-
-                    showEncadrantManual();
-                }
-            })
-            .catch(function () {});
-    });
+    matriculeInput.addEventListener('blur', lookupReference);
 }
 
-const searchInput = document.getElementById('professorSearch');
-
-if (searchInput && encadrantSelect) {
-    searchInput.addEventListener('input', function () {
-        const filter = this.value.toLowerCase().trim();
-
-        for (let option of encadrantSelect.options) {
-            const text = option.text.toLowerCase();
-            option.hidden = filter ? !text.includes(filter) : false;
-        }
-    });
+if (fullNameInput) {
+    fullNameInput.addEventListener('blur', lookupReference);
 }
+
 </script>
 {% endblock %}

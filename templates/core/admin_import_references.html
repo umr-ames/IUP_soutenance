@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Importer la liste officielle{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Administration</p>
+        <h1>Importer la liste officielle</h1>
+        <p class="page-subtitle">
+            Chargez le fichier officiel des etudiants. Les references et les
+            professeurs encadrants seront synchronises sans publier le fichier.
+        </p>
+    </div>
+</section>
+
+<section class="content-panel">
+    <form method="post" enctype="multipart/form-data" class="form-stack">
+        {% csrf_token %}
+
+        <div class="mb-3">
+            {{ form.data_file.label_tag }}
+            {{ form.data_file }}
+            {% if form.data_file.help_text %}
+                <div class="form-text">{{ form.data_file.help_text }}</div>
+            {% endif %}
+            {% for error in form.data_file.errors %}
+                <div class="text-danger small">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                Importer
+            </button>
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary">
+                Retour
+            </a>
+        </div>
+    </form>
+</section>
+
+{% if report %}
+<section class="content-panel mt-4">
+    <h2>Rapport d'import</h2>
+    <pre class="bg-light border rounded p-3 mb-0" style="white-space: pre-wrap;">{{ report }}</pre>
+</section>
+{% endif %}
+{% endblock %}

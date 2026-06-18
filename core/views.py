@@ -1,10 +1,12 @@
 import csv
 import io
 import re
+import tempfile
 import unicodedata
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.management import call_command
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import redirect, render
@@ -23,7 +25,7 @@ from soutenances.models import (
     PFERequest,
     Result,
 )
-from .forms import ImportPeopleForm
+from .forms import ImportPeopleForm, ImportStudentReferencesForm
 
 
 DEFAULT_IMPORT_PASSWORD = "iup2026"
@@ -278,6 +280,58 @@ def admin_import_people(request):
         form = ImportPeopleForm()
 
     return render(request, "core/admin_import.html", {
+        "form": form,
+    })
+
+
+@login_required
+@role_required(["admin"])
+def admin_import_student_references(request):
+    if request.method == "POST":
+        form = ImportStudentReferencesForm(request.POST, request.FILES)
+        if form.is_valid():
+            uploaded_file = form.cleaned_data["data_file"]
+            extension = uploaded_file.name.rsplit(".", 1)[-1].lower()
+            temporary_path = None
+
+            try:
+                with tempfile.NamedTemporaryFile(
+                    suffix=f".{extension}",
+                    delete=False,
+                ) as temporary_file:
+                    for chunk in uploaded_file.chunks():
+                        temporary_file.write(chunk)
+                    temporary_path = temporary_file.name
+
+                output = io.StringIO()
+                call_command(
+                    "import_student_references",
+                    temporary_path,
+                    stdout=output,
+                )
+            except Exception as exc:
+                messages.error(request, f"Import impossible : {exc}")
+            else:
+                messages.success(
+                    request,
+                    "Liste officielle importee avec succes. "
+                    "Les professeurs manquants ont ete crees automatiquement."
+                )
+                return render(request, "core/admin_import_references.html", {
+                    "form": ImportStudentReferencesForm(),
+                    "report": output.getvalue(),
+                })
+            finally:
+                if temporary_path:
+                    try:
+                        import os
+                        os.unlink(temporary_path)
+                    except Exception:
+                        pass
+    else:
+        form = ImportStudentReferencesForm()
+
+    return render(request, "core/admin_import_references.html", {
         "form": form,
     })
 

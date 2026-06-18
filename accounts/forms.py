@@ -1,10 +1,21 @@
+import unicodedata
+
 from django import forms
 from django.contrib.auth import authenticate
 from django.contrib.auth.forms import UserCreationForm
 
 from .models import CustomUser
-from students.models import StudentProfile
+from students.models import StudentProfile, StudentReference
 from professors.models import ProfessorProfile
+
+
+def normalize_person_name(value):
+    normalized = unicodedata.normalize('NFKD', value or '')
+    normalized = ''.join(
+        character for character in normalized
+        if not unicodedata.combining(character)
+    )
+    return ' '.join(normalized.casefold().split())
 
 
 class PhoneLoginForm(forms.Form):
@@ -68,7 +79,7 @@ class StudentRegisterForm(forms.Form):
         max_length=255,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Votre nom complet'
+            'placeholder': 'Votre nom complet officiel'
         })
     )
 
@@ -101,6 +112,7 @@ class StudentRegisterForm(forms.Form):
     encadrant = forms.ModelChoiceField(
         label="Encadrant",
         queryset=ProfessorProfile.objects.all().order_by('full_name'),
+        required=False,
         widget=forms.Select(attrs={
             'class': 'form-select searchable-select'
         })
@@ -121,10 +133,15 @@ class StudentRegisterForm(forms.Form):
     )
 
     def clean_matricule(self):
-        matricule = self.cleaned_data.get('matricule')
+        matricule = (self.cleaned_data.get('matricule') or '').strip()
 
         if StudentProfile.objects.filter(matricule=matricule).exists():
             raise forms.ValidationError("Ce matricule existe déjà.")
+
+        if not StudentReference.objects.filter(matricule__iexact=matricule).exists():
+            raise forms.ValidationError(
+                "Ce matricule n'est pas dans la liste officielle."
+            )
 
         return matricule
 
@@ -146,11 +163,40 @@ class StudentRegisterForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
+        matricule = cleaned_data.get('matricule')
         password1 = cleaned_data.get('password1')
         password2 = cleaned_data.get('password2')
 
         if password1 and password2 and password1 != password2:
             raise forms.ValidationError("Les mots de passe ne correspondent pas.")
+
+        if matricule:
+            reference = StudentReference.objects.filter(
+                matricule__iexact=matricule
+            ).first()
+
+            if reference:
+                submitted_name = cleaned_data.get('full_name') or ''
+                if normalize_person_name(submitted_name) != normalize_person_name(reference.full_name):
+                    self.add_error(
+                        'full_name',
+                        "Le nom complet ne correspond pas a la liste officielle."
+                    )
+
+                cleaned_data['full_name'] = reference.full_name
+                cleaned_data['filiere'] = reference.filiere
+
+                encadrant = ProfessorProfile.objects.filter(
+                    full_name__iexact=reference.encadrant_name
+                ).first()
+
+                if not encadrant:
+                    raise forms.ValidationError(
+                        "L'encadrant officiel de ce matricule n'existe pas encore. "
+                        "Importez d'abord la liste officielle."
+                    )
+
+                cleaned_data['encadrant'] = encadrant
 
         return cleaned_data
 
