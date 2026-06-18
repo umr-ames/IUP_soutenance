@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth import authenticate
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from .models import CustomUser
 from students.models import StudentProfile, StudentReference
@@ -161,6 +162,12 @@ class StudentRegisterForm(forms.Form):
         if password1 and password2 and password1 != password2:
             raise forms.ValidationError("Les mots de passe ne correspondent pas.")
 
+        if password1:
+            try:
+                validate_password(password1)
+            except DjangoValidationError as error:
+                self.add_error('password1', error)
+
         if matricule:
             reference = StudentReference.objects.filter(
                 matricule__iexact=matricule
@@ -248,5 +255,11 @@ class ProfessorRegisterForm(forms.Form):
 
         if password1 and password2 and password1 != password2:
             raise forms.ValidationError("Les mots de passe ne correspondent pas.")
+
+        if password1:
+            try:
+                validate_password(password1)
+            except DjangoValidationError as error:
+                self.add_error('password1', error)
 
         return cleaned_data

@@ -10,7 +10,15 @@
             <div class="auth-brand-mark">
                 <img src="{% static 'img/logo-isgi.jpeg' %}" alt="ISGI" class="auth-brand-logo">
             </div>
-            <h1>Inscription professeur</h1>
+            <div class="auth-brand-text">
+                <h1>Inscription professeur</h1>
+                <p class="auth-brand-institution">{{ INSTITUTION_NAME }}</p>
+            </div>
+        </div>
+
+        <div class="auth-identity">
+            <span>{{ INSTITUTION_DEPARTMENT }}</span>
+            <span>{{ ACADEMIC_YEAR }}</span>
         </div>
 
         {% if form.non_field_errors %}
@@ -40,7 +48,7 @@
                     {% endif %}
 
                     <small class="form-help">
-                        Si votre nom n'apparaît pas, contactez l'administration.
+                        Si votre nom n'apparaît pas, contactez le département de l'IUP.
                     </small>
                 </div>
 

@@ -61,8 +61,8 @@ class PFERequest(models.Model):
     STATUS_CHOICES = [
         (STATUS_PENDING_PROFESSOR, "En attente de validation encadrant"),
         (STATUS_REFUSED_PROFESSOR, "Refusée par l’encadrant"),
-        (STATUS_PENDING_ADMIN, "En attente administration"),
-        (STATUS_REFUSED_ADMIN, "Refusée par l’administration"),
+        (STATUS_PENDING_ADMIN, "En attente du département de l'IUP"),
+        (STATUS_REFUSED_ADMIN, "Refusée par le département de l'IUP"),
         (STATUS_ACCEPTED, "Acceptée"),
     ]
 
@@ -334,7 +334,7 @@ class JuryStudent(models.Model):
 
         if self.student.pfe_request.status != PFERequest.STATUS_ACCEPTED:
             raise ValidationError(
-                "L'étudiant doit avoir une demande acceptée par l'administration."
+                "L'étudiant doit avoir une demande acceptée par le département de l'IUP."
             )
 
     def save(self, *args, **kwargs):

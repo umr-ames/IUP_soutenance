@@ -1809,13 +1809,13 @@ def export_student_pv_pdf(request, pk):
         lines.append(f"Statut de la demande: {pfe_request.get_status_display()}")
         lines.append(f"Date de depot: {format_datetime(pfe_request.submitted_at)}")
         lines.append(f"Validation encadrant: {format_datetime(pfe_request.professor_reviewed_at)}")
-        lines.append(f"Validation administration: {format_datetime(pfe_request.admin_reviewed_at)}")
+        lines.append(f"Validation departement de l'IUP: {format_datetime(pfe_request.admin_reviewed_at)}")
 
         if pfe_request.professor_comment:
             lines.append(f"Commentaire encadrant: {pfe_request.professor_comment}")
 
         if pfe_request.admin_comment:
-            lines.append(f"Commentaire administration: {pfe_request.admin_comment}")
+            lines.append(f"Commentaire departement de l'IUP: {pfe_request.admin_comment}")
     else:
         lines.append("Aucune demande trouvee.")
     lines.append("")
@@ -1864,16 +1864,16 @@ def export_student_pv_pdf(request, pk):
 
     lines.append("DECISION:")
     if result and result.is_published:
-        lines.append("Decision: resultat valide et publie par l'administration.")
+        lines.append("Decision: resultat valide et publie par le departement de l'IUP.")
     else:
-        lines.append("Decision: en attente de publication administrative.")
+        lines.append("Decision: en attente de publication par le departement de l'IUP.")
     lines.append("")
 
     lines.append("SIGNATURES:")
     lines.append(f"Président de soutenance ({president_name}): ______________________________")
     lines.append("Membre du jury: _________________________________")
     lines.append("Membre du jury: _________________________________")
-    lines.append("Administration: _________________________________")
+    lines.append("Departement de l'IUP: _________________________________")
 
     return simple_pdf_response(
         f"PV de soutenance - {student.full_name}",

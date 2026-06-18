@@ -169,7 +169,7 @@ class JuryGenerationForm(forms.Form):
     """
     Génération intelligente sans choix manuel de date.
 
-    L'administration clique seulement sur le bouton de génération.
+    Le département de l'IUP clique seulement sur le bouton de génération.
     Le système cherche automatiquement les meilleurs créneaux à partir des
     disponibilités futures des professeurs.
 
@@ -299,9 +299,9 @@ class JurySmartMembersForm(forms.Form):
 
 class JuryAddMemberForm(forms.Form):
     """Ajout d'un membre dans la page Modifier jury. Le queryset est
-    restreint cote serveur aux professeurs reellement disponibles au
-    creneau du jury (et pas deja membres) : un professeur indisponible ne
-    peut pas etre ajoute, meme via un POST force."""
+    restreint côté serveur aux professeurs réellement disponibles au
+    créneau du jury (et pas déjà membres) : un professeur indisponible ne
+    peut pas être ajouté, même via un POST forcé."""
 
     professor = forms.ModelChoiceField(
         label="Professeur à ajouter",
@@ -320,7 +320,7 @@ class PlanningGenerationForm(forms.Form):
     """
     Planning manuel par date.
 
-    Ce formulaire reste utile pour l'administration si elle veut régénérer
+    Ce formulaire reste utile pour le département de l'IUP s'il veut régénérer
     manuellement le planning d'une date précise.
 
     La génération intelligente des jurys, elle, n'a plus besoin de date.

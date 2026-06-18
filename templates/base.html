@@ -30,8 +30,8 @@
                         <img src="{% static 'img/logo-isgi.jpeg' %}" alt="ISGI" class="app-brand-logo">
                     </span>
                     <span class="app-brand-text">
-                        <strong>Soutenances</strong>
-                        <small>Organisation PFE</small>
+                        <strong>Soutenances PFE</strong>
+                        <small>{{ INSTITUTION_DEPARTMENT }} — ISGI</small>
                     </span>
                 </a>
 
@@ -113,6 +113,16 @@
 
     {% block content %}{% endblock %}
 </main>
+
+<footer class="app-footer">
+    <div class="app-footer-inner">
+        <span class="app-footer-institution">{{ INSTITUTION_NAME }}</span>
+        <span class="app-footer-sep">•</span>
+        <span>{{ INSTITUTION_DEPARTMENT }}</span>
+        <span class="app-footer-sep">•</span>
+        <span>{{ ACADEMIC_YEAR }}</span>
+    </div>
+</footer>
 
 {% if request.user.is_authenticated %}
     </div>

@@ -4,7 +4,7 @@ from django import forms
 class ImportPeopleForm(forms.Form):
     data_file = forms.FileField(
         label="Fichier CSV ou Excel",
-        help_text="Colonnes attendues : matricule, nom complet, filiere, encadrant.",
+        help_text="Colonnes attendues : matricule, nom complet, filière, encadrant.",
         widget=forms.ClearableFileInput(attrs={
             "class": "form-control",
             "accept": ".csv,.xlsx",
@@ -15,7 +15,7 @@ class ImportPeopleForm(forms.Form):
         data_file = self.cleaned_data["data_file"]
         extension = data_file.name.rsplit(".", 1)[-1].lower()
         if extension not in {"csv", "xlsx"}:
-            raise forms.ValidationError("Le fichier doit etre au format CSV ou XLSX.")
+            raise forms.ValidationError("Le fichier doit être au format CSV ou XLSX.")
         return data_file
 
 
@@ -23,8 +23,8 @@ class ImportStudentReferencesForm(forms.Form):
     data_file = forms.FileField(
         label="Liste officielle CSV ou Excel",
         help_text=(
-            "Colonnes attendues : matricule, nom complet, filiere, encadrant. "
-            "Les professeurs manquants seront crees automatiquement."
+            "Colonnes attendues : matricule, nom complet, filière, encadrant. "
+            "Les professeurs manquants seront créés automatiquement."
         ),
         widget=forms.ClearableFileInput(attrs={
             "class": "form-control",
@@ -36,5 +36,5 @@ class ImportStudentReferencesForm(forms.Form):
         data_file = self.cleaned_data["data_file"]
         extension = data_file.name.rsplit(".", 1)[-1].lower()
         if extension not in {"csv", "xlsx"}:
-            raise forms.ValidationError("Le fichier doit etre au format CSV ou XLSX.")
+            raise forms.ValidationError("Le fichier doit être au format CSV ou XLSX.")
         return data_file

@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Etudiants{% endblock %}
+{% block title %}Étudiants{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div>
-        <h1>Etudiants</h1>
-        <p>Liste des profils etudiants et de leurs encadrants.</p>
+        <h1>Étudiants</h1>
+        <p>Liste des profils étudiants et de leurs encadrants.</p>
     </div>
     <a class="btn btn-primary" href="{% url 'admin_import_people' %}">Importer</a>
 </div>
@@ -18,9 +18,9 @@
                 <tr>
                     <th>Matricule</th>
                     <th>Nom complet</th>
-                    <th>Filiere</th>
+                    <th>Filière</th>
                     <th>Encadrant</th>
-                    <th>Telephone</th>
+                    <th>Téléphone</th>
                     <th>Demande</th>
                 </tr>
             </thead>
@@ -41,7 +41,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="6"><div class="empty-state">Aucun etudiant.</div></td></tr>
+                    <tr><td colspan="6"><div class="empty-state">Aucun étudiant.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>
