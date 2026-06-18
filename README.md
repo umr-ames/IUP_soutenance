@@ -32,9 +32,10 @@ Documentation detaillee : `docs/DEPLOIEMENT.md`.
 Ne pas committer `.env`, `db.sqlite3`, `media/`, `backups/`, `venv/` ni les
 fichiers reels d'import etudiants. Ils sont ignores par `.gitignore`.
 
-## Mode gratuit Render
+## Mode production Render
 
-Le Blueprint utilise les plans gratuits Render pour un test d'environ un mois.
-La base PostgreSQL gratuite expire apres 30 jours et les fichiers uploades dans
-`media/` sont temporaires, car les disques persistants necessitent un service
-payant.
+Le Blueprint utilise une configuration stable :
+
+- web service `starter` ;
+- PostgreSQL `basic-256mb` ;
+- disque persistant 1 GB pour les fichiers uploades dans `media/`.
