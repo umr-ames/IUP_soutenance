@@ -105,7 +105,7 @@ waitress-serve --listen=0.0.0.0:8000 config.wsgi:application
 
 Le projet contient maintenant les fichiers necessaires :
 
-- `render.yaml` pour creer le service web et la base PostgreSQL ;
+- `render.yaml` pour creer le service web et la base PostgreSQL en mode gratuit ;
 - `build.sh` pour installer, collecter les fichiers statiques et migrer ;
 - `requirements.txt` avec `gunicorn`, `dj-database-url`, `psycopg` et `whitenoise`.
 
@@ -115,8 +115,8 @@ Etapes :
 2. Dans Render, choisir **New +** puis **Blueprint**.
 3. Connecter le depot GitHub.
 4. Render lit `render.yaml` et propose de creer :
-   - le service web `iup-soutenance` ;
-   - la base `iup-soutenance-db`.
+   - le service web gratuit `iup-soutenance` ;
+   - la base PostgreSQL gratuite `iup-soutenance-db`.
 5. Lancer la creation.
 
 Apres le premier deploiement, verifier l'URL Render, par exemple :
@@ -125,12 +125,14 @@ Apres le premier deploiement, verifier l'URL Render, par exemple :
 https://iup-soutenance.onrender.com/login/
 ```
 
-Pour les fichiers envoyes par les etudiants (`media/`), le fichier
-`render.yaml` declare deja un disque persistant :
+En mode gratuit, les fichiers envoyes par les etudiants (`media/`) sont stockes
+dans `/tmp/media`. C'est suffisant pour un test, mais ce stockage est temporaire
+et peut etre vide apres un redeploiement ou redemarrage.
+
+Pour une vraie mise en ligne, passer le service web en plan payant, ajouter un
+disque persistant, puis utiliser :
 
 ```text
+DJANGO_MEDIA_ROOT=/var/data/media
 Mount path: /var/data
 ```
-
-La variable `DJANGO_MEDIA_ROOT=/var/data/media` est deja prevue dans
-`render.yaml`.

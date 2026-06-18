@@ -7,7 +7,7 @@ validation encadrant/administration, jurys, planning, evaluations et resultats.
 
 Le projet est prepare pour Render avec :
 
-- `render.yaml` : service web, PostgreSQL et disque persistant ;
+- `render.yaml` : service web et PostgreSQL ;
 - `build.sh` : installation, `collectstatic`, migrations ;
 - `gunicorn`, `dj-database-url`, `psycopg` et `whitenoise` dans `requirements.txt`.
 
@@ -25,3 +25,10 @@ Documentation detaillee : `docs/DEPLOIEMENT.md`.
 
 Ne pas committer `.env`, `db.sqlite3`, `media/`, `backups/`, `venv/` ni les
 fichiers reels d'import etudiants. Ils sont ignores par `.gitignore`.
+
+## Mode gratuit Render
+
+Le Blueprint utilise les plans gratuits Render pour un test d'environ un mois.
+La base PostgreSQL gratuite expire apres 30 jours et les fichiers uploades dans
+`media/` sont temporaires, car les disques persistants necessitent un service
+payant.

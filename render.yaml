@@ -1,6 +1,6 @@
 databases:
   - name: iup-soutenance-db
-    plan: starter
+    plan: free
     databaseName: iup_soutenance
     user: iup_soutenance
 
@@ -8,14 +8,10 @@ services:
   - type: web
     name: iup-soutenance
     runtime: python
-    plan: starter
+    plan: free
     buildCommand: "bash build.sh"
     startCommand: "gunicorn config.wsgi:application"
     healthCheckPath: "/healthz/"
-    disk:
-      name: media
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: DJANGO_DEBUG
         value: "False"
@@ -40,7 +36,7 @@ services:
       - key: DJANGO_STATIC_ROOT
         value: "/opt/render/project/src/staticfiles"
       - key: DJANGO_MEDIA_ROOT
-        value: "/var/data/media"
+        value: "/tmp/media"
       - key: DATABASE_URL
         fromDatabase:
           name: iup-soutenance-db
