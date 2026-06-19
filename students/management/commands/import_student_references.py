@@ -1,10 +1,14 @@
 import csv
 import os
+import re
+import unicodedata
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
-from professors.models import ProfessorProfile
-from soutenances.models import PFERequest
+from accounts.models import CustomUser
+from professors.models import ProfessorAvailability, ProfessorProfile
+from soutenances.models import Evaluation, JuryMember, JuryStudent, Note, PFERequest
 from students.models import StudentProfile, StudentReference
 
 
@@ -12,29 +16,41 @@ COLUMN_ALIASES = {
     "matricule": "matricule",
     "full_name": "full_name",
     "nom complet": "full_name",
+    "nom": "full_name",
     "filiere": "filiere",
-    "filière": "filiere",
+    "specialite": "filiere",
     "encadrant_name": "encadrant_name",
     "encadrant": "encadrant_name",
 }
 
-HEADER_KEYWORDS = {"matricule", "nom complet", "filiere", "filière", "encadrant"}
+HEADER_KEYWORDS = set(COLUMN_ALIASES)
+
+
+def normalize_text(value):
+    value = re.sub(r"\s+", " ", str(value or "").strip().lower())
+    normalized = unicodedata.normalize("NFKD", value)
+    return "".join(char for char in normalized if not unicodedata.combining(char))
+
+
+def normalize_person_name(name):
+    return normalize_text(name)
 
 
 class Command(BaseCommand):
     help = (
-        "Importe la liste officielle des étudiants (matricule, full_name, filière, "
+        "Importe la liste officielle des etudiants (matricule, full_name, filiere, "
         "encadrant_name) depuis un fichier CSV ou XLSX vers StudentReference. "
-        "Pour les fichiers XLSX, la ligne d'en-tête est détectée automatiquement "
-        "(des lignes de titre peuvent précéder l'en-tête). "
-        "Colonnes acceptées (insensibles à la casse) : "
-        "matricule/Matricule, full_name/'Nom complet', filiere/Filière, "
+        "Pour les fichiers XLSX, la ligne d'en-tete est detectee automatiquement "
+        "(des lignes de titre peuvent preceder l'en-tete). "
+        "Colonnes acceptees (insensibles a la casse et aux accents) : "
+        "matricule/Matricule, full_name/'Nom complet', filiere/Filiere, "
         "encadrant_name/Encadrant."
     )
 
     def add_arguments(self, parser):
         parser.add_argument("file_path", type=str)
 
+    @transaction.atomic
     def handle(self, *args, **options):
         file_path = options["file_path"]
         extension = os.path.splitext(file_path)[1].lower()
@@ -45,19 +61,18 @@ class Command(BaseCommand):
             rows = self.read_csv_rows(file_path)
         else:
             raise CommandError(
-                f"Format non supporté : '{extension}'. Utilisez un fichier .csv ou .xlsx."
+                f"Format non supporte : '{extension}'. Utilisez un fichier .csv ou .xlsx."
             )
 
-        # Snapshot de l'ancienne base avant toute modification, pour le
-        # rapport de synchronisation (références absentes du nouveau fichier,
-        # encadrants qui disparaissent de la liste officielle).
         old_matricules = set(
             StudentReference.objects.values_list("matricule", flat=True)
         )
         old_encadrant_names = set(
-            name for name in StudentReference.objects.values_list(
+            name
+            for name in StudentReference.objects.values_list(
                 "encadrant_name", flat=True
-            ).distinct() if name
+            ).distinct()
+            if name
         )
 
         total_rows = 0
@@ -125,10 +140,8 @@ class Command(BaseCommand):
             else:
                 updated += 1
 
-        # Professeurs : créer les ProfessorProfile manquants pour les
-        # nouveaux encadrants, sans jamais supprimer de profil existant.
         existing_professor_names = {
-            name.strip().lower()
+            normalize_person_name(name)
             for name in ProfessorProfile.objects.values_list("full_name", flat=True)
         }
 
@@ -136,17 +149,14 @@ class Command(BaseCommand):
         professors_existing = 0
 
         for encadrant_name in sorted(new_encadrant_names):
-            if encadrant_name.strip().lower() in existing_professor_names:
+            if normalize_person_name(encadrant_name) in existing_professor_names:
                 professors_existing += 1
                 continue
 
             ProfessorProfile.objects.create(full_name=encadrant_name)
             professors_created.append(encadrant_name)
-            existing_professor_names.add(encadrant_name.strip().lower())
+            existing_professor_names.add(normalize_person_name(encadrant_name))
 
-        # Synchronisation prudente : références présentes avant l'import mais
-        # absentes du nouveau fichier. On ne supprime jamais automatiquement,
-        # on signale seulement, en distinguant celles liées à un compte réel.
         missing_matricules = sorted(old_matricules - new_matricules)
         missing_linked = []
         missing_unlinked = []
@@ -162,27 +172,31 @@ class Command(BaseCommand):
             else:
                 missing_unlinked.append(matricule)
 
+        deleted_missing_unlinked, _ = StudentReference.objects.filter(
+            matricule__in=missing_unlinked
+        ).delete()
+
         missing_encadrants = sorted(old_encadrant_names - new_encadrant_names)
+        professor_cleanup = self.sync_professors_with_latest_list(new_encadrant_names)
 
         total_in_db = StudentReference.objects.count()
         distinct_encadrants_in_db = StudentReference.objects.exclude(
             encadrant_name=""
         ).values_list("encadrant_name", flat=True).distinct().count()
 
-        # ---- Rapport ----
-        self.stdout.write(self.style.SUCCESS("Import terminé."))
+        self.stdout.write(self.style.SUCCESS("Import termine."))
         self.stdout.write(f"Lignes lues dans le fichier : {total_rows}")
-        self.stdout.write(f"StudentReference créés : {created}")
-        self.stdout.write(f"StudentReference mis à jour : {updated}")
-        self.stdout.write(f"Lignes ignorées (vides ou sans matricule) : {ignored}")
+        self.stdout.write(f"StudentReference crees : {created}")
+        self.stdout.write(f"StudentReference mis a jour : {updated}")
+        self.stdout.write(f"Lignes ignorees (vides ou sans matricule) : {ignored}")
         self.stdout.write(f"Erreurs : {len(errors)}")
-        self.stdout.write(f"Matricules dupliqués dans le fichier : {len(duplicate_matricules)}")
+        self.stdout.write(f"Matricules dupliques dans le fichier : {len(duplicate_matricules)}")
         if duplicate_matricules:
             self.stdout.write("  -> " + ", ".join(duplicate_matricules))
         self.stdout.write(f"Matricules avec nom vide : {len(empty_name)}")
         if empty_name:
             self.stdout.write("  -> " + ", ".join(empty_name))
-        self.stdout.write(f"Matricules avec filière vide : {len(empty_filiere)}")
+        self.stdout.write(f"Matricules avec filiere vide : {len(empty_filiere)}")
         if empty_filiere:
             self.stdout.write("  -> " + ", ".join(empty_filiere))
         self.stdout.write(f"Matricules avec encadrant vide : {len(empty_encadrant)}")
@@ -190,41 +204,110 @@ class Command(BaseCommand):
             self.stdout.write("  -> " + ", ".join(empty_encadrant))
 
         self.stdout.write("")
-        self.stdout.write(f"Total StudentReference en base après import : {total_in_db}")
+        self.stdout.write(f"Total StudentReference en base apres import : {total_in_db}")
         self.stdout.write(f"Encadrants distincts en base : {distinct_encadrants_in_db}")
-        self.stdout.write(f"ProfessorProfile créés : {len(professors_created)}")
+        self.stdout.write(f"ProfessorProfile crees : {len(professors_created)}")
         if professors_created:
             self.stdout.write("  -> " + ", ".join(professors_created))
-        self.stdout.write(f"ProfessorProfile déjà existants (réutilisés) : {professors_existing}")
+        self.stdout.write(f"ProfessorProfile deja existants (reutilises) : {professors_existing}")
 
         self.stdout.write("")
         self.stdout.write(
-            f"Références présentes avant l'import mais absentes du nouveau fichier : "
+            "References presentes avant l'import mais absentes du nouveau fichier : "
             f"{len(missing_matricules)}"
         )
         self.stdout.write(
-            f"  -> liées à un compte/demande (NON supprimées, signalées) : {len(missing_linked)}"
+            "  -> liees a un compte/demande (NON supprimees, signalees) : "
+            f"{len(missing_linked)}"
         )
         if missing_linked:
             self.stdout.write("     " + ", ".join(missing_linked))
         self.stdout.write(
-            f"  -> non liées, supprimables en sécurité si besoin (NON supprimées automatiquement) : "
-            f"{len(missing_unlinked)}"
+            "  -> non liees, supprimees automatiquement : "
+            f"{deleted_missing_unlinked}"
         )
         if missing_unlinked:
             self.stdout.write("     " + ", ".join(missing_unlinked))
 
         self.stdout.write(
-            f"Anciens encadrants absents de la nouvelle liste : {len(missing_encadrants)}"
+            "Anciens encadrants absents de la nouvelle liste : "
+            f"{len(missing_encadrants)}"
         )
         if missing_encadrants:
             self.stdout.write("  -> " + ", ".join(missing_encadrants))
 
+        self.stdout.write(
+            "ProfessorProfile absents de la nouvelle liste supprimes : "
+            f"{len(professor_cleanup['removed'])}"
+        )
+        if professor_cleanup["removed"]:
+            self.stdout.write("  -> " + ", ".join(professor_cleanup["removed"]))
+        self.stdout.write(
+            "Comptes professeurs supprimes avec ces anciens encadrants : "
+            f"{professor_cleanup['removed_users']}"
+        )
+        self.stdout.write(
+            "ProfessorProfile hors nouvelle liste mais conserves car lies a des donnees actives : "
+            f"{len(professor_cleanup['blocked'])}"
+        )
+        for entry in professor_cleanup["blocked"]:
+            self.stdout.write(
+                f"  -> {entry['name']} : "
+                f"{entry['jurys']} jury(s), "
+                f"{entry['presidences']} presidence(s), "
+                f"{entry['evaluations']} evaluation(s), "
+                f"{entry['notes']} note(s), "
+                f"{entry['students']} etudiant(s) encadre(s)"
+            )
+
         for error in errors:
             self.stdout.write(self.style.ERROR(error))
 
+    def sync_professors_with_latest_list(self, official_encadrant_names):
+        official_names = {
+            normalize_person_name(name)
+            for name in official_encadrant_names
+            if name and name.strip()
+        }
+        removed = []
+        blocked = []
+        removed_users = 0
+
+        for professor in ProfessorProfile.objects.select_related("user").all():
+            if normalize_person_name(professor.full_name) in official_names:
+                continue
+
+            links = {
+                "jurys": JuryMember.objects.filter(professor=professor).count(),
+                "presidences": JuryStudent.objects.filter(president=professor).count(),
+                "evaluations": Evaluation.objects.filter(professor=professor).count(),
+                "notes": Note.objects.filter(professor=professor).count(),
+                "students": StudentProfile.objects.filter(encadrant=professor).count(),
+            }
+
+            if any(links.values()):
+                blocked.append({"name": professor.full_name, **links})
+                continue
+
+            user_id = professor.user_id
+            ProfessorAvailability.objects.filter(professor=professor).delete()
+            removed.append(professor.full_name)
+            professor.delete()
+
+            if user_id:
+                user = CustomUser.objects.filter(pk=user_id)
+                if user.exists():
+                    user.delete()
+                    removed_users += 1
+
+        return {
+            "removed": removed,
+            "blocked": blocked,
+            "removed_users": removed_users,
+        }
+
     def normalize_header(self, value):
-        return (value or "").strip().lower()
+        return normalize_text(value)
 
     def read_csv_rows(self, csv_path):
         try:
@@ -236,7 +319,7 @@ class Command(BaseCommand):
             reader = csv.DictReader(file)
 
             if not reader.fieldnames:
-                raise CommandError("Le fichier CSV est vide ou sans en-tête.")
+                raise CommandError("Le fichier CSV est vide ou sans en-tete.")
 
             normalized_fieldnames = {
                 name: COLUMN_ALIASES.get(self.normalize_header(name))
@@ -259,7 +342,7 @@ class Command(BaseCommand):
             import openpyxl
         except ImportError as exc:
             raise CommandError(
-                "La bibliothèque 'openpyxl' est requise pour lire les fichiers .xlsx. "
+                "La bibliotheque 'openpyxl' est requise pour lire les fichiers .xlsx. "
                 f"Erreur : {exc}"
             )
 
@@ -289,8 +372,8 @@ class Command(BaseCommand):
 
         if header_row_index is None:
             raise CommandError(
-                "Impossible de détecter la ligne d'en-tête (Matricule, Nom complet, "
-                "Filière, Encadrant) dans les 20 premières lignes du fichier."
+                "Impossible de detecter la ligne d'en-tete (Matricule, Nom complet, "
+                "Filiere, Encadrant) dans les 20 premieres lignes du fichier."
             )
 
         rows = []
