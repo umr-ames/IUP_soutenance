@@ -2,6 +2,7 @@ from datetime import time, timedelta
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand
+from django.db.models import Count, Q
 from django.db import transaction
 from django.utils import timezone
 
@@ -13,6 +14,7 @@ from soutenances.models import (
     Jury,
     JuryMember,
     JuryStudent,
+    Note,
     PFERequest,
     Result,
 )
@@ -337,19 +339,67 @@ class Command(BaseCommand):
         pretest_students = StudentProfile.objects.filter(matricule__startswith=PREFIX)
         pretest_users = CustomUser.objects.filter(username__startswith="pretest.")
         pretest_professors = ProfessorProfile.objects.filter(full_name__startswith=PREFIX)
-        pretest_juries = Jury.objects.filter(name__startswith=PREFIX)
+        pretest_student_ids = list(pretest_students.values_list("id", flat=True))
+        pretest_professor_ids = list(pretest_professors.values_list("id", flat=True))
+        affected_jury_ids = list(
+            Jury.objects.filter(
+                Q(name__startswith=PREFIX)
+                | Q(students__student_id__in=pretest_student_ids)
+                | Q(members__professor_id__in=pretest_professor_ids)
+            )
+            .distinct()
+            .values_list("id", flat=True)
+        )
+        pretest_juries = Jury.objects.filter(id__in=affected_jury_ids)
+        pretest_references = StudentReference.objects.filter(matricule__startswith=PREFIX)
 
         counts = {
             "jurys": pretest_juries.count(),
+            "membres de jury": JuryMember.objects.filter(
+                professor_id__in=pretest_professor_ids
+            ).count(),
+            "affectations jury": JuryStudent.objects.filter(
+                Q(student_id__in=pretest_student_ids)
+                | Q(president_id__in=pretest_professor_ids)
+            ).count(),
+            "évaluations": Evaluation.objects.filter(
+                Q(jury_student__student_id__in=pretest_student_ids)
+                | Q(professor_id__in=pretest_professor_ids)
+            ).count(),
+            "notes": Note.objects.filter(
+                Q(jury_student__student_id__in=pretest_student_ids)
+                | Q(professor_id__in=pretest_professor_ids)
+            ).count(),
             "étudiants": pretest_students.count(),
             "professeurs": pretest_professors.count(),
             "utilisateurs": pretest_users.count(),
-            "références": StudentReference.objects.filter(matricule__startswith=PREFIX).count(),
+            "références": pretest_references.count(),
         }
 
-        pretest_juries.delete()
+        DefenseSchedule.objects.filter(jury_student__student_id__in=pretest_student_ids).delete()
+        Result.objects.filter(jury_student__student_id__in=pretest_student_ids).delete()
+        Evaluation.objects.filter(
+            Q(jury_student__student_id__in=pretest_student_ids)
+            | Q(professor_id__in=pretest_professor_ids)
+        ).delete()
+        Note.objects.filter(
+            Q(jury_student__student_id__in=pretest_student_ids)
+            | Q(professor_id__in=pretest_professor_ids)
+        ).delete()
+        JuryStudent.objects.filter(
+            Q(student_id__in=pretest_student_ids)
+            | Q(president_id__in=pretest_professor_ids)
+        ).delete()
+        JuryMember.objects.filter(professor_id__in=pretest_professor_ids).delete()
+        Jury.objects.filter(id__in=affected_jury_ids).annotate(
+            member_count=Count("members"),
+            student_count=Count("students"),
+        ).filter(
+            Q(name__startswith=PREFIX)
+            | Q(member_count=0, student_count=0)
+        ).delete()
         pretest_students.delete()
-        StudentReference.objects.filter(matricule__startswith=PREFIX).delete()
+        pretest_references.delete()
         ProfessorAvailability.objects.filter(professor__in=pretest_professors).delete()
         pretest_professors.delete()
         pretest_users.delete()
