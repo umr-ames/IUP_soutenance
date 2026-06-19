@@ -158,6 +158,52 @@
         color: var(--muted);
     }
 
+    /* ── Répartition de la note (Rapport / Présentation / Questions) ───── */
+    .note-breakdown {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 18px;
+    }
+
+    .note-breakdown-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 12px 14px;
+        border-radius: var(--radius-md);
+        background: var(--surface-soft);
+        border: 1px solid var(--line);
+    }
+
+    .note-breakdown-item .nb-label {
+        color: var(--muted);
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+
+    .note-breakdown-item .nb-label small {
+        color: var(--muted-soft);
+        font-weight: 600;
+    }
+
+    .note-breakdown-item .nb-value {
+        color: var(--heading);
+        font-size: 1.4rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .note-breakdown-item .nb-value small {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--muted);
+    }
+
+    @media (max-width: 560px) {
+        .note-breakdown { grid-template-columns: 1fr; }
+    }
+
     /* ── État vide ────────────────────────────────────────────────────── */
     .empty-state-light {
         padding: 20px 0 4px;
@@ -365,13 +411,25 @@
                                 Votre soutenance n'est pas validée — <strong>Insuffisant</strong>.
                             </p>
                         {% endif %}
-                        {% if result.has_note_gap_alert %}
-                            <p class="mb-0 mt-1" style="color:#dc2626; font-size:0.85rem;">
-                                Écart important entre les notes des membres du jury.
-                            </p>
-                        {% endif %}
                     </div>
                 </div>
+
+                {% if result_breakdown %}
+                    <div class="note-breakdown">
+                        <div class="note-breakdown-item">
+                            <span class="nb-label">Rapport <small>· 30 %</small></span>
+                            <span class="nb-value">{{ result_breakdown.rapport }}<small>/20</small></span>
+                        </div>
+                        <div class="note-breakdown-item">
+                            <span class="nb-label">Présentation <small>· 30 %</small></span>
+                            <span class="nb-value">{{ result_breakdown.presentation }}<small>/20</small></span>
+                        </div>
+                        <div class="note-breakdown-item">
+                            <span class="nb-label">Questions <small>· 40 %</small></span>
+                            <span class="nb-value">{{ result_breakdown.questions }}<small>/20</small></span>
+                        </div>
+                    </div>
+                {% endif %}
             </section>
         {% endif %}
 

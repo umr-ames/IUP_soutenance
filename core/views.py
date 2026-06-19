@@ -3,6 +3,7 @@ import io
 import re
 import tempfile
 import unicodedata
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -183,6 +184,7 @@ def student_dashboard(request):
     jury_assignment = None
     schedule = None
     result = None
+    result_breakdown = None
 
     if student:
         pfe_request = getattr(student, "pfe_request", None)
@@ -194,6 +196,27 @@ def student_dashboard(request):
             candidate_result = getattr(jury_assignment, "result", None)
             if candidate_result and candidate_result.is_published:
                 result = candidate_result
+
+                # Répartition de la note (moyenne des membres du jury) :
+                # l'étudiant voit le détail Rapport / Présentation / Questions.
+                evaluations = list(
+                    jury_assignment.evaluations.filter(is_submitted=True)
+                )
+                if evaluations:
+                    count = Decimal(len(evaluations))
+
+                    def _component_average(field):
+                        total = sum(
+                            (getattr(ev, field) for ev in evaluations),
+                            Decimal("0"),
+                        )
+                        return (total / count).quantize(Decimal("0.01"))
+
+                    result_breakdown = {
+                        "rapport": _component_average("rapport_note"),
+                        "presentation": _component_average("presentation_note"),
+                        "questions": _component_average("questions_note"),
+                    }
 
     deadline = Deadline.objects.filter(
         is_active=True
@@ -216,6 +239,7 @@ def student_dashboard(request):
         "jury_assignment": jury_assignment,
         "schedule": schedule,
         "result": result,
+        "result_breakdown": result_breakdown,
     })
 
 
