@@ -99,6 +99,10 @@ class StudentRegisterForm(forms.Form):
 
     email = forms.EmailField(
         label="Email",
+        error_messages={
+            'required': "Veuillez saisir votre email.",
+            'invalid': "Adresse email invalide. Exemple : nom@exemple.com.",
+        },
         widget=forms.EmailInput(attrs={
             'class': 'form-control',
             'placeholder': 'Ex: etudiant@exemple.com',
@@ -109,6 +113,10 @@ class StudentRegisterForm(forms.Form):
     phone_number = forms.CharField(
         label="Numéro de téléphone",
         max_length=8,
+        error_messages={
+            'required': "Veuillez saisir votre numéro de téléphone.",
+            'max_length': PHONE_NUMBER_ERROR,
+        },
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Ex: 22000000',
@@ -241,6 +249,10 @@ class ProfessorRegisterForm(forms.Form):
 
     email = forms.EmailField(
         label="Email",
+        error_messages={
+            'required': "Veuillez saisir votre email.",
+            'invalid': "Adresse email invalide. Exemple : nom@exemple.com.",
+        },
         widget=forms.EmailInput(attrs={
             'class': 'form-control',
             'placeholder': 'Ex: professeur@exemple.com',
@@ -251,6 +263,10 @@ class ProfessorRegisterForm(forms.Form):
     phone_number = forms.CharField(
         label="Numéro de téléphone",
         max_length=8,
+        error_messages={
+            'required': "Veuillez saisir votre numéro de téléphone.",
+            'max_length': PHONE_NUMBER_ERROR,
+        },
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Ex: 22000000',
