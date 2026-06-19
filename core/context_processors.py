@@ -22,3 +22,28 @@ def institution(request):
             "Année universitaire 2025 / 2026",
         ),
     }
+
+
+def soutenance_deadline(request):
+    """Date limite active des demandes de soutenance, disponible partout
+    (page de connexion incluse) pour l'afficher de façon remarquable."""
+    # Import local : évite tout import circulaire au chargement des apps.
+    from django.utils import timezone
+    from soutenances.models import Deadline
+
+    deadline = (
+        Deadline.objects.filter(is_active=True)
+        .order_by("-deadline_date")
+        .first()
+    )
+
+    closed = deadline.is_closed() if deadline else False
+    days_left = None
+    if deadline and not closed:
+        days_left = (deadline.deadline_date - timezone.now()).days
+
+    return {
+        "SOUTENANCE_DEADLINE": deadline,
+        "SOUTENANCE_DEADLINE_CLOSED": closed,
+        "SOUTENANCE_DEADLINE_DAYS_LEFT": days_left,
+    }

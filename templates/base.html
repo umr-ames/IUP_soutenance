@@ -101,6 +101,28 @@
 {% endif %}
 
 <main class="{% if request.user.is_authenticated %}app-main{% else %}auth-page{% endif %}">
+    {% if SOUTENANCE_DEADLINE and not request.user.is_authenticated or SOUTENANCE_DEADLINE and request.resolver_match.url_name == 'student_dashboard' or SOUTENANCE_DEADLINE and request.resolver_match.url_name == 'professor_dashboard' %}
+        <div class="deadline-banner {% if SOUTENANCE_DEADLINE_CLOSED %}is-closed{% endif %}">
+            <span class="deadline-banner-tag">Demande de soutenance</span>
+            {% if SOUTENANCE_DEADLINE_CLOSED %}
+                <span class="deadline-banner-text">
+                    Date limite dépassée — clôturée le <strong>{{ SOUTENANCE_DEADLINE.deadline_date|date:"d/m/Y à H:i" }}</strong>
+                </span>
+            {% else %}
+                <span class="deadline-banner-text">
+                    Date limite : <strong>{{ SOUTENANCE_DEADLINE.deadline_date|date:"d/m/Y à H:i" }}</strong>
+                    {% if SOUTENANCE_DEADLINE_DAYS_LEFT is not None %}
+                        {% if SOUTENANCE_DEADLINE_DAYS_LEFT > 0 %}
+                            <span class="deadline-banner-left">il reste {{ SOUTENANCE_DEADLINE_DAYS_LEFT }} jour{{ SOUTENANCE_DEADLINE_DAYS_LEFT|pluralize }}</span>
+                        {% else %}
+                            <span class="deadline-banner-left">dernier jour</span>
+                        {% endif %}
+                    {% endif %}
+                </span>
+            {% endif %}
+        </div>
+    {% endif %}
+
     {% if messages %}
         <div class="{% if request.user.is_authenticated %}message-stack{% else %}auth-message-stack{% endif %}">
             {% for message in messages %}
