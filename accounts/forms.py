@@ -1,3 +1,5 @@
+import re
+
 from django import forms
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
@@ -6,6 +8,26 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import CustomUser
 from students.models import StudentProfile, StudentReference
 from professors.models import ProfessorProfile
+
+
+PHONE_NUMBER_PATTERN = re.compile(r"^[234][0-9]{7}$")
+PHONE_NUMBER_ERROR = (
+    "Le numéro de téléphone doit contenir exactement 8 chiffres "
+    "et commencer par 2, 3 ou 4."
+)
+
+
+def clean_mauritanian_phone_number(value):
+    phone_number = re.sub(r"\s+", "", value or "")
+
+    if not PHONE_NUMBER_PATTERN.fullmatch(phone_number):
+        raise forms.ValidationError(PHONE_NUMBER_ERROR)
+
+    return phone_number
+
+
+def clean_email_value(value):
+    return (value or "").strip().lower()
 
 
 class PhoneLoginForm(forms.Form):
@@ -79,16 +101,21 @@ class StudentRegisterForm(forms.Form):
         label="Email",
         widget=forms.EmailInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Ex: etudiant@exemple.com'
+            'placeholder': 'Ex: etudiant@exemple.com',
+            'autocomplete': 'email'
         })
     )
 
     phone_number = forms.CharField(
         label="Numéro de téléphone",
-        max_length=30,
+        max_length=8,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Ex: 22 00 00 00'
+            'placeholder': 'Ex: 22000000',
+            'inputmode': 'numeric',
+            'maxlength': '8',
+            'pattern': '[234][0-9]{7}',
+            'title': PHONE_NUMBER_ERROR
         })
     )
 
@@ -147,7 +174,9 @@ class StudentRegisterForm(forms.Form):
         return matricule
 
     def clean_phone_number(self):
-        phone_number = self.cleaned_data.get('phone_number')
+        phone_number = clean_mauritanian_phone_number(
+            self.cleaned_data.get('phone_number')
+        )
 
         if CustomUser.objects.filter(phone_number=phone_number).exists():
             raise forms.ValidationError("Ce numéro de téléphone est déjà utilisé.")
@@ -155,7 +184,7 @@ class StudentRegisterForm(forms.Form):
         return phone_number
 
     def clean_email(self):
-        email = self.cleaned_data.get('email')
+        email = clean_email_value(self.cleaned_data.get('email'))
 
         if email and CustomUser.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError("Cet email est déjà utilisé.")
@@ -214,16 +243,21 @@ class ProfessorRegisterForm(forms.Form):
         label="Email",
         widget=forms.EmailInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Ex: professeur@exemple.com'
+            'placeholder': 'Ex: professeur@exemple.com',
+            'autocomplete': 'email'
         })
     )
 
     phone_number = forms.CharField(
         label="Numéro de téléphone",
-        max_length=30,
+        max_length=8,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Ex: 22 00 00 00'
+            'placeholder': 'Ex: 22000000',
+            'inputmode': 'numeric',
+            'maxlength': '8',
+            'pattern': '[234][0-9]{7}',
+            'title': PHONE_NUMBER_ERROR
         })
     )
 
@@ -242,7 +276,9 @@ class ProfessorRegisterForm(forms.Form):
     )
 
     def clean_phone_number(self):
-        phone_number = self.cleaned_data.get('phone_number')
+        phone_number = clean_mauritanian_phone_number(
+            self.cleaned_data.get('phone_number')
+        )
 
         if CustomUser.objects.filter(phone_number=phone_number).exists():
             raise forms.ValidationError("Ce numéro de téléphone est déjà utilisé.")
@@ -250,7 +286,7 @@ class ProfessorRegisterForm(forms.Form):
         return phone_number
 
     def clean_email(self):
-        email = self.cleaned_data.get('email')
+        email = clean_email_value(self.cleaned_data.get('email'))
 
         if email and CustomUser.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError("Cet email est déjà utilisé.")
