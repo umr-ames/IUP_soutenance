@@ -239,7 +239,7 @@
         <span class="eyebrow">Planning</span>
         <h1>Agenda des soutenances</h1>
         <p>
-            Consultez les passages planifiés automatiquement. Chaque soutenance dure {{ duration_minutes|default:"30" }} minutes.
+            Consultez les passages planifiés automatiquement. Chaque soutenance dure {{ duration_minutes|default:"20" }} minutes (10 min de présentation, 10 min de questions).
         </p>
 
         <div class="planning-actions">
@@ -257,7 +257,7 @@
         </div>
 
         <div class="planning-chips">
-            <span class="planning-chip">30 minutes</span>
+            <span class="planning-chip">20 minutes</span>
             <span class="planning-chip">Sans conflit professeur</span>
             <span class="planning-chip">Jurys parallèles possibles</span>
             <span class="planning-chip">Tri par date et heure</span>
@@ -315,7 +315,7 @@
 
                     <div class="info-line">
                         <span class="info-pill neutral">
-                            Durée : {{ schedule.duration_minutes|default:duration_minutes|default:"30" }} min
+                            Durée : {{ schedule.duration_minutes|default:duration_minutes|default:"20" }} min
                         </span>
                     </div>
                 </div>

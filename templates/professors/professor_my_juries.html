@@ -431,7 +431,7 @@
 
         <div class="jury-chip-row">
             <span class="jury-chip">Membre du jury</span>
-            <span class="jury-chip">Créneau de 30 minutes</span>
+            <span class="jury-chip">Créneau de 20 minutes</span>
             <span class="jury-chip">Étudiants affectés</span>
             <span class="jury-chip">Évaluation après passage</span>
         </div>
@@ -668,8 +668,8 @@ function checkPresidentAlerts() {
 checkPresidentAlerts();
 setInterval(checkPresidentAlerts, 10000);
 
-/* ── Timer 30 min par soutenance démarrée ────────────────────────── */
-const DEFENSE_DURATION_MS = 30 * 60 * 1000;
+/* ── Timer 20 min par soutenance démarrée ────────────────────────── */
+const DEFENSE_DURATION_MS = 20 * 60 * 1000;
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 

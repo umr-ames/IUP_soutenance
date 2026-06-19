@@ -379,7 +379,7 @@ class DefenseSchedule(models.Model):
 
     start_time = models.TimeField()
     end_time = models.TimeField(blank=True, null=True)
-    duration_minutes = models.PositiveIntegerField(default=30)
+    duration_minutes = models.PositiveIntegerField(default=20)
 
     def clean(self):
         jury = self.jury_student.jury

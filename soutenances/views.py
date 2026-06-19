@@ -41,7 +41,7 @@ from .models import (
 from .pdf import simple_pdf_response
 
 
-DEFENSE_DURATION_MINUTES = 30
+DEFENSE_DURATION_MINUTES = 20
 MAX_SIMULTANEOUS_JURIES = 8
 
 
@@ -271,7 +271,7 @@ def generate_smart_juries():
     """
     Génère les jurys en parcourant les créneaux chronologiquement.
     À chaque créneau, sélectionne les encadrants disponibles avec le plus d'étudiants prêts.
-    La capacité du créneau (30 min/étudiant) détermine combien d'étudiants on peut affecter.
+    La capacité du créneau (20 min/étudiant) détermine combien d'étudiants on peut affecter.
     """
     from collections import defaultdict
 
@@ -626,7 +626,7 @@ def choose_president_for_student(student, members, defense_date):
 
 def calculate_next_defense_slot_for_jury(jury, members):
     """
-    Retourne le prochain start_time disponible de 30 min pour ce jury.
+    Retourne le prochain start_time disponible de 20 min pour ce jury.
     Utilise end_time du dernier créneau existant, ou cherche le premier créneau libre.
     Retourne None si aucun créneau valide n'est trouvé.
     """
@@ -1281,7 +1281,7 @@ def admin_generate_planning(request):
             if result["created"]:
                 messages.success(
                     request,
-                    f"{result['created']} horaire(s) généré(s) en créneaux de 30 minutes."
+                    f"{result['created']} horaire(s) généré(s) en créneaux de 20 minutes."
                 )
 
             if result["errors"]:
