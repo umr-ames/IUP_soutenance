@@ -1059,6 +1059,20 @@ body {
     font-weight: 800;
 }
 
+.app-footer-credit {
+    max-width: var(--container, 1200px);
+    margin: 6px auto 0;
+    text-align: center;
+    color: var(--muted-soft);
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.app-footer-credit strong {
+    color: var(--muted);
+    font-weight: 700;
+}
+
 .app-footer-sep {
     color: var(--muted-soft);
 }
