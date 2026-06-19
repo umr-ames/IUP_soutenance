@@ -3,6 +3,7 @@ from django.http import HttpResponse
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from core.media_views import protected_media
 
 
 urlpatterns = [
@@ -16,6 +17,7 @@ urlpatterns = [
     path('professors/', include('professors.urls')),
     path('soutenances/', include('soutenances.urls')),
     path('documents/', include('documents.urls')),
+    path('media/<path:path>', protected_media, name='protected_media'),
 ]
 
 
