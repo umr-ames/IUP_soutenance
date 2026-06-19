@@ -11,17 +11,25 @@ from .models import (
 
 
 class PFERequestForm(forms.ModelForm):
+    # Taille maximale d'un scan (Mo)
+    MAX_UPLOAD_MB = 15
+
     class Meta:
         model = PFERequest
         fields = [
             "authorization_document",
+            "attestation_stage",
             "rapport_stage",
         ]
 
         widgets = {
             "authorization_document": forms.ClearableFileInput(attrs={
                 "class": "form-control",
-                "accept": ".pdf,.doc,.docx",
+                "accept": ".pdf",
+            }),
+            "attestation_stage": forms.ClearableFileInput(attrs={
+                "class": "form-control",
+                "accept": ".pdf",
             }),
             "rapport_stage": forms.ClearableFileInput(attrs={
                 "class": "form-control",
@@ -30,23 +38,52 @@ class PFERequestForm(forms.ModelForm):
         }
 
         labels = {
-            "authorization_document": "Autorisation de soutenance",
+            "authorization_document": "Autorisation de soutenance (PDF)",
+            "attestation_stage": "Attestation de stage (PDF)",
             "rapport_stage": "Rapport de stage",
         }
 
-    def clean_authorization_document(self):
-        file = self.cleaned_data.get("authorization_document")
+        help_texts = {
+            "authorization_document": "À scanner en PDF, clair et lisible.",
+            "attestation_stage": "À scanner en PDF, clair et lisible.",
+            "rapport_stage": "Format PDF, DOC ou DOCX.",
+        }
 
-        if file:
-            allowed_extensions = ["pdf", "doc", "docx"]
-            extension = file.name.split(".")[-1].lower()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Pièces obligatoires du dossier de soutenance
+        self.fields["authorization_document"].required = True
+        self.fields["attestation_stage"].required = True
 
-            if extension not in allowed_extensions:
-                raise forms.ValidationError(
-                    "L'autorisation doit être au format PDF, DOC ou DOCX."
-                )
+    def _validate_pdf_scan(self, file, label):
+        if not file:
+            return file
+
+        extension = getattr(file, "name", "").split(".")[-1].lower()
+        if extension != "pdf":
+            raise forms.ValidationError(
+                f"{label} doit être un fichier PDF scanné, clair et lisible."
+            )
+
+        size = getattr(file, "size", 0) or 0
+        if size > self.MAX_UPLOAD_MB * 1024 * 1024:
+            raise forms.ValidationError(
+                f"{label} dépasse {self.MAX_UPLOAD_MB} Mo. Réduisez la taille du scan."
+            )
 
         return file
+
+    def clean_authorization_document(self):
+        return self._validate_pdf_scan(
+            self.cleaned_data.get("authorization_document"),
+            "L'autorisation de soutenance",
+        )
+
+    def clean_attestation_stage(self):
+        return self._validate_pdf_scan(
+            self.cleaned_data.get("attestation_stage"),
+            "L'attestation de stage",
+        )
 
     def clean_rapport_stage(self):
         file = self.cleaned_data.get("rapport_stage")

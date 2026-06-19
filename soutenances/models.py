@@ -42,6 +42,10 @@ def rapport_stage_upload_path(instance, filename):
     return f"rapports_stage/{instance.student.matricule}/{filename}"
 
 
+def attestation_stage_upload_path(instance, filename):
+    return f"attestations_stage/{instance.student.matricule}/{filename}"
+
+
 class PFERequest(models.Model):
     STATUS_PENDING_PROFESSOR = "pending_professor"
     STATUS_REFUSED_PROFESSOR = "refused_by_professor"
@@ -80,6 +84,12 @@ class PFERequest(models.Model):
 
     rapport_stage = models.FileField(
         upload_to=rapport_stage_upload_path,
+        blank=True,
+        null=True
+    )
+
+    attestation_stage = models.FileField(
+        upload_to=attestation_stage_upload_path,
         blank=True,
         null=True
     )

@@ -6,7 +6,7 @@
 <div class="page-header">
     <div>
         <h1>Envoyer une demande</h1>
-        <p>Deposer l'autorisation remplie et le rapport de stage.</p>
+        <p>Déposez votre dossier de soutenance : autorisation de soutenance et attestation de stage (scannées en PDF, claires et lisibles), ainsi que le rapport de stage.</p>
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'student_dashboard' %}">Retour</a>
 </div>
@@ -40,8 +40,13 @@
         {% csrf_token %}
         {% for field in form %}
             <div class="col-md-6">
-                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                <label class="form-label" for="{{ field.id_for_label }}">
+                    {{ field.label }}{% if field.field.required %} <span style="color:#dc2626;" title="Obligatoire">*</span>{% endif %}
+                </label>
                 {{ field }}
+                {% if field.help_text %}
+                    <small class="form-help">{{ field.help_text }}</small>
+                {% endif %}
                 {{ field.errors }}
             </div>
         {% endfor %}

@@ -58,6 +58,10 @@ def submit_pfe_request(request):
                 existing_request.reviewed_at = None
                 existing_request.reviewed_by = None
                 updated = form.save(commit=False)
+                if updated.authorization_document:
+                    existing_request.authorization_document = updated.authorization_document
+                if updated.attestation_stage:
+                    existing_request.attestation_stage = updated.attestation_stage
                 if updated.rapport_stage:
                     existing_request.rapport_stage = updated.rapport_stage
                 existing_request.save()

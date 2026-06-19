@@ -530,6 +530,21 @@
 
                 <div class="document-item">
                     <div>
+                        <strong>Attestation de stage</strong>
+                        <span>Document obligatoire (PDF scanné)</span>
+                    </div>
+
+                    {% if pfe_request.attestation_stage %}
+                        <a href="{{ pfe_request.attestation_stage.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            Ouvrir
+                        </a>
+                    {% else %}
+                        <span class="status-pill muted">Non envoyée</span>
+                    {% endif %}
+                </div>
+
+                <div class="document-item">
+                    <div>
                         <strong>Rapport de stage</strong>
                         <span>Document obligatoire</span>
                     </div>
