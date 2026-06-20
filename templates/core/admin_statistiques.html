@@ -207,6 +207,11 @@ if (typeof Chart === 'undefined') {
             <div class="kpi-value" style="color:#f59e0b">{{ acceptes_sans_jury_count }}</div>
             <div class="kpi-sub">Validées par le département, jury pas encore attribué</div>
         </div>
+    </div>
+
+    <!-- KPI professeurs -->
+    <h3 style="font-size:0.9rem;font-weight:850;color:var(--heading);margin:6px 0 8px;">Professeurs</h3>
+    <div class="kpi-grid">
         <div class="kpi-card">
             <div class="kpi-eyebrow">Professeurs</div>
             <div class="kpi-value">{{ prof_total }}</div>
@@ -221,6 +226,11 @@ if (typeof Chart === 'undefined') {
             <div class="kpi-eyebrow">Professeurs sans compte</div>
             <div class="kpi-value" style="color:#dc2626">{{ prof_restants }}</div>
             <div class="kpi-sub">Pas encore inscrits</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Taux d'inscription</div>
+            <div class="kpi-value" style="color:#16a34a">{{ prof_taux }} %</div>
+            <div class="kpi-sub">Professeurs ayant créé leur compte</div>
         </div>
     </div>
 
@@ -493,6 +503,25 @@ if (typeof Chart === 'undefined') {
             </tbody>
         </table>
         </div>
+    </div>
+
+    <!-- Professeurs non encore inscrits (pour relance) -->
+    <div class="stat-card" style="margin-top:12px;">
+        <h3>Professeurs non encore inscrits
+            <span style="font-weight:600;font-size:.82rem;color:var(--muted);">({{ profs_non_inscrits_count }})</span>
+        </h3>
+        {% if profs_non_inscrits %}
+            <p style="color:var(--muted);font-size:.85rem;margin:0 0 10px;">
+                Ces professeurs n'ont pas encore créé leur compte — à relancer.
+            </p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                {% for nom in profs_non_inscrits %}
+                    <span style="display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.20);color:#991b1b;font-size:.82rem;font-weight:700;">{{ nom }}</span>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p style="color:#15803d;font-size:.9rem;margin:0;">Tous les professeurs ont créé leur compte.</p>
+        {% endif %}
     </div>
 </div><!-- /panel-encadrants -->
 

@@ -178,6 +178,7 @@ def _compute_global():
     prof_total = ProfessorProfile.objects.count()
     prof_inscrits = ProfessorProfile.objects.filter(user__isnull=False).count()
     prof_restants = max(prof_total - prof_inscrits, 0)
+    prof_taux = round(prof_inscrits / prof_total * 100, 1) if prof_total else 0
 
     return {
         'total_ref': total_ref,
@@ -189,6 +190,7 @@ def _compute_global():
         'prof_total': prof_total,
         'prof_inscrits': prof_inscrits,
         'prof_restants': prof_restants,
+        'prof_taux': prof_taux,
         'workflow': workflow,
         'filiere_stats': filiere_stats,
         'statut_labels_json': json.dumps(statut_labels),
@@ -327,7 +329,17 @@ def _compute_encadrants():
     # Tableau couverture par spécialité (top 15 uniquement, cohérent avec les graphiques)
     # enc_rows contient déjà by_f depuis StudentReference
 
+    # Professeurs n'ayant pas encore créé leur compte (pour relance)
+    profs_non_inscrits = list(
+        ProfessorProfile.objects
+        .filter(user__isnull=True)
+        .order_by("full_name")
+        .values_list("full_name", flat=True)
+    )
+
     return {
+        'profs_non_inscrits': profs_non_inscrits,
+        'profs_non_inscrits_count': len(profs_non_inscrits),
         'enc_actifs_count': actifs_count,
         'enc_charge_moyenne': charge_moyenne,
         'enc_top_prof_name': top_prof_name,
