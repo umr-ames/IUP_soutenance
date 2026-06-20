@@ -5,8 +5,13 @@
 {% block content %}
 <div class="page-header">
     <div>
-        <h1>Envoyer une demande</h1>
-        <p>Déposez votre dossier de soutenance : autorisation de soutenance et attestation de stage (scannées en PDF, claires et lisibles), ainsi que le rapport de stage.</p>
+        {% if completing %}
+            <h1>Compléter mon dossier</h1>
+            <p>Votre demande a déjà été déposée mais il manque une ou plusieurs pièces. Ajoutez la ou les pièce(s) manquante(s) ci-dessous — le statut de votre demande est conservé.</p>
+        {% else %}
+            <h1>Envoyer une demande</h1>
+            <p>Déposez votre dossier de soutenance : autorisation de soutenance et attestation de stage (scannées en PDF, claires et lisibles), ainsi que le rapport de stage.</p>
+        {% endif %}
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'student_dashboard' %}">Retour</a>
 </div>
@@ -52,7 +57,7 @@
         {% endfor %}
         {{ form.non_field_errors }}
         <div class="col-12">
-            <button class="btn btn-primary" type="submit">Envoyer la demande</button>
+            <button class="btn btn-primary" type="submit">{% if completing %}Compléter mon dossier{% else %}Envoyer la demande{% endif %}</button>
         </div>
     </form>
 </section>

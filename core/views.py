@@ -218,6 +218,17 @@ def student_dashboard(request):
                         "questions": _component_average("questions_note"),
                     }
 
+    # Dossier incomplet : pièces obligatoires manquantes sur une demande déjà
+    # déposée (ex. rapport non joint). L'étudiant pourra la compléter.
+    dossier_missing = []
+    if pfe_request:
+        if not pfe_request.authorization_document:
+            dossier_missing.append("l'autorisation de soutenance")
+        if not pfe_request.attestation_stage:
+            dossier_missing.append("l'attestation de stage")
+        if not pfe_request.rapport_stage:
+            dossier_missing.append("le rapport de stage")
+
     deadline = Deadline.objects.filter(
         is_active=True
     ).order_by("-deadline_date").first()
@@ -240,6 +251,7 @@ def student_dashboard(request):
         "schedule": schedule,
         "result": result,
         "result_breakdown": result_breakdown,
+        "dossier_missing": dossier_missing,
     })
 
 

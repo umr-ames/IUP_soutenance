@@ -30,13 +30,28 @@ def submit_pfe_request(request):
         PFERequest.STATUS_REFUSED_ADMIN,
     )
 
-    # Bloquer uniquement si une demande non refusée existe déjà
-    if existing_request and existing_request.status not in REFUSED_STATUSES:
+    def dossier_complete(req):
+        return bool(req.rapport_stage) and bool(req.authorization_document) and bool(req.attestation_stage)
+
+    is_refused = bool(existing_request) and existing_request.status in REFUSED_STATUSES
+
+    # Dossier déjà déposé mais incomplet (ex. rapport manquant) : l'étudiant
+    # peut le compléter sans changer le statut de sa demande.
+    completing = (
+        bool(existing_request)
+        and not is_refused
+        and not dossier_complete(existing_request)
+    )
+
+    # Bloquer uniquement si la demande est complète et non refusée.
+    if existing_request and not is_refused and not completing:
         messages.info(request, "Vous avez déjà envoyé une demande de soutenance.")
         return redirect("student_dashboard")
 
     deadline = get_active_deadline()
-    if deadline and deadline.is_closed():
+    # La date limite bloque une nouvelle demande ou un renvoi, mais jamais la
+    # complétion d'un dossier déjà déposé (l'étudiant doit pouvoir le régulariser).
+    if deadline and deadline.is_closed() and not completing:
         messages.error(
             request,
             "La date limite est dépassée. Vous ne pouvez plus envoyer une demande."
@@ -44,42 +59,52 @@ def submit_pfe_request(request):
         return redirect("student_dashboard")
 
     if request.method == "POST":
-        form = PFERequestForm(request.POST, request.FILES)
-        if form.is_valid():
-            if existing_request and existing_request.status in REFUSED_STATUSES:
-                # Renvoi après refus : réinitialiser la demande existante
-                existing_request.status = PFERequest.STATUS_PENDING_PROFESSOR
-                existing_request.professor_comment = None
-                existing_request.admin_comment = None
-                existing_request.professor_reviewed_at = None
-                existing_request.admin_reviewed_at = None
-                existing_request.reviewed_by_professor = None
-                existing_request.reviewed_by_admin = None
-                existing_request.reviewed_at = None
-                existing_request.reviewed_by = None
-                updated = form.save(commit=False)
-                if updated.authorization_document:
-                    existing_request.authorization_document = updated.authorization_document
-                if updated.attestation_stage:
-                    existing_request.attestation_stage = updated.attestation_stage
-                if updated.rapport_stage:
-                    existing_request.rapport_stage = updated.rapport_stage
-                existing_request.save()
+        if completing:
+            form = PFERequestForm(request.POST, request.FILES, instance=existing_request)
+            if form.is_valid():
+                form.save()
                 messages.success(
                     request,
-                    "Votre demande a été renvoyée avec succès. Elle repart en validation encadrant."
+                    "Votre dossier a été complété avec succès. La pièce manquante a été ajoutée."
                 )
-            else:
-                pfe_request = form.save(commit=False)
-                pfe_request.student = student
-                pfe_request.save()
-                messages.success(
-                    request,
-                    "Votre demande de soutenance a été envoyée avec succès."
-                )
-            return redirect("student_dashboard")
+                return redirect("student_dashboard")
+        else:
+            form = PFERequestForm(request.POST, request.FILES)
+            if form.is_valid():
+                if is_refused:
+                    # Renvoi après refus : réinitialiser la demande existante
+                    existing_request.status = PFERequest.STATUS_PENDING_PROFESSOR
+                    existing_request.professor_comment = None
+                    existing_request.admin_comment = None
+                    existing_request.professor_reviewed_at = None
+                    existing_request.admin_reviewed_at = None
+                    existing_request.reviewed_by_professor = None
+                    existing_request.reviewed_by_admin = None
+                    existing_request.reviewed_at = None
+                    existing_request.reviewed_by = None
+                    updated = form.save(commit=False)
+                    if updated.authorization_document:
+                        existing_request.authorization_document = updated.authorization_document
+                    if updated.attestation_stage:
+                        existing_request.attestation_stage = updated.attestation_stage
+                    if updated.rapport_stage:
+                        existing_request.rapport_stage = updated.rapport_stage
+                    existing_request.save()
+                    messages.success(
+                        request,
+                        "Votre demande a été renvoyée avec succès. Elle repart en validation encadrant."
+                    )
+                else:
+                    pfe_request = form.save(commit=False)
+                    pfe_request.student = student
+                    pfe_request.save()
+                    messages.success(
+                        request,
+                        "Votre demande de soutenance a été envoyée avec succès."
+                    )
+                return redirect("student_dashboard")
     else:
-        form = PFERequestForm()
+        form = PFERequestForm(instance=existing_request) if completing else PFERequestForm()
 
     document_templates = DocumentTemplate.objects.filter(
         is_active=True,
@@ -90,6 +115,7 @@ def submit_pfe_request(request):
     return render(request, "students/submit_pfe_request.html", {
         "form": form,
         "deadline": deadline,
+        "completing": completing,
         "document_templates": document_templates,
         "official_template": official_template,
     })
