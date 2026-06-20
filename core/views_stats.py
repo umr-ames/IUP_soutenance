@@ -174,6 +174,11 @@ def _compute_global():
             'taux': taux,
         })
 
+    # Professeurs : inscrits (avec compte) vs restants (sans compte)
+    prof_total = ProfessorProfile.objects.count()
+    prof_inscrits = ProfessorProfile.objects.filter(user__isnull=False).count()
+    prof_restants = max(prof_total - prof_inscrits, 0)
+
     return {
         'total_ref': total_ref,
         'total_profiles': total_profiles,
@@ -181,6 +186,9 @@ def _compute_global():
         'total_demandes': total_demandes,
         'total_acceptees': total_acceptees,
         'acceptes_sans_jury_count': acceptes_sans_jury_count,
+        'prof_total': prof_total,
+        'prof_inscrits': prof_inscrits,
+        'prof_restants': prof_restants,
         'workflow': workflow,
         'filiere_stats': filiere_stats,
         'statut_labels_json': json.dumps(statut_labels),

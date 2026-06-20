@@ -207,6 +207,21 @@ if (typeof Chart === 'undefined') {
             <div class="kpi-value" style="color:#f59e0b">{{ acceptes_sans_jury_count }}</div>
             <div class="kpi-sub">Validées par le département, jury pas encore attribué</div>
         </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Professeurs</div>
+            <div class="kpi-value">{{ prof_total }}</div>
+            <div class="kpi-sub">Encadrants au total</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Professeurs inscrits</div>
+            <div class="kpi-value" style="color:var(--orange)">{{ prof_inscrits }}</div>
+            <div class="kpi-sub">{{ prof_inscrits }} inscrits sur {{ prof_total }}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-eyebrow">Professeurs sans compte</div>
+            <div class="kpi-value" style="color:#dc2626">{{ prof_restants }}</div>
+            <div class="kpi-sub">Pas encore inscrits</div>
+        </div>
     </div>
 
     <!-- Progression workflow -->
