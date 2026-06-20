@@ -34,6 +34,7 @@ class PFERequestForm(forms.ModelForm):
             "rapport_stage": forms.ClearableFileInput(attrs={
                 "class": "form-control",
                 "accept": ".pdf,.doc,.docx",
+                "required": True,
             }),
         }
 
@@ -46,7 +47,7 @@ class PFERequestForm(forms.ModelForm):
         help_texts = {
             "authorization_document": "À scanner en PDF, clair et lisible.",
             "attestation_stage": "À scanner en PDF, clair et lisible.",
-            "rapport_stage": "Format PDF, DOC ou DOCX.",
+            "rapport_stage": "Format PDF, DOC ou DOCX. Taille maximale : 15 Mo.",
         }
 
     def __init__(self, *args, **kwargs):
@@ -54,6 +55,10 @@ class PFERequestForm(forms.ModelForm):
         # Pièces obligatoires du dossier de soutenance
         self.fields["authorization_document"].required = True
         self.fields["attestation_stage"].required = True
+        self.fields["rapport_stage"].required = True
+        self.fields["rapport_stage"].error_messages["required"] = (
+            "Le rapport de stage est obligatoire pour envoyer la demande de soutenance."
+        )
 
     def _validate_pdf_scan(self, file, label):
         if not file:
@@ -95,6 +100,12 @@ class PFERequestForm(forms.ModelForm):
             if extension not in allowed_extensions:
                 raise forms.ValidationError(
                     "Le rapport doit être au format PDF, DOC ou DOCX."
+                )
+
+            size = getattr(file, "size", 0) or 0
+            if size > self.MAX_UPLOAD_MB * 1024 * 1024:
+                raise forms.ValidationError(
+                    f"Le rapport dépasse {self.MAX_UPLOAD_MB} Mo. Réduisez la taille du fichier."
                 )
 
         return file
