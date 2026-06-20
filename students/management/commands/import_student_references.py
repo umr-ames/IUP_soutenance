@@ -2,6 +2,7 @@ import csv
 import os
 import re
 import unicodedata
+from collections import Counter, defaultdict
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
@@ -50,6 +51,28 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("file_path", type=str)
 
+    def build_canonical_encadrants(self, rows):
+        """Construit, pour chaque nom d'encadrant normalise, l'orthographe
+        canonique a conserver : la variante la plus frequente du fichier, et a
+        egalite celle qui comporte une majuscule (orthographe propre)."""
+        counts = Counter()
+        for _line_number, raw_row in rows:
+            name = (raw_row.get("encadrant_name") or "").strip()
+            if name:
+                counts[name] += 1
+
+        groups = defaultdict(list)
+        for name, count in counts.items():
+            groups[normalize_person_name(name)].append((name, count))
+
+        canonical = {}
+        for key, variants in groups.items():
+            canonical[key] = sorted(
+                variants,
+                key=lambda v: (v[1], any(c.isupper() for c in v[0])),
+            )[-1][0]
+        return canonical
+
     @transaction.atomic
     def handle(self, *args, **options):
         file_path = options["file_path"]
@@ -63,6 +86,13 @@ class Command(BaseCommand):
             raise CommandError(
                 f"Format non supporte : '{extension}'. Utilisez un fichier .csv ou .xlsx."
             )
+
+        rows = list(rows)
+
+        # Fusion des variantes d'orthographe d'un meme encadrant (casse, espaces,
+        # accents) vers une orthographe canonique : evite de compter un meme
+        # professeur plusieurs fois (ex. "Yahya marega" / "Yahya Marega").
+        canonical_encadrant = self.build_canonical_encadrants(rows)
 
         old_matricules = set(
             StudentReference.objects.values_list("matricule", flat=True)
@@ -118,6 +148,9 @@ class Command(BaseCommand):
             if not encadrant_name:
                 empty_encadrant.append(matricule)
             else:
+                encadrant_name = canonical_encadrant.get(
+                    normalize_person_name(encadrant_name), encadrant_name
+                )
                 new_encadrant_names.add(encadrant_name)
 
             new_matricules.add(matricule)
