@@ -190,6 +190,31 @@ class Command(BaseCommand):
             professors_created.append(encadrant_name)
             existing_professor_names.add(normalize_person_name(encadrant_name))
 
+        # Synchroniser l'encadrant des profils etudiants deja inscrits avec la
+        # liste officielle : si l'encadrant a change dans le fichier, le profil
+        # de l'etudiant (et donc dashboards / validation / jury) est mis a jour.
+        prof_by_norm = {}
+        for professor in ProfessorProfile.objects.all():
+            prof_by_norm.setdefault(normalize_person_name(professor.full_name), professor)
+
+        ref_encadrant_by_mat = {}
+        for mat, ename in (
+            StudentReference.objects.exclude(encadrant_name="")
+            .values_list("matricule", "encadrant_name")
+        ):
+            ref_encadrant_by_mat[(mat or "").strip().upper()] = ename
+
+        profiles_encadrant_updated = 0
+        for profile in StudentProfile.objects.select_related("encadrant"):
+            ename = ref_encadrant_by_mat.get((profile.matricule or "").strip().upper())
+            if not ename:
+                continue
+            professor = prof_by_norm.get(normalize_person_name(ename))
+            if professor and profile.encadrant_id != professor.id:
+                profile.encadrant = professor
+                profile.save(update_fields=["encadrant"])
+                profiles_encadrant_updated += 1
+
         missing_matricules = sorted(old_matricules - new_matricules)
         missing_linked = []
         missing_unlinked = []
@@ -243,6 +268,7 @@ class Command(BaseCommand):
         if professors_created:
             self.stdout.write("  -> " + ", ".join(professors_created))
         self.stdout.write(f"ProfessorProfile deja existants (reutilises) : {professors_existing}")
+        self.stdout.write(f"Profils etudiants - encadrant mis a jour : {profiles_encadrant_updated}")
 
         self.stdout.write("")
         self.stdout.write(
