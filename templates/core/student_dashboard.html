@@ -342,6 +342,17 @@
     <!-- ── Jury + Résultat (pleine largeur) ──────────────────────────────── -->
     <div class="main-stack">
 
+        {% if jury_assignment or pfe_request.status == 'accepted' %}
+            <section class="glass-card" style="border-left:5px solid #d97706; background:linear-gradient(135deg,#fff7e6,#fdeccd);">
+                <strong style="color:#92400e; font-size:1rem;">Documents à apporter le jour de votre soutenance (obligatoire)</strong>
+                <ol style="margin:8px 0 0; padding-left:20px; color:#5b3503; font-weight:600; line-height:1.6;">
+                    <li>Attestation de stage (originale).</li>
+                    <li>Autorisation de soutenance signée par le maître de stage, le tuteur de stage et le Chef du Département de l'IUP.</li>
+                    <li>Trois (03) exemplaires imprimés du mémoire.</li>
+                </ol>
+            </section>
+        {% endif %}
+
         {% if jury_assignment %}
             <section class="glass-card">
                 <div class="card-header-flex">
