@@ -353,9 +353,13 @@
                 </div>
 
                 <div class="jury-members-row">
-                    {% if schedule %}
+                    {% if jury_assignment.presentation_started %}
+                        <span class="status-pill success" title="Horaire réel de la soutenance">
+                            Horaire réel : {{ jury_assignment.presentation_started_at|date:"d/m/Y à H:i" }} – {{ jury_assignment.presentation_end_at|time:"H:i" }}
+                        </span>
+                    {% elif schedule %}
                         <span class="status-pill success">
-                            Horaire : {{ schedule.start_time|time:"H:i" }} – {{ schedule.end_time|time:"H:i" }}
+                            Horaire prévu : {{ schedule.start_time|time:"H:i" }} – {{ schedule.end_time|time:"H:i" }}
                         </span>
                     {% else %}
                         <span class="status-pill warning">Horaire non encore planifié</span>

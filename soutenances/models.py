@@ -360,6 +360,24 @@ class JuryStudent(models.Model):
         self.presentation_started_by = started_by
         self.save()
 
+    @property
+    def presentation_duration_minutes(self):
+        schedule = getattr(self, "schedule", None)
+        if schedule and schedule.duration_minutes:
+            return schedule.duration_minutes
+        return 20
+
+    @property
+    def presentation_end_at(self):
+        """Heure de fin réelle = heure de lancement effective + durée (20 min).
+        Permet d'afficher l'horaire réel, même si la soutenance a commencé en
+        retard par rapport au créneau prévu."""
+        if not self.presentation_started_at:
+            return None
+        return self.presentation_started_at + timedelta(
+            minutes=self.presentation_duration_minutes
+        )
+
     def __str__(self):
         if self.president:
             return (

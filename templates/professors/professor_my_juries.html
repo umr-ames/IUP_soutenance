@@ -530,7 +530,12 @@
                                     {% endif %}
                                 </div>
 
-                                {% if item.schedule %}
+                                {% if item.presentation_started %}
+                                    <span class="time-pill" title="Horaire réel de la soutenance"
+                                          style="background:rgba(13,148,136,.10); color:#0f5e59; border:1px solid rgba(13,148,136,.28);">
+                                        Réel : {{ item.presentation_started_at|date:"d/m H:i" }} – {{ item.presentation_end_at|time:"H:i" }}
+                                    </span>
+                                {% elif item.schedule %}
                                     <span class="time-pill">
                                         {{ item.schedule.start_time|time:"H:i" }} – {{ item.schedule.end_time|time:"H:i" }}
                                     </span>
