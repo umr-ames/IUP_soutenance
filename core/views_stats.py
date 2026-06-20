@@ -174,9 +174,23 @@ def _compute_global():
             'taux': taux,
         })
 
-    # Professeurs : inscrits (avec compte) vs restants (sans compte)
-    prof_total = ProfessorProfile.objects.count()
-    prof_inscrits = ProfessorProfile.objects.filter(user__isnull=False).count()
+    # Professeurs : source = liste officielle (encadrants distincts de
+    # StudentReference). Un encadrant est "inscrit" s'il a une fiche reliée à
+    # un compte. On reste ainsi cohérent avec "Encadrants actifs".
+    official_encadrants = list(
+        StudentReference.objects.exclude(encadrant_name="")
+        .values_list("encadrant_name", flat=True)
+        .distinct()
+    )
+    registered_norm = {
+        (name or "").strip().casefold()
+        for name in ProfessorProfile.objects.filter(user__isnull=False)
+        .values_list("full_name", flat=True)
+    }
+    prof_total = len(official_encadrants)
+    prof_inscrits = sum(
+        1 for n in official_encadrants if (n or "").strip().casefold() in registered_norm
+    )
     prof_restants = max(prof_total - prof_inscrits, 0)
     prof_taux = round(prof_inscrits / prof_total * 100, 1) if prof_total else 0
 
@@ -329,12 +343,21 @@ def _compute_encadrants():
     # Tableau couverture par spécialité (top 15 uniquement, cohérent avec les graphiques)
     # enc_rows contient déjà by_f depuis StudentReference
 
-    # Professeurs n'ayant pas encore créé leur compte (pour relance)
-    profs_non_inscrits = list(
-        ProfessorProfile.objects
-        .filter(user__isnull=True)
-        .order_by("full_name")
+    # Professeurs (encadrants de la liste officielle) n'ayant pas encore créé
+    # leur compte — source = StudentReference.encadrant_name (pour relance).
+    official_encadrants = (
+        StudentReference.objects.exclude(encadrant_name="")
+        .values_list("encadrant_name", flat=True)
+        .distinct()
+    )
+    registered_norm = {
+        (name or "").strip().casefold()
+        for name in ProfessorProfile.objects.filter(user__isnull=False)
         .values_list("full_name", flat=True)
+    }
+    profs_non_inscrits = sorted(
+        n for n in official_encadrants
+        if (n or "").strip().casefold() not in registered_norm
     )
 
     return {
