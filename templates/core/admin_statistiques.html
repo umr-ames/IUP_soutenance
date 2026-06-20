@@ -346,7 +346,7 @@ if (typeof Chart === 'undefined') {
             <tbody>
             {% for row in synthese_encadrants %}
             <tr>
-                <td style="font-weight:800;white-space:nowrap;">{{ row.prof }}</td>
+                <td style="font-weight:800;white-space:nowrap;"><a href="{% url 'admin_professor_students' %}?name={{ row.prof|urlencode }}">{{ row.prof }}</a></td>
                 <td style="font-weight:900;color:var(--orange)">{{ row.total }}</td>
                 {% for f in filieres %}<td>{{ row.by_f|get_item:f|default:"0" }}</td>{% endfor %}
                 <td>{{ row.pend_enc }}</td>
@@ -448,7 +448,7 @@ if (typeof Chart === 'undefined') {
                 <tbody>
                 {% for row in enc_rows %}
                 <tr>
-                    <td style="font-weight:750;white-space:nowrap;font-size:.78rem;">{{ row.prof }}</td>
+                    <td style="font-weight:750;white-space:nowrap;font-size:.78rem;"><a href="{% url 'admin_professor_students' %}?name={{ row.prof|urlencode }}">{{ row.prof }}</a></td>
                     {% for f in filieres %}
                     <td style="text-align:center;">
                         {% with cnt=row.by_f|get_item:f %}
@@ -477,7 +477,7 @@ if (typeof Chart === 'undefined') {
             <tbody>
             {% for row in enc_rows_all %}
             <tr>
-                <td style="font-weight:800;white-space:nowrap;">{{ row.prof }}</td>
+                <td style="font-weight:800;white-space:nowrap;"><a href="{% url 'admin_professor_students' %}?name={{ row.prof|urlencode }}">{{ row.prof }}</a></td>
                 <td style="font-weight:900;color:var(--orange)">{{ row.total }}</td>
                 <td><span class="badge-filiere badge-{{ row.dominant }}">{{ row.dominant }}</span></td>
                 <td>

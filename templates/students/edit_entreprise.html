@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier mon entreprise{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Mon profil</span>
+        <h1>Entreprise de stage</h1>
+        <p>Corrigez le nom de votre entreprise de stage en cas d'erreur de saisie.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'student_dashboard' %}">Retour</a>
+</div>
+
+<section class="content-panel">
+    <form method="post" class="row g-3">
+        {% csrf_token %}
+        <div class="col-md-8">
+            <label class="form-label" for="id_entreprise">Nom de l'entreprise</label>
+            <input type="text" id="id_entreprise" name="entreprise" class="form-control"
+                   value="{{ student.entreprise }}" placeholder="Ex: Mauritel, Banque Populaire, Ministère..." required>
+            <small class="form-help">Saisissez le nom exact de l'entreprise ou de l'organisme de votre stage.</small>
+        </div>
+        <div class="col-12">
+            <button class="btn btn-primary" type="submit">Enregistrer</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

@@ -16,7 +16,7 @@ from accounts.decorators import role_required
 from accounts.models import CustomUser
 from documents.models import DocumentTemplate
 from professors.models import ProfessorProfile
-from students.models import StudentProfile
+from students.models import StudentProfile, StudentReference
 from soutenances.models import (
     Deadline,
     DefenseSchedule,
@@ -281,6 +281,37 @@ def admin_professor_list(request):
 
     return render(request, "core/admin_professors.html", {
         "professors": professors,
+    })
+
+
+@login_required
+@role_required(["admin"])
+def admin_professor_students(request):
+    """Liste des étudiants encadrés par un professeur (source : liste officielle),
+    avec nom, matricule, filière et statut d'inscription."""
+    name = (request.GET.get("name") or "").strip()
+    students = []
+    if name:
+        refs = StudentReference.objects.filter(
+            encadrant_name__iexact=name
+        ).order_by("filiere", "full_name")
+
+        registered = {
+            (m or "").strip().upper()
+            for m in StudentProfile.objects.values_list("matricule", flat=True)
+        }
+        for ref in refs:
+            students.append({
+                "full_name": ref.full_name,
+                "matricule": ref.matricule,
+                "filiere": ref.filiere,
+                "inscrit": (ref.matricule or "").strip().upper() in registered,
+            })
+
+    return render(request, "core/admin_professor_students.html", {
+        "encadrant_name": name,
+        "students": students,
+        "count": len(students),
     })
 
 

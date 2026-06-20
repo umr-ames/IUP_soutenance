@@ -63,6 +63,19 @@ def submit_pfe_request(request):
             form = PFERequestForm(request.POST, request.FILES, instance=existing_request)
             if form.is_valid():
                 form.save()
+                # Si un redépôt était demandé et que la pièce est de nouveau
+                # présente, on efface la demande de redépôt.
+                reupload_field = {
+                    "authorization": "authorization_document",
+                    "attestation": "attestation_stage",
+                    "rapport": "rapport_stage",
+                }.get(existing_request.reupload_document)
+                if reupload_field and getattr(existing_request, reupload_field):
+                    existing_request.reupload_document = ""
+                    existing_request.reupload_comment = None
+                    existing_request.save(
+                        update_fields=["reupload_document", "reupload_comment"]
+                    )
                 messages.success(
                     request,
                     "Votre dossier a été complété avec succès. La pièce manquante a été ajoutée."
@@ -119,6 +132,30 @@ def submit_pfe_request(request):
         "document_templates": document_templates,
         "official_template": official_template,
     })
+
+
+@login_required
+@role_required(["student"])
+def edit_entreprise(request):
+    student = getattr(request.user, "student_profile", None)
+    if not student:
+        messages.error(request, "Votre profil étudiant n'est pas encore configuré.")
+        return redirect("student_dashboard")
+
+    if request.method == "POST":
+        entreprise = (request.POST.get("entreprise") or "").strip()
+        if not entreprise:
+            messages.error(request, "Le nom de l'entreprise ne peut pas être vide.")
+        else:
+            student.entreprise = entreprise
+            student.save(update_fields=["entreprise"])
+            messages.success(
+                request,
+                "Le nom de votre entreprise de stage a été mis à jour."
+            )
+            return redirect("student_dashboard")
+
+    return render(request, "students/edit_entreprise.html", {"student": student})
 
 
 def lookup_student_reference(request):

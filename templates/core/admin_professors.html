@@ -28,7 +28,7 @@
             <tbody>
                 {% for professor in professors %}
                     <tr>
-                        <td><strong>{{ professor.full_name }}</strong></td>
+                        <td><a href="{% url 'admin_professor_students' %}?name={{ professor.full_name|urlencode }}"><strong>{{ professor.full_name }}</strong></a></td>
                         <td>{{ professor.user.phone_number|default:professor.phone|default:"-" }}</td>
                         <td>
                             {% if professor.user %}
@@ -37,7 +37,7 @@
                                 <span class="status-pill warning">Compte non lié</span>
                             {% endif %}
                         </td>
-                        <td>{{ professor.supervised_count }}</td>
+                        <td><a href="{% url 'admin_professor_students' %}?name={{ professor.full_name|urlencode }}">{{ professor.supervised_count }}</a></td>
                         <td>{{ professor.jury_count }}</td>
                         <td>{{ professor.availability_count }}</td>
                         <td>

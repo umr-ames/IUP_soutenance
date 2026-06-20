@@ -555,6 +555,44 @@
             </div>
         </section>
 
+        <section class="detail-card mt-3">
+            <div class="card-title-clean">
+                <div>
+                    <span class="eyebrow">Pièces</span>
+                    <h2>Demander un redépôt</h2>
+                    <p>Demandez à l'étudiant de redéposer un document, avec une remarque (visible par l'étudiant et son encadrant).</p>
+                </div>
+            </div>
+
+            {% if pfe_request.reupload_document %}
+                <div class="comment-box" style="border-color:rgba(217,119,6,.3);background:rgba(217,119,6,.06);">
+                    <strong>Redépôt en attente : {{ pfe_request.get_reupload_document_display }}</strong>
+                    <p>{{ pfe_request.reupload_comment|default:"(sans remarque)" }}</p>
+                </div>
+            {% endif %}
+
+            <form method="post" class="row g-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="request_reupload">
+                <div class="col-md-5">
+                    <label class="form-label">Document à redéposer</label>
+                    <select name="reupload_document" class="form-select" required>
+                        <option value="">— Choisir —</option>
+                        <option value="authorization">Autorisation de soutenance</option>
+                        <option value="attestation">Attestation de stage</option>
+                        <option value="rapport">Rapport de stage</option>
+                    </select>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label">Remarque pour l'étudiant</label>
+                    <input type="text" name="reupload_comment" class="form-control" placeholder="Ex : document illisible, page manquante, mauvaise version...">
+                </div>
+                <div class="col-12">
+                    <button class="btn btn-outline-primary" type="submit">Demander le redépôt</button>
+                </div>
+            </form>
+        </section>
+
         {% if pfe_request.professor_comment or pfe_request.admin_comment %}
             <section class="detail-card mt-3">
                 <div class="card-title-clean">

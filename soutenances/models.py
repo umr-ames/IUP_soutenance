@@ -123,6 +123,18 @@ class PFERequest(models.Model):
     professor_comment = models.TextField(blank=True, null=True)
     admin_comment = models.TextField(blank=True, null=True)
 
+    # Demande de redépôt d'une pièce par le département (vue par l'étudiant
+    # et son encadrant).
+    REUPLOAD_CHOICES = [
+        ("authorization", "Autorisation de soutenance"),
+        ("attestation", "Attestation de stage"),
+        ("rapport", "Rapport de stage"),
+    ]
+    reupload_document = models.CharField(
+        max_length=20, blank=True, default="", choices=REUPLOAD_CHOICES
+    )
+    reupload_comment = models.TextField(blank=True, null=True)
+
     professor_reviewed_at = models.DateTimeField(blank=True, null=True)
     admin_reviewed_at = models.DateTimeField(blank=True, null=True)
 

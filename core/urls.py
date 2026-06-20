@@ -9,6 +9,7 @@ urlpatterns = [
     path("admin-dashboard/", views.admin_dashboard, name="admin_dashboard"),
     path("admin-dashboard/students/", views.admin_student_list, name="admin_student_list"),
     path("admin-dashboard/professors/", views.admin_professor_list, name="admin_professor_list"),
+    path("admin-dashboard/encadrant-etudiants/", views.admin_professor_students, name="admin_professor_students"),
     path("admin-dashboard/import/", views.admin_import_people, name="admin_import_people"),
     path("admin-dashboard/import-references/", views.admin_import_student_references, name="admin_import_student_references"),
     path("admin-dashboard/statistiques/", admin_statistiques, name="admin_statistiques"),

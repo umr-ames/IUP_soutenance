@@ -237,6 +237,20 @@
         </section>
     {% endif %}
 
+    {% if pfe_request.reupload_document %}
+        <section class="glass-card" style="margin-bottom:18px; border-left:5px solid #d97706; background:linear-gradient(135deg,#fff7e6,#fdeccd);">
+            <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px;">
+                <div>
+                    <strong style="color:#92400e;">Le Département de l'IUP demande un nouveau dépôt : {{ pfe_request.get_reupload_document_display }}</strong>
+                    <p class="mb-0" style="color:#7c4a03; font-size:0.92rem;">
+                        {% if pfe_request.reupload_comment %}Remarque : « {{ pfe_request.reupload_comment }} ». {% endif %}Merci de redéposer ce document scanné, clair et lisible.
+                    </p>
+                </div>
+                <a class="btn btn-primary" href="{% url 'submit_pfe_request' %}">Redéposer le document</a>
+            </div>
+        </section>
+    {% endif %}
+
     <!-- ── Hero identité + autorisation ──────────────────────────────────── -->
     <section class="glass-card student-hero">
         <div class="student-header-id">
@@ -248,7 +262,7 @@
                     <span class="student-meta-chip"><span class="meta-label">Matricule</span> {{ student.matricule }}</span>
                     <span class="student-meta-chip"><span class="meta-label">Filière</span> {{ student.filiere|default:"-" }}</span>
                     <span class="student-meta-chip"><span class="meta-label">Encadrant</span> {{ student.encadrant.full_name }}</span>
-                    <span class="student-meta-chip"><span class="meta-label">Entreprise</span> {{ student.entreprise|default:"Non renseignée" }}</span>
+                    <span class="student-meta-chip"><span class="meta-label">Entreprise</span> {{ student.entreprise|default:"Non renseignée" }} <a href="{% url 'edit_entreprise' %}" style="margin-left:6px; color:var(--orange-dark); font-weight:700; text-decoration:none;" title="Corriger le nom de l'entreprise">modifier</a></span>
                     <span class="student-meta-chip"><span class="meta-label">Tél.</span> {{ request.user.phone_number|default:"-" }}</span>
                     <span class="student-meta-chip"><span class="meta-label">Email</span> {{ request.user.email|default:"-" }}</span>
                 </div>

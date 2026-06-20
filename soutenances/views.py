@@ -141,6 +141,31 @@ def admin_pfe_request_detail(request, pk):
 
     decision_form = PFERequestDecisionForm()
 
+    REUPLOAD_FIELDS = {
+        "authorization": "authorization_document",
+        "attestation": "attestation_stage",
+        "rapport": "rapport_stage",
+    }
+
+    if request.method == "POST" and request.POST.get("action") == "request_reupload":
+        doc = (request.POST.get("reupload_document") or "").strip()
+        comment = (request.POST.get("reupload_comment") or "").strip()
+        if doc not in REUPLOAD_FIELDS:
+            messages.error(request, "Choisissez le document à faire redéposer.")
+        else:
+            pfe_request.reupload_document = doc
+            pfe_request.reupload_comment = comment
+            # On vide la pièce concernée pour obliger l'étudiant à la redéposer.
+            setattr(pfe_request, REUPLOAD_FIELDS[doc], None)
+            pfe_request.save(update_fields=[
+                "reupload_document", "reupload_comment", REUPLOAD_FIELDS[doc],
+            ])
+            messages.success(
+                request,
+                "Demande de redépôt envoyée à l'étudiant (visible aussi par l'encadrant)."
+            )
+        return redirect("admin_pfe_request_detail", pk=pfe_request.pk)
+
     if request.method == "POST":
         decision_form = PFERequestDecisionForm(request.POST)
 
