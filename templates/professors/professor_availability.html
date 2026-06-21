@@ -87,35 +87,65 @@
 <section class="availability-hero hero-panel">
     <div>
         <span class="eyebrow">Disponibilités</span>
-        <h1>Mes créneaux disponibles</h1>
-        <p class="muted">
-            Cochez les heures où vous êtes disponible cette semaine. Ces créneaux
-            permettent au système de choisir automatiquement les jurys.
-        </p>
+        {% if is_admin %}
+            <h1>Disponibilités des professeurs</h1>
+            <p class="muted">
+                Sélectionnez un professeur et renseignez ses créneaux à sa place
+                (le professeur peut aussi les remplir lui-même).
+            </p>
+            <form method="get" style="margin-top:12px; max-width:440px;">
+                <select name="professor" class="form-select" onchange="this.form.submit()">
+                    <option value="">— Choisir un professeur —</option>
+                    {% for p in professors %}
+                        <option value="{{ p.id }}" {% if selected_professor and selected_professor.id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        {% else %}
+            <h1>Mes créneaux disponibles</h1>
+            <p class="muted">
+                Cochez les heures où vous êtes disponible cette semaine. Ces créneaux
+                permettent au système de choisir automatiquement les jurys.
+            </p>
 
-        <div class="availability-chip-row">
-            <span class="availability-chip status-pill info">Grille hebdomadaire</span>
-            <span class="availability-chip status-pill info">09h - 19h</span>
-            <span class="availability-chip status-pill warning">Session jusqu'au {{ session_end_date|date:"d/m/Y" }}</span>
-        </div>
+            <div class="availability-chip-row">
+                <span class="availability-chip status-pill info">Grille hebdomadaire</span>
+                <span class="availability-chip status-pill info">09h - 19h</span>
+                <span class="availability-chip status-pill warning">Session jusqu'au {{ session_end_date|date:"d/m/Y" }}</span>
+            </div>
+        {% endif %}
     </div>
 
     <div class="hero-actions">
-        <a href="{% url 'professor_dashboard' %}" class="btn btn-outline-secondary">
-            Accueil professeur
-        </a>
+        {% if is_admin %}
+            <a href="{% url 'admin_professor_list' %}" class="btn btn-outline-secondary">
+                Professeurs
+            </a>
+        {% else %}
+            <a href="{% url 'professor_dashboard' %}" class="btn btn-outline-secondary">
+                Accueil professeur
+            </a>
+        {% endif %}
     </div>
 </section>
 
+{% if is_admin and not selected_professor %}
+    <section class="grid-card glass-card">
+        <div class="empty-state">Choisissez un professeur ci-dessus pour renseigner ses disponibilités.</div>
+    </section>
+{% endif %}
+
+{% if grid_rows %}
 <section class="grid-card glass-card">
     <form method="post" id="availabilityGridForm">
         {% csrf_token %}
         <input type="hidden" name="week_start" value="{{ week_start|date:'Y-m-d' }}">
+        {% if is_admin %}<input type="hidden" name="professor" value="{{ selected_professor.id }}">{% endif %}
 
         <div class="week-nav">
             <div>
                 {% if can_go_prev %}
-                    <a class="btn btn-sm btn-outline-secondary" href="?week={{ prev_week }}">
+                    <a class="btn btn-sm btn-outline-secondary" href="?{% if is_admin %}professor={{ selected_professor.id }}&{% endif %}week={{ prev_week }}">
                         ← Semaine précédente
                     </a>
                 {% else %}
@@ -131,7 +161,7 @@
 
             <div>
                 {% if can_go_next %}
-                    <a class="btn btn-sm btn-outline-secondary" href="?week={{ next_week }}">
+                    <a class="btn btn-sm btn-outline-secondary" href="?{% if is_admin %}professor={{ selected_professor.id }}&{% endif %}week={{ next_week }}">
                         Semaine suivante →
                     </a>
                 {% else %}
@@ -233,6 +263,7 @@
         </table>
     </div>
 </section>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}

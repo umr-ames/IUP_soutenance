@@ -3,6 +3,7 @@ import datetime
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.decorators import role_required
@@ -127,6 +128,86 @@ def admin_professor_availability(request):
     })
 
 
+def _save_week_availability(request, professor):
+    """Enregistre (remplace) les créneaux d'une semaine pour un professeur."""
+    week_start = parse_week_start(request.POST.get("week_start"))
+    week_dates = [week_start + datetime.timedelta(days=i) for i in range(7)]
+
+    checked_hours_by_date = {}
+    for day in week_dates:
+        checked_hours = [
+            hour
+            for hour in range(GRID_START_HOUR, GRID_END_HOUR)
+            if request.POST.get(f"slot_{day.isoformat()}_{hour}")
+        ]
+        if checked_hours:
+            checked_hours_by_date[day] = checked_hours
+
+    ProfessorAvailability.objects.filter(
+        professor=professor, date__in=week_dates
+    ).delete()
+
+    created_count = 0
+    for day, hours in checked_hours_by_date.items():
+        for start_hour, end_hour in merge_consecutive_hours(hours):
+            ProfessorAvailability.objects.create(
+                professor=professor,
+                date=day,
+                start_time=datetime.time(start_hour, 0),
+                end_time=datetime.time(end_hour, 0),
+            )
+            created_count += 1
+
+    return week_start, created_count
+
+
+def _availability_context(professor, week_param):
+    """Construit le contexte de la grille hebdomadaire pour un professeur."""
+    week_start = parse_week_start(week_param)
+    week_dates = [week_start + datetime.timedelta(days=i) for i in range(7)]
+
+    existing = ProfessorAvailability.objects.filter(
+        professor=professor,
+        date__range=(week_dates[0], week_dates[-1]),
+    )
+
+    checked_cells = set()
+    for availability in existing:
+        for hour in range(
+            max(availability.start_time.hour, GRID_START_HOUR),
+            min(availability.end_time.hour, GRID_END_HOUR),
+        ):
+            checked_cells.add((availability.date, hour))
+
+    grid_rows = []
+    for hour in range(GRID_START_HOUR, GRID_END_HOUR):
+        row_cells = [{
+            "date": day,
+            "hour": hour,
+            "checked": (day, hour) in checked_cells,
+            "disabled": day < timezone.localdate() or day > SESSION_END_DATE,
+        } for day in week_dates]
+        grid_rows.append({"hour": hour, "cells": row_cells})
+
+    earliest_week = clamp_week_start(monday_of(min(timezone.localdate(), SESSION_START_DATE)))
+    latest_week = clamp_week_start(monday_of(SESSION_END_DATE))
+
+    return {
+        "week_start": week_start,
+        "week_end": week_dates[-1],
+        "week_days": week_dates,
+        "grid_rows": grid_rows,
+        "can_go_prev": week_start > earliest_week,
+        "can_go_next": week_start < latest_week,
+        "prev_week": (week_start - datetime.timedelta(days=7)).isoformat(),
+        "next_week": (week_start + datetime.timedelta(days=7)).isoformat(),
+        "session_end_date": SESSION_END_DATE,
+        "availabilities": ProfessorAvailability.objects.filter(
+            professor=professor
+        ).order_by("date", "start_time"),
+    }
+
+
 @login_required
 @role_required(["professor"])
 def professor_availability(request):
@@ -137,102 +218,51 @@ def professor_availability(request):
         return redirect("professor_dashboard")
 
     if request.method == "POST":
-        week_start = parse_week_start(request.POST.get("week_start"))
-        week_dates = [week_start + datetime.timedelta(days=i) for i in range(7)]
-
-        checked_hours_by_date = {}
-
-        for day in week_dates:
-            checked_hours = []
-
-            for hour in range(GRID_START_HOUR, GRID_END_HOUR):
-                field_name = f"slot_{day.isoformat()}_{hour}"
-
-                if request.POST.get(field_name):
-                    checked_hours.append(hour)
-
-            if checked_hours:
-                checked_hours_by_date[day] = checked_hours
-
-        ProfessorAvailability.objects.filter(
-            professor=professor,
-            date__in=week_dates,
-        ).delete()
-
-        created_count = 0
-
-        for day, hours in checked_hours_by_date.items():
-            for start_hour, end_hour in merge_consecutive_hours(hours):
-                ProfessorAvailability.objects.create(
-                    professor=professor,
-                    date=day,
-                    start_time=datetime.time(start_hour, 0),
-                    end_time=datetime.time(end_hour, 0),
-                )
-                created_count += 1
-
+        week_start, created_count = _save_week_availability(request, professor)
         messages.success(
             request,
             f"Disponibilités enregistrées pour la semaine du {week_start.strftime('%d/%m/%Y')} "
             f"({created_count} créneau(x))."
         )
-
         return redirect(f"{request.path}?week={week_start.isoformat()}")
 
-    week_start = parse_week_start(request.GET.get("week"))
-    week_dates = [week_start + datetime.timedelta(days=i) for i in range(7)]
+    context = _availability_context(professor, request.GET.get("week"))
+    context["is_admin"] = False
+    return render(request, "professors/professor_availability.html", context)
 
-    existing = ProfessorAvailability.objects.filter(
-        professor=professor,
-        date__range=(week_dates[0], week_dates[-1]),
-    )
 
-    checked_cells = set()
+@login_required
+@role_required(["admin"])
+def admin_professor_availability_edit(request):
+    """L'administration peut renseigner les disponibilités à la place d'un
+    professeur (qui peut aussi les remplir lui-même)."""
+    professors = ProfessorProfile.objects.order_by("full_name")
+    prof_id = request.POST.get("professor") or request.GET.get("professor")
+    professor = ProfessorProfile.objects.filter(id=prof_id).first() if prof_id else None
 
-    for availability in existing:
-        start_hour = availability.start_time.hour
-        end_hour = availability.end_time.hour
+    if request.method == "POST":
+        if not professor:
+            messages.error(request, "Sélectionnez d'abord un professeur.")
+            return redirect("admin_professor_availability_edit")
+        week_start, created_count = _save_week_availability(request, professor)
+        messages.success(
+            request,
+            f"Disponibilités de {professor.full_name} enregistrées pour la semaine du "
+            f"{week_start.strftime('%d/%m/%Y')} ({created_count} créneau(x))."
+        )
+        return redirect(
+            f"{reverse('admin_professor_availability_edit')}"
+            f"?professor={professor.id}&week={week_start.isoformat()}"
+        )
 
-        for hour in range(max(start_hour, GRID_START_HOUR), min(end_hour, GRID_END_HOUR)):
-            checked_cells.add((availability.date, hour))
-
-    hours = list(range(GRID_START_HOUR, GRID_END_HOUR))
-
-    grid_rows = []
-    for hour in hours:
-        row_cells = []
-        for day in week_dates:
-            row_cells.append({
-                "date": day,
-                "hour": hour,
-                "checked": (day, hour) in checked_cells,
-                "disabled": day < timezone.localdate() or day > SESSION_END_DATE,
-            })
-        grid_rows.append({"hour": hour, "cells": row_cells})
-
-    today = timezone.localdate()
-    earliest_week = clamp_week_start(monday_of(min(today, SESSION_START_DATE)))
-    latest_week = clamp_week_start(monday_of(SESSION_END_DATE))
-
-    prev_week = week_start - datetime.timedelta(days=7)
-    next_week = week_start + datetime.timedelta(days=7)
-
-    all_availabilities = ProfessorAvailability.objects.filter(
-        professor=professor
-    ).order_by("date", "start_time")
-
-    return render(request, "professors/professor_availability.html", {
-        "week_start": week_start,
-        "week_end": week_dates[-1],
-        "week_days": week_dates,
-        "grid_rows": grid_rows,
-        "can_go_prev": week_start > earliest_week,
-        "can_go_next": week_start < latest_week,
-        "prev_week": prev_week.isoformat(),
-        "next_week": next_week.isoformat(),
-        "session_end_date": SESSION_END_DATE,
-        "availabilities": all_availabilities,
-    })
+    context = {
+        "is_admin": True,
+        "professors": professors,
+        "selected_professor": professor,
+    }
+    if professor:
+        context.update(_availability_context(professor, request.GET.get("week")))
+    return render(request, "professors/professor_availability.html", context)
 
 
 def merge_consecutive_hours(hours):

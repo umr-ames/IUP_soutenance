@@ -44,6 +44,9 @@
                             <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_professor_availability' %}?professor={{ professor.id }}">
                                 Voir disponibilités
                             </a>
+                            <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professor_availability_edit' %}?professor={{ professor.id }}">
+                                Remplir
+                            </a>
                         </td>
                     </tr>
                 {% empty %}

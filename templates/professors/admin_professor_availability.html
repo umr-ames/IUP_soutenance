@@ -15,15 +15,20 @@
         </p>
     </div>
 
-    {% if filtered_professor %}
-        <a href="{% url 'admin_professor_availability' %}" class="btn btn-outline-secondary">
-            Voir tous les professeurs
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'admin_professor_availability_edit' %}{% if filtered_professor %}?professor={{ filtered_professor.id }}{% endif %}" class="btn btn-primary">
+            Remplir des disponibilités
         </a>
-    {% else %}
-        <a href="{% url 'admin_professor_list' %}" class="btn btn-outline-secondary">
-            Retour professeurs
-        </a>
-    {% endif %}
+        {% if filtered_professor %}
+            <a href="{% url 'admin_professor_availability' %}" class="btn btn-outline-secondary">
+                Voir tous les professeurs
+            </a>
+        {% else %}
+            <a href="{% url 'admin_professor_list' %}" class="btn btn-outline-secondary">
+                Retour professeurs
+            </a>
+        {% endif %}
+    </div>
 </div>
 
 <div class="glass-card">

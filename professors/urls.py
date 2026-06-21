@@ -11,6 +11,12 @@ urlpatterns = [
     ),
 
     path(
+        "admin/availabilities/edit/",
+        views.admin_professor_availability_edit,
+        name="admin_professor_availability_edit"
+    ),
+
+    path(
         "availability/",
         views.professor_availability,
         name="professor_availability"
