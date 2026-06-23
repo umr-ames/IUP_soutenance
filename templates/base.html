@@ -80,24 +80,23 @@
                     {% endif %}
                 </nav>
 
-                <div class="app-user">
-                    <span class="app-user-avatar">{{ request.user.display_name|slice:":1"|upper }}</span>
+                <div class="app-user" id="userMenu">
+                    <button type="button" class="app-user-trigger" id="userMenuBtn">
+                        <span class="app-user-avatar">{{ request.user.display_name|slice:":1"|upper }}</span>
+                        <span class="app-user-meta">
+                            <strong>{{ request.user.display_name }}</strong>
+                            <small>{{ request.user.get_role_display }}</small>
+                        </span>
+                        <span class="app-user-caret" aria-hidden="true">▾</span>
+                    </button>
 
-                    <div class="app-user-meta">
-                        <strong>{{ request.user.display_name }}</strong>
-                        <small>{{ request.user.get_role_display }}</small>
+                    <div class="app-user-dropdown" id="userMenuDropdown">
+                        <a href="{% url 'change_password' %}">Changer mon mot de passe</a>
+                        <form method="post" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            <button type="submit">Se déconnecter</button>
+                        </form>
                     </div>
-
-                    <a href="{% url 'change_password' %}" class="btn btn-sm btn-outline-secondary" title="Changer mon mot de passe">
-                        Mot de passe
-                    </a>
-
-                    <form method="post" action="{% url 'logout' %}">
-                        {% csrf_token %}
-                        <button class="btn btn-sm btn-outline-secondary" type="submit">
-                            Sortir
-                        </button>
-                    </form>
                 </div>
             </div>
         </header>
@@ -177,6 +176,22 @@ const appNav = document.getElementById('appNav');
 if (mobileNavBtn && appNav) {
     mobileNavBtn.addEventListener('click', function () {
         appNav.classList.toggle('is-open');
+    });
+}
+
+const userMenuBtn = document.getElementById('userMenuBtn');
+const userMenuDropdown = document.getElementById('userMenuDropdown');
+
+if (userMenuBtn && userMenuDropdown) {
+    userMenuBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        userMenuDropdown.classList.toggle('is-open');
+    });
+
+    document.addEventListener('click', function (event) {
+        if (!userMenuDropdown.contains(event.target) && !userMenuBtn.contains(event.target)) {
+            userMenuDropdown.classList.remove('is-open');
+        }
     });
 }
 </script>

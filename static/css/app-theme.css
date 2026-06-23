@@ -1402,6 +1402,99 @@ body {
 }
 
 /* ==========================================================================
+   En-tête : menu utilisateur compact (évite la surcharge / superposition)
+   ========================================================================== */
+
+/* Nav un peu plus compacte pour laisser de la place à droite. */
+.app-nav {
+    gap: 3px;
+}
+.app-nav > a,
+.nav-dropdown > button {
+    padding: 0 11px;
+    font-size: 0.88rem;
+}
+
+.app-user {
+    position: relative;
+    flex: 0 0 auto;
+    gap: 0;
+}
+
+.app-user-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 5px 12px 5px 5px;
+    cursor: pointer;
+    transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+
+.app-user-trigger:hover {
+    background: var(--surface-soft);
+    border-color: var(--line-strong);
+}
+
+.app-user-caret {
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
+.app-user-dropdown {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    min-width: 230px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: 6px;
+    z-index: 1200;
+    display: none;
+}
+
+.app-user-dropdown.is-open {
+    display: block;
+}
+
+.app-user-dropdown a,
+.app-user-dropdown button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+}
+
+.app-user-dropdown a:hover,
+.app-user-dropdown button:hover {
+    background: var(--orange-soft);
+    color: var(--orange-dark);
+}
+
+.app-user-dropdown form {
+    margin: 0;
+}
+
+@media (max-width: 720px) {
+    /* Le nom reste caché en très petit, l'avatar suffit comme déclencheur. */
+    .app-user-trigger .app-user-meta {
+        display: none;
+    }
+}
+
+/* ==========================================================================
    Bannière « date limite de demande de soutenance »
    Visible dès la page de connexion et sur les tableaux de bord étudiant/prof.
    ========================================================================== */
