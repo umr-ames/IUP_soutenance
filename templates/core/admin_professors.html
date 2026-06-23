@@ -47,6 +47,15 @@
                             <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professor_availability_edit' %}?professor={{ professor.id }}">
                                 Remplir
                             </a>
+                            {% if professor.user %}
+                                <form method="post" action="{% url 'admin_reset_professor_password' professor.id %}" style="display:inline; margin:0;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                            data-confirm="Réinitialiser le mot de passe de {{ professor.full_name }} ? Un mot de passe temporaire sera généré.">
+                                        Réinitialiser MDP
+                                    </button>
+                                </form>
+                            {% endif %}
                         </td>
                     </tr>
                 {% empty %}
