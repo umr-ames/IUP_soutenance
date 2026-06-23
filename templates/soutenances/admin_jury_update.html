@@ -89,6 +89,24 @@
                             <small class="text-muted d-block mt-1">{{ row.cannot_remove_reason }}</small>
                         {% endif %}
                     </div>
+
+                    {% if has_real_slot and replacement_candidates %}
+                        <form method="post" class="mt-2" onsubmit="return confirm('Remplacer {{ row.professor.full_name }} par le professeur sélectionné ?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="replace_member">
+                            <input type="hidden" name="old_professor_id" value="{{ row.professor.id }}">
+                            <label class="form-label" style="font-size:.78rem; margin-bottom:3px;">Remplacer par (indisponibilité, etc.) :</label>
+                            <div class="d-flex gap-1">
+                                <select name="new_professor_id" class="form-select form-select-sm" required>
+                                    <option value="">— Professeur disponible —</option>
+                                    {% for p in replacement_candidates %}
+                                        <option value="{{ p.id }}">{{ p.full_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Remplacer</button>
+                            </div>
+                        </form>
+                    {% endif %}
                 </div>
             </div>
         {% empty %}

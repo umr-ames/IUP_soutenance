@@ -976,6 +976,16 @@ def admin_jury_update(request, pk):
         else:
             add_member_form = JuryAddMemberForm(selectable_queryset=addable_qs)
 
+    # ── 3bis. Candidats au remplacement d'un membre (ex. encadrant indisponible) ──
+    # Professeurs disponibles au créneau réel et pas déjà membres du jury.
+    replacement_candidates = []
+    if has_real_slot:
+        available_at_slot = get_available_professors_at_slot(real_slot_date, real_slot_start)
+        current_member_ids = {m.professor_id for m in current_members}
+        replacement_candidates = [
+            p for p in available_at_slot if p.id not in current_member_ids
+        ]
+
     context = {
         "jury": jury,
         "jury_students": jury_students,
@@ -987,6 +997,7 @@ def admin_jury_update(request, pk):
         "has_real_slot": has_real_slot,
         "add_member_form": add_member_form,
         "addable_count": addable_count,
+        "replacement_candidates": replacement_candidates,
     }
 
     # ── 4. POST : retirer un membre ────────────────────────────────────────
@@ -1100,6 +1111,49 @@ def admin_jury_update(request, pk):
         else:
             messages.error(request, "Sélection de professeur invalide ou indisponible.")
 
+        return redirect("admin_jury_update", pk=jury.pk)
+
+    # ── 6. POST : remplacer un membre (ex. encadrant devenu indisponible) ─────
+    if request.method == "POST" and request.POST.get("action") == "replace_member":
+        try:
+            old_id = int(request.POST.get("old_professor_id", ""))
+            new_id = int(request.POST.get("new_professor_id", ""))
+        except (ValueError, TypeError):
+            messages.error(request, "Sélection invalide.")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        old_member = jury.members.filter(professor_id=old_id).first()
+        new_prof = ProfessorProfile.objects.filter(id=new_id).first()
+
+        if not old_member:
+            messages.error(request, "Le membre à remplacer n'appartient pas à ce jury.")
+        elif not new_prof:
+            messages.error(request, "Choisissez un professeur remplaçant.")
+        elif jury.members.filter(professor_id=new_id).exists():
+            messages.error(request, f"{new_prof.full_name} est déjà membre de ce jury.")
+        elif has_real_slot and not (
+            is_professor_available(new_prof, real_slot_date, real_slot_start)
+            and not professor_has_conflict(new_prof, real_slot_date, real_slot_start)
+        ):
+            messages.error(
+                request,
+                f"{new_prof.full_name} n'est pas disponible au créneau de ce jury "
+                f"({real_slot_date} à {real_slot_start})."
+            )
+        else:
+            old_name = old_member.professor.full_name
+            with transaction.atomic():
+                # Reprendre la présidence des soutenances présidées par l'ancien membre
+                JuryStudent.objects.filter(
+                    jury=jury, president_id=old_id
+                ).update(president=new_prof)
+                # Retirer l'ancien AVANT d'ajouter le nouveau (max 3 membres)
+                old_member.delete()
+                JuryMember.objects.create(jury=jury, professor=new_prof)
+            messages.success(
+                request,
+                f"{old_name} a été remplacé par {new_prof.full_name} dans ce jury."
+            )
         return redirect("admin_jury_update", pk=jury.pk)
 
     return render(request, "soutenances/admin_jury_update.html", context)
