@@ -23,6 +23,7 @@
                     <th>Entreprise</th>
                     <th>Téléphone</th>
                     <th>Demande</th>
+                    <th>Mot de passe</th>
                 </tr>
             </thead>
             <tbody>
@@ -41,9 +42,22 @@
                                 -
                             {% endif %}
                         </td>
+                        <td>
+                            {% if student.user %}
+                                <form method="post" action="{% url 'admin_reset_student_password' student.id %}" style="margin:0;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                            data-confirm="Réinitialiser le mot de passe de {{ student.full_name }} ? Un mot de passe temporaire sera généré.">
+                                        Réinitialiser
+                                    </button>
+                                </form>
+                            {% else %}
+                                <span class="status-pill muted">Pas de compte</span>
+                            {% endif %}
+                        </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="7"><div class="empty-state">Aucun étudiant.</div></td></tr>
+                    <tr><td colspan="8"><div class="empty-state">Aucun étudiant.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>

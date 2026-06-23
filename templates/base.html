@@ -88,6 +88,10 @@
                         <small>{{ request.user.get_role_display }}</small>
                     </div>
 
+                    <a href="{% url 'change_password' %}" class="btn btn-sm btn-outline-secondary" title="Changer mon mot de passe">
+                        Mot de passe
+                    </a>
+
                     <form method="post" action="{% url 'logout' %}">
                         {% csrf_token %}
                         <button class="btn btn-sm btn-outline-secondary" type="submit">

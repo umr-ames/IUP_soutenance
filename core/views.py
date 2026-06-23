@@ -286,6 +286,37 @@ def admin_professor_list(request):
 
 @login_required
 @role_required(["admin"])
+def admin_reset_student_password(request, pk):
+    """Réinitialise le mot de passe d'un étudiant : génère un mot de passe
+    temporaire affiché à l'administration, à communiquer à l'étudiant."""
+    student = StudentProfile.objects.select_related("user").filter(pk=pk).first()
+    if not student:
+        messages.error(request, "Étudiant introuvable.")
+        return redirect("admin_student_list")
+
+    if request.method != "POST":
+        return redirect("admin_student_list")
+
+    if not student.user:
+        messages.error(request, "Cet étudiant n'a pas encore de compte.")
+        return redirect("admin_student_list")
+
+    from django.utils.crypto import get_random_string
+    temp_password = get_random_string(8, "ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+    student.user.set_password(temp_password)
+    student.user.save(update_fields=["password"])
+
+    messages.success(
+        request,
+        f"Mot de passe de {student.full_name} réinitialisé. "
+        f"Mot de passe temporaire : {temp_password} — communiquez-le à l'étudiant, "
+        f"qui pourra le changer après connexion."
+    )
+    return redirect("admin_student_list")
+
+
+@login_required
+@role_required(["admin"])
 def admin_professor_students(request):
     """Liste des étudiants encadrés par un professeur (source : liste officielle),
     avec nom, matricule, filière et statut d'inscription."""
