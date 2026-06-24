@@ -23,6 +23,9 @@
                 <th style="padding:10px 12px; text-align:left; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Jury</th>
                 <th style="padding:10px 12px; text-align:left; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Date</th>
                 <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Évals soumises</th>
+                <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Moy. Rapport<br><small style="font-weight:600; text-transform:none;">coef 0,30</small></th>
+                <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Moy. Présentation<br><small style="font-weight:600; text-transform:none;">coef 0,30</small></th>
+                <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Moy. Questions<br><small style="font-weight:600; text-transform:none;">coef 0,40</small></th>
                 <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Moyenne /20</th>
                 <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Statut</th>
             </tr>
@@ -42,6 +45,15 @@
                     <span class="status-pill {% if row.evals_count == 3 %}success{% else %}warning{% endif %}">
                         {{ row.evals_count }}/3
                     </span>
+                </td>
+                <td style="padding:12px; text-align:center; font-weight:700;">
+                    {% if row.avg_rapport is not None %}{{ row.avg_rapport }}{% else %}<span style="color:var(--muted);">—</span>{% endif %}
+                </td>
+                <td style="padding:12px; text-align:center; font-weight:700;">
+                    {% if row.avg_presentation is not None %}{{ row.avg_presentation }}{% else %}<span style="color:var(--muted);">—</span>{% endif %}
+                </td>
+                <td style="padding:12px; text-align:center; font-weight:700;">
+                    {% if row.avg_questions is not None %}{{ row.avg_questions }}{% else %}<span style="color:var(--muted);">—</span>{% endif %}
                 </td>
                 <td style="padding:12px; text-align:center; font-weight:900; font-size:1.05rem;">
                     {% if row.published_result %}

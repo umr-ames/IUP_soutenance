@@ -780,15 +780,24 @@ def professor_president_results(request):
 
         submitted_evals = [e for e in assignment.evaluations.all() if e.is_submitted]
         computed_average = None
+        avg_rapport = None
+        avg_presentation = None
+        avg_questions = None
         if len(submitted_evals) == 3:
             from decimal import Decimal
             notes = [e.final_note for e in submitted_evals]
             computed_average = (sum(notes, Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
+            avg_rapport = (sum((e.rapport_note for e in submitted_evals), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
+            avg_presentation = (sum((e.presentation_note for e in submitted_evals), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
+            avg_questions = (sum((e.questions_note for e in submitted_evals), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
 
         rows.append({
             "assignment": assignment,
             "published_result": published_result,
             "computed_average": computed_average,
+            "avg_rapport": avg_rapport,
+            "avg_presentation": avg_presentation,
+            "avg_questions": avg_questions,
             "evals_count": len(submitted_evals),
         })
 

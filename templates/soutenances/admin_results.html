@@ -283,6 +283,62 @@
         justify-content: flex-end;
     }
 
+    .criteria-averages {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        border-radius: 18px;
+        background: rgba(255, 247, 237, 0.72);
+        border: 1px solid rgba(249, 115, 22, 0.16);
+    }
+
+    .criteria-label {
+        color: var(--orange-dark);
+        font-size: 0.78rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-right: 4px;
+    }
+
+    .criteria-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 32px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        font-size: 0.82rem;
+        font-weight: 750;
+    }
+
+    .criteria-chip strong {
+        color: var(--orange-deep);
+        font-weight: 950;
+    }
+
+    .criteria-chip small {
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
+
+    .criteria-chip.final {
+        color: white;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+        border-color: transparent;
+    }
+
+    .criteria-chip.final strong {
+        color: white;
+    }
+
     .evaluations-list {
         display: grid;
         gap: 10px;
@@ -531,6 +587,16 @@
                     {% endif %}
                 </div>
             </div>
+
+            {% if item.ready and not item.assignment.pfe_soutenable_status == 'non_soutenable' %}
+                <div class="criteria-averages">
+                    <span class="criteria-label">Moyennes du jury (3 membres) :</span>
+                    <span class="criteria-chip">Rapport <strong>{{ item.avg_rapport }}/20</strong> <small>·&nbsp;coef 0,30</small></span>
+                    <span class="criteria-chip">Présentation <strong>{{ item.avg_presentation }}/20</strong> <small>·&nbsp;coef 0,30</small></span>
+                    <span class="criteria-chip">Questions <strong>{{ item.avg_questions }}/20</strong> <small>·&nbsp;coef 0,40</small></span>
+                    <span class="criteria-chip final">Moyenne finale <strong>{% if item.result and item.result.average %}{{ item.result.average }}{% else %}{{ item.computed_average }}{% endif %}/20</strong></span>
+                </div>
+            {% endif %}
 
             <div class="evaluations-list">
                 {% for evaluation in item.evaluations %}

@@ -1782,11 +1782,17 @@ def admin_results(request):
         computed_average = None
         computed_gap = None
         computed_gap_alert = False
+        avg_rapport = None
+        avg_presentation = None
+        avg_questions = None
         if ready:
             notes = [e.final_note for e in submitted_evaluations]
             computed_average = (sum(notes, Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
             computed_gap = (max(notes) - min(notes)).quantize(Decimal("0.01"))
             computed_gap_alert = computed_gap >= Decimal("3.00")
+            avg_rapport = (sum((e.rapport_note for e in submitted_evaluations), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
+            avg_presentation = (sum((e.presentation_note for e in submitted_evaluations), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
+            avg_questions = (sum((e.questions_note for e in submitted_evaluations), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
 
         items.append({
             "assignment": assignment,
@@ -1796,6 +1802,9 @@ def admin_results(request):
             "computed_average": computed_average,
             "computed_gap": computed_gap,
             "computed_gap_alert": computed_gap_alert,
+            "avg_rapport": avg_rapport,
+            "avg_presentation": avg_presentation,
+            "avg_questions": avg_questions,
         })
 
     return render(request, "soutenances/admin_results.html", {
