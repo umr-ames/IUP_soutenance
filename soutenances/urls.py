@@ -9,6 +9,7 @@ urlpatterns = [
     path("admin/deadline/", views.admin_deadline, name="admin_deadline"),
     path("admin/jurys/", views.admin_jury_list, name="admin_jury_list"),
     path("admin/jurys/generate/", views.admin_generate_juries, name="admin_generate_juries"),
+    path("admin/jurys/generate-targeted/", views.admin_generate_juries_targeted, name="admin_generate_juries_targeted"),
     path("admin/jurys/create/", views.admin_jury_create, name="admin_jury_create"),
     path("admin/jurys/quick-create/", views.admin_jury_quick_create, name="admin_jury_quick_create"),
     path("admin/jurys/helper/slots/", views.admin_jury_helper_slots, name="admin_jury_helper_slots"),

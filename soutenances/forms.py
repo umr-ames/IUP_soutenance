@@ -237,6 +237,50 @@ class JuryGenerationForm(forms.Form):
     )
 
 
+class TargetedJuryGenerationForm(forms.Form):
+    """Génération ciblée : l'admin choisit une date, un nombre de jurys, les
+    étudiants (parmi les acceptés) et un groupe de professeurs."""
+
+    defense_date = forms.DateField(
+        label="Date des soutenances",
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+    )
+    num_juries = forms.IntegerField(
+        label="Nombre de jurys souhaité",
+        min_value=1,
+        initial=1,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+    )
+    students = forms.ModelMultipleChoiceField(
+        label="Étudiants à programmer",
+        queryset=StudentProfile.objects.none(),
+        widget=forms.CheckboxSelectMultiple,
+    )
+    professors = forms.ModelMultipleChoiceField(
+        label="Professeurs (groupe de jury)",
+        queryset=ProfessorProfile.objects.none(),
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["students"].queryset = (
+            StudentProfile.objects.filter(
+                pfe_request__status=PFERequest.STATUS_ACCEPTED,
+                jury_assignment__isnull=True,
+                encadrant__isnull=False,
+            ).select_related("encadrant").order_by("encadrant__full_name", "full_name")
+        )
+        self.fields["professors"].queryset = ProfessorProfile.objects.order_by("full_name")
+
+    def clean(self):
+        cleaned = super().clean()
+        professors = cleaned.get("professors")
+        if professors is not None and professors.count() < 3:
+            self.add_error("professors", "Sélectionnez au moins 3 professeurs.")
+        return cleaned
+
+
 class JuryStudentAssignForm(forms.Form):
     student = forms.ModelChoiceField(
         label="Étudiant",

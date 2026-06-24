@@ -25,6 +25,7 @@ from .forms import (
     PFERequestDecisionForm,
     PFERequestForm,
     PlanningGenerationForm,
+    TargetedJuryGenerationForm,
 )
 
 from .models import (
@@ -289,6 +290,135 @@ def admin_generate_juries(request):
     return render(request, "soutenances/admin_generation_report.html", {
         "result": result,
     })
+
+
+@login_required
+@role_required(["admin"])
+def admin_generate_juries_targeted(request):
+    """Génération ciblée : date + nombre de jurys + étudiants + professeurs
+    choisis par l'admin (override des disponibilités déclarées)."""
+    if request.method == "POST":
+        form = TargetedJuryGenerationForm(request.POST)
+        if form.is_valid():
+            result = generate_targeted_juries(
+                form.cleaned_data["defense_date"],
+                list(form.cleaned_data["students"]),
+                list(form.cleaned_data["professors"]),
+                form.cleaned_data["num_juries"],
+            )
+            messages.success(
+                request,
+                f"{result['created']} jury(s) créé(s), "
+                f"{result['assigned']} étudiant(s) programmé(s) le "
+                f"{form.cleaned_data['defense_date'].strftime('%d/%m/%Y')}."
+            )
+            if result["skipped"]:
+                detail = "; ".join(
+                    f"{s.full_name} ({why})" for s, why in result["skipped"][:8]
+                )
+                messages.warning(
+                    request,
+                    f"{len(result['skipped'])} étudiant(s) non programmé(s) : {detail}"
+                )
+            return redirect("admin_jury_list")
+    else:
+        form = TargetedJuryGenerationForm()
+
+    return render(request, "soutenances/admin_generate_targeted.html", {"form": form})
+
+
+@transaction.atomic
+def generate_targeted_juries(defense_date, students, professors, num_juries):
+    """Crée jusqu'à num_juries jurys le jour choisi à partir des étudiants et
+    professeurs sélectionnés. Chaque jury : 3 professeurs distincts (encadrants
+    inclus), créneaux de 20 min, président ≠ encadrant. Jurys parallèles (profs
+    disjoints) → pas de conflit."""
+    from collections import defaultdict
+
+    result = {"created": 0, "assigned": 0, "scheduled": 0, "skipped": [], "juries": []}
+
+    prof_ids = {p.id for p in professors}
+    enc_obj = {p.id: p for p in professors}
+
+    ready = []
+    for student in students:
+        if student.encadrant_id in prof_ids:
+            ready.append(student)
+        else:
+            result["skipped"].append((student, "encadrant non sélectionné"))
+
+    if not ready:
+        return result
+
+    by_enc = defaultdict(list)
+    for student in ready:
+        by_enc[student.encadrant_id].append(student)
+
+    enc_ids_sorted = sorted(by_enc.keys(), key=lambda eid: -len(by_enc[eid]))
+
+    n = max(1, num_juries)
+    buckets = [{"members": [], "students": []} for _ in range(n)]
+
+    for eid in enc_ids_sorted:
+        candidates = [b for b in buckets if len(b["members"]) < 3]
+        if not candidates:
+            for student in by_enc[eid]:
+                result["skipped"].append((student, "pas assez de jurys pour placer cet encadrant"))
+            continue
+        bucket = min(candidates, key=lambda b: len(b["students"]))
+        bucket["members"].append(enc_obj[eid])
+        bucket["students"].extend(by_enc[eid])
+
+    used = {p.id for b in buckets for p in b["members"]}
+    fillers = [p for p in professors if p.id not in used]
+    fi = 0
+
+    for bucket in buckets:
+        if not bucket["students"]:
+            continue
+        while len(bucket["members"]) < 3 and fi < len(fillers):
+            bucket["members"].append(fillers[fi])
+            fi += 1
+        if len(bucket["members"]) < 3:
+            for student in bucket["students"]:
+                result["skipped"].append((student, "pas assez de professeurs pour compléter le jury"))
+            continue
+
+        idx = result["created"] + 1
+        jury = Jury.objects.create(
+            name=f"Jury {defense_date.strftime('%d/%m')} #{idx}",
+            defense_date=defense_date,
+            is_validated=False,
+        )
+        for professor in bucket["members"]:
+            JuryMember.objects.create(jury=jury, professor=professor)
+        result["created"] += 1
+
+        cursor = datetime.combine(defense_date, time(9, 0))
+        schedules = []
+        for student in sorted(bucket["students"], key=lambda s: s.full_name.lower()):
+            president = next(
+                (p for p in bucket["members"] if p.id != student.encadrant_id), None
+            )
+            js = JuryStudent.objects.create(student=student, jury=jury, president=president)
+            schedules.append(DefenseSchedule(
+                jury_student=js,
+                start_time=cursor.time(),
+                end_time=(cursor + timedelta(minutes=20)).time(),
+                duration_minutes=20,
+            ))
+            result["assigned"] += 1
+            cursor += timedelta(minutes=20)
+
+        DefenseSchedule.objects.bulk_create(schedules)
+        result["scheduled"] += len(schedules)
+        result["juries"].append({
+            "name": jury.name,
+            "members": [p.full_name for p in bucket["members"]],
+            "count": len(bucket["students"]),
+        })
+
+    return result
 
 
 @transaction.atomic

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Génération ciblée de jurys{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Génération ciblée de jurys</h1>
+        <p>Choisissez une date, le nombre de jurys, les étudiants à programmer et le groupe de professeurs.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'admin_jury_list' %}">Retour</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <section class="content-panel">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">{{ form.defense_date.label }}</label>
+                {{ form.defense_date }}
+                {% for e in form.defense_date.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">{{ form.num_juries.label }}</label>
+                {{ form.num_juries }}
+                {% for e in form.num_juries.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="content-panel">
+        <h2>Étudiants à programmer</h2>
+        <p class="text-muted">Parmi les étudiants acceptés sans jury.</p>
+        {% for e in form.students.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+        <div style="max-height:320px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:6px;">
+            {% for cb in form.students %}
+                <label style="display:flex; gap:8px; align-items:flex-start; padding:6px 8px; border:1px solid var(--line); border-radius:8px;">
+                    {{ cb.tag }}
+                    <span style="font-size:0.86rem;">{{ cb.choice_label }}</span>
+                </label>
+            {% empty %}
+                <div class="empty-state">Aucun étudiant accepté sans jury.</div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="content-panel">
+        <h2>Professeurs (groupe de jury)</h2>
+        <p class="text-muted">Au moins 3 professeurs. Les encadrants des étudiants choisis doivent figurer dans la sélection.</p>
+        {% for e in form.professors.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+        <div style="max-height:320px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:6px;">
+            {% for cb in form.professors %}
+                <label style="display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--line); border-radius:8px;">
+                    {{ cb.tag }}
+                    <span style="font-size:0.86rem;">{{ cb.choice_label }}</span>
+                </label>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="content-panel">
+        <button type="submit" class="btn btn-primary">Générer les jurys</button>
+    </section>
+</form>
+{% endblock %}
