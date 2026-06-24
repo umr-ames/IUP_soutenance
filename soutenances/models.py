@@ -367,10 +367,21 @@ class JuryStudent(models.Model):
         if self.presentation_started:
             return
 
+        now = timezone.now()
+
+        # Transition d'état pure : démarrer la soutenance ne doit jamais être
+        # bloqué par la validation de composition du jury (full_clean via
+        # save()). On écrit donc directement les champs concernés, comme le
+        # fait déjà la décision « soutenable ».
+        type(self).objects.filter(pk=self.pk).update(
+            presentation_started=True,
+            presentation_started_at=now,
+            presentation_started_by=started_by,
+        )
+
         self.presentation_started = True
-        self.presentation_started_at = timezone.now()
+        self.presentation_started_at = now
         self.presentation_started_by = started_by
-        self.save()
 
     @property
     def presentation_duration_minutes(self):
