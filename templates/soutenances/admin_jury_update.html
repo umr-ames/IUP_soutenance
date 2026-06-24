@@ -196,6 +196,29 @@
                     {% else %}
                         <span class="status-pill warning mt-1">Non planifié</span>
                     {% endif %}
+
+                    <div class="mt-2">
+                        <span class="d-block text-muted" style="font-size:.8rem;">
+                            Président : <strong>{{ js.president.full_name|default:"Non défini" }}</strong>
+                        </span>
+                        <form method="post" class="mt-1">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="set_president">
+                            <input type="hidden" name="jury_student_id" value="{{ js.id }}">
+                            <div class="d-flex gap-1">
+                                <select name="president_id" class="form-select form-select-sm" required>
+                                    <option value="">— Désigner le président —</option>
+                                    {% for row in member_rows %}
+                                        {% if row.professor.id != js.student.encadrant_id %}
+                                            <option value="{{ row.professor.id }}" {% if js.president_id == row.professor.id %}selected{% endif %}>{{ row.professor.full_name }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Définir</button>
+                            </div>
+                            <small class="text-muted">L'encadrant ne peut pas être président.</small>
+                        </form>
+                    </div>
                 </div>
             </div>
         {% endfor %}

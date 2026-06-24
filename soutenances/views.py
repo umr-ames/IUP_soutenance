@@ -1156,6 +1156,35 @@ def admin_jury_update(request, pk):
             )
         return redirect("admin_jury_update", pk=jury.pk)
 
+    # ── 7. POST : désigner le président d'une soutenance (≠ encadrant) ────────
+    if request.method == "POST" and request.POST.get("action") == "set_president":
+        try:
+            js_id = int(request.POST.get("jury_student_id", ""))
+            pres_id = int(request.POST.get("president_id", ""))
+        except (ValueError, TypeError):
+            messages.error(request, "Sélection invalide.")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        js = JuryStudent.objects.select_related("student").filter(
+            pk=js_id, jury=jury
+        ).first()
+
+        if not js:
+            messages.error(request, "Étudiant introuvable dans ce jury.")
+        elif not jury.members.filter(professor_id=pres_id).exists():
+            messages.error(request, "Le président doit être membre du jury.")
+        elif js.student.encadrant_id == pres_id:
+            messages.error(
+                request,
+                "L'encadrant de l'étudiant ne peut pas être président de sa soutenance."
+            )
+        else:
+            JuryStudent.objects.filter(pk=js.pk).update(president_id=pres_id)
+            messages.success(
+                request, f"Président défini pour {js.student.full_name}."
+            )
+        return redirect("admin_jury_update", pk=jury.pk)
+
     return render(request, "soutenances/admin_jury_update.html", context)
 
 
