@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.decorators import role_required
-from soutenances.models import Evaluation, Jury, JuryStudent, PFERequest
+from soutenances.models import Evaluation, Jury, JuryMember, JuryStudent, PFERequest, Result
 from students.models import StudentProfile, StudentReference
 
 from .forms import (
@@ -719,4 +719,80 @@ def professor_submitted_notes(request):
     return render(request, "professors/professor_submitted_notes.html", {
         "professor": professor,
         "evaluations": evaluations,
+    })
+
+@login_required
+@role_required(["professor"])
+def professor_jury_student_dossier(request, jury_student_id):
+    professor = get_professor_profile(request)
+
+    if not professor:
+        messages.error(request, "Votre profil professeur n'est pas encore configuré.")
+        return redirect("professor_dashboard")
+
+    jury_student = get_object_or_404(
+        JuryStudent.objects.select_related(
+            "student",
+            "student__encadrant",
+            "jury",
+            "president",
+        ),
+        pk=jury_student_id,
+        jury__members__professor=professor,
+    )
+
+    pfe_request = PFERequest.objects.filter(student=jury_student.student).first()
+
+    return render(request, "professors/professor_jury_student_dossier.html", {
+        "jury_student": jury_student,
+        "pfe_request": pfe_request,
+        "professor": professor,
+    })
+
+
+@login_required
+@role_required(["professor"])
+def professor_president_results(request):
+    professor = get_professor_profile(request)
+
+    if not professor:
+        messages.error(request, "Votre profil professeur n'est pas encore configuré.")
+        return redirect("professor_dashboard")
+
+    assignments = JuryStudent.objects.filter(
+        president=professor,
+    ).select_related(
+        "student",
+        "student__encadrant",
+        "jury",
+        "result",
+    ).prefetch_related(
+        "evaluations__professor",
+    ).order_by(
+        "jury__defense_date",
+        "student__full_name",
+    )
+
+    rows = []
+    for assignment in assignments:
+        result = getattr(assignment, "result", None)
+        published_result = result if (result and result.is_published) else None
+
+        submitted_evals = [e for e in assignment.evaluations.all() if e.is_submitted]
+        computed_average = None
+        if len(submitted_evals) == 3:
+            from decimal import Decimal
+            notes = [e.final_note for e in submitted_evals]
+            computed_average = (sum(notes, Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
+
+        rows.append({
+            "assignment": assignment,
+            "published_result": published_result,
+            "computed_average": computed_average,
+            "evals_count": len(submitted_evals),
+        })
+
+    return render(request, "professors/professor_president_results.html", {
+        "professor": professor,
+        "rows": rows,
     })

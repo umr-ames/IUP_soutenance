@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}Dossier — {{ jury_student.student.full_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Membre du jury</span>
+        <h1>Dossier de soutenance</h1>
+        <p>{{ jury_student.student.full_name }} — {{ jury_student.jury.name }}</p>
+    </div>
+    <a href="{% url 'professor_my_juries' %}" class="btn btn-outline-secondary">Retour aux jurys</a>
+</div>
+
+<!-- Infos étudiant -->
+<div class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Étudiant</span>
+            <h3>Informations principales</h3>
+        </div>
+    </div>
+
+    <div class="row g-2 mt-2">
+        <div class="col-md-3">
+            <div class="timeline-item">
+                <span class="text-muted" style="font-size:.78rem; text-transform:uppercase; letter-spacing:.07em;">Matricule</span>
+                <strong class="d-block mt-1">{{ jury_student.student.matricule }}</strong>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="timeline-item">
+                <span class="text-muted" style="font-size:.78rem; text-transform:uppercase; letter-spacing:.07em;">Filière</span>
+                <strong class="d-block mt-1">{{ jury_student.student.filiere|default:"-" }}</strong>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="timeline-item">
+                <span class="text-muted" style="font-size:.78rem; text-transform:uppercase; letter-spacing:.07em;">Encadrant</span>
+                <strong class="d-block mt-1">{{ jury_student.student.encadrant.full_name }}</strong>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="timeline-item">
+                <span class="text-muted" style="font-size:.78rem; text-transform:uppercase; letter-spacing:.07em;">Président du jury</span>
+                <strong class="d-block mt-1">{{ jury_student.president.full_name|default:"Non défini" }}</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dossier PFE -->
+{% if pfe_request %}
+<div class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Demande de soutenance</span>
+            <h3>Documents soumis</h3>
+            <p class="text-muted mb-0">Pièces envoyées par l'étudiant.</p>
+        </div>
+        <div>
+            {% if pfe_request.status == 'accepted' %}
+                <span class="status-pill success">Dossier accepté</span>
+            {% elif pfe_request.status == 'pending_admin' %}
+                <span class="status-pill info">En attente département</span>
+            {% elif pfe_request.status == 'pending_professor' %}
+                <span class="status-pill warning">En attente encadrant</span>
+            {% else %}
+                <span class="status-pill muted">{{ pfe_request.get_status_display }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-2 mt-2">
+        <div class="col-md-6">
+            <div class="timeline-item d-flex align-items-center justify-content-between">
+                <div>
+                    <strong>Autorisation de soutenance</strong>
+                    <span class="d-block text-muted" style="font-size:.83rem;">Document obligatoire</span>
+                </div>
+                {% if pfe_request.authorization_document %}
+                    <a href="{{ pfe_request.authorization_document.url }}" target="_blank" class="btn btn-sm btn-outline-primary">Ouvrir</a>
+                {% else %}
+                    <span class="status-pill muted">Non envoyé</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="timeline-item d-flex align-items-center justify-content-between">
+                <div>
+                    <strong>Attestation de stage</strong>
+                    <span class="d-block text-muted" style="font-size:.83rem;">Document obligatoire</span>
+                </div>
+                {% if pfe_request.attestation_stage %}
+                    <a href="{{ pfe_request.attestation_stage.url }}" target="_blank" class="btn btn-sm btn-outline-primary">Ouvrir</a>
+                {% else %}
+                    <span class="status-pill muted">Non envoyé</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="timeline-item d-flex align-items-center justify-content-between">
+                <div>
+                    <strong>Rapport de stage</strong>
+                    <span class="d-block text-muted" style="font-size:.83rem;">Document obligatoire</span>
+                </div>
+                {% if pfe_request.rapport_stage %}
+                    <a href="{{ pfe_request.rapport_stage.url }}" target="_blank" class="btn btn-sm btn-outline-primary">Ouvrir</a>
+                {% else %}
+                    <span class="status-pill muted">Non envoyé</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if pfe_request.rapport_pfe %}
+        <div class="col-md-6">
+            <div class="timeline-item d-flex align-items-center justify-content-between">
+                <div>
+                    <strong>Rapport PFE</strong>
+                    <span class="d-block text-muted" style="font-size:.83rem;">Document complémentaire</span>
+                </div>
+                <a href="{{ pfe_request.rapport_pfe.url }}" target="_blank" class="btn btn-sm btn-outline-primary">Ouvrir</a>
+            </div>
+        </div>
+        {% endif %}
+        {% if pfe_request.fiche_demande %}
+        <div class="col-md-6">
+            <div class="timeline-item d-flex align-items-center justify-content-between">
+                <div>
+                    <strong>Fiche de demande</strong>
+                    <span class="d-block text-muted" style="font-size:.83rem;">Document complémentaire</span>
+                </div>
+                <a href="{{ pfe_request.fiche_demande.url }}" target="_blank" class="btn btn-sm btn-outline-primary">Ouvrir</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Historique -->
+    <div class="mt-3">
+        <h5 style="font-size:.85rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Historique de traitement</h5>
+        <div class="row g-2">
+            <div class="col-md-4">
+                <div class="timeline-item">
+                    <strong>1 — Dépôt étudiant</strong>
+                    <span class="d-block text-muted">{{ pfe_request.submitted_at|date:"d/m/Y H:i" }}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="timeline-item">
+                    <strong>2 — Validation encadrant</strong>
+                    <span class="d-block text-muted">
+                        {% if pfe_request.professor_reviewed_at %}{{ pfe_request.professor_reviewed_at|date:"d/m/Y H:i" }}{% else %}En attente{% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="timeline-item">
+                    <strong>3 — Département de l'IUP</strong>
+                    <span class="d-block text-muted">
+                        {% if pfe_request.admin_reviewed_at %}{{ pfe_request.admin_reviewed_at|date:"d/m/Y H:i" }}{% else %}En attente{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if pfe_request.admin_comment %}
+    <div class="mt-3" style="padding:12px 16px; border-radius:12px; background:rgba(249,115,22,.07); border:1px solid rgba(249,115,22,.18);">
+        <strong style="color:var(--orange-deep);">Commentaire du département de l'IUP</strong>
+        <p class="mb-0 mt-1">{{ pfe_request.admin_comment }}</p>
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="glass-card">
+    <div class="empty-state">Aucune demande de soutenance trouvée pour cet étudiant.</div>
+</div>
+{% endif %}
+
+{% endblock %}

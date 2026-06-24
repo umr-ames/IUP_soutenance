@@ -75,4 +75,16 @@ urlpatterns = [
         views.professor_submitted_notes,
         name="professor_submitted_notes"
     ),
+
+    path(
+        "juries/<int:jury_student_id>/dossier/",
+        views.professor_jury_student_dossier,
+        name="professor_jury_student_dossier"
+    ),
+
+    path(
+        "president/results/",
+        views.professor_president_results,
+        name="professor_president_results"
+    ),
 ]

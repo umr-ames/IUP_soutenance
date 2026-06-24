@@ -427,6 +427,10 @@
             <a href="{% url 'professor_evaluations' %}" class="btn btn-primary">
                 Évaluations
             </a>
+
+            <a href="{% url 'professor_president_results' %}" class="btn btn-outline-primary">
+                Notes finales (président)
+            </a>
         </div>
 
         <div class="jury-chip-row">
@@ -595,9 +599,14 @@
                                 {% endif %}
                                 </div>
 
-                                <a href="{% url 'professor_evaluation_detail' item.id %}" class="btn btn-sm btn-outline-primary">
-                                    Évaluer / voir
-                                </a>
+                                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                    <a href="{% url 'professor_evaluation_detail' item.id %}" class="btn btn-sm btn-outline-primary">
+                                        Évaluer / voir
+                                    </a>
+                                    <a href="{% url 'professor_jury_student_dossier' item.id %}" class="btn btn-sm btn-outline-secondary">
+                                        Dossier
+                                    </a>
+                                </div>
                             </div>
                         {% empty %}
                             <div class="empty-state">Aucun étudiant affecté à ce jury.</div>

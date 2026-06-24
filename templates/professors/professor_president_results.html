@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Notes finales — Président du jury{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Président du jury</span>
+        <h1>Notes finales</h1>
+        <p>Résultats publiés des étudiants dont vous êtes président de jury.</p>
+    </div>
+    <a href="{% url 'professor_my_juries' %}" class="btn btn-outline-secondary">Retour aux jurys</a>
+</div>
+
+{% if rows %}
+<div class="glass-card">
+    <table class="table" style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:2px solid var(--line);">
+                <th style="padding:10px 12px; text-align:left; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Étudiant</th>
+                <th style="padding:10px 12px; text-align:left; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Filière</th>
+                <th style="padding:10px 12px; text-align:left; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Encadrant</th>
+                <th style="padding:10px 12px; text-align:left; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Jury</th>
+                <th style="padding:10px 12px; text-align:left; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Date</th>
+                <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Évals soumises</th>
+                <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Moyenne /20</th>
+                <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Statut</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:12px; font-weight:700;">
+                    {{ row.assignment.student.full_name }}<br>
+                    <span style="font-size:.8rem; color:var(--muted); font-weight:500;">{{ row.assignment.student.matricule }}</span>
+                </td>
+                <td style="padding:12px; color:var(--muted);">{{ row.assignment.student.filiere|default:"-" }}</td>
+                <td style="padding:12px; color:var(--muted);">{{ row.assignment.student.encadrant.full_name }}</td>
+                <td style="padding:12px;">{{ row.assignment.jury.name }}</td>
+                <td style="padding:12px; white-space:nowrap;">{{ row.assignment.jury.defense_date|date:"d/m/Y" }}</td>
+                <td style="padding:12px; text-align:center;">
+                    <span class="status-pill {% if row.evals_count == 3 %}success{% else %}warning{% endif %}">
+                        {{ row.evals_count }}/3
+                    </span>
+                </td>
+                <td style="padding:12px; text-align:center; font-weight:900; font-size:1.05rem;">
+                    {% if row.published_result %}
+                        {{ row.published_result.average|default:"-" }}
+                    {% elif row.computed_average %}
+                        <span style="color:var(--muted);">{{ row.computed_average }} <small>(provisoire)</small></span>
+                    {% else %}
+                        <span style="color:var(--muted);">—</span>
+                    {% endif %}
+                </td>
+                <td style="padding:12px; text-align:center;">
+                    {% if row.published_result %}
+                        <span class="status-pill success">Publié</span>
+                    {% elif row.evals_count == 3 %}
+                        <span class="status-pill warning">En attente de publication</span>
+                    {% else %}
+                        <span class="status-pill muted">Évaluations incomplètes</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="glass-card">
+    <div class="empty-state">
+        Vous n'êtes président d'aucun jury pour le moment, ou aucun résultat n'est encore disponible.
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
