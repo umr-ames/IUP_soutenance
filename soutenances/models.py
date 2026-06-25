@@ -10,6 +10,38 @@ from professors.models import ProfessorAvailability, ProfessorProfile
 from students.models import StudentProfile
 
 
+# Seuil de validation : moyenne >= 10 (mention Passable ou supérieure).
+PASS_THRESHOLD = Decimal("10")
+
+
+def mention_for_average(average):
+    """Barème officiel des mentions de soutenance.
+
+    < 10            : Insuffisant (non validée)
+    10 <= m < 12    : Passable
+    12 <= m < 14    : Assez bien
+    14 <= m < 16    : Bien
+    16 <= m < 18    : Très bien
+    m >= 18         : Très bien avec les félicitations du jury
+    """
+    if average is None:
+        return None
+
+    average = Decimal(average)
+
+    if average >= Decimal("18"):
+        return "Très bien avec les félicitations du jury"
+    if average >= Decimal("16"):
+        return "Très bien"
+    if average >= Decimal("14"):
+        return "Bien"
+    if average >= Decimal("12"):
+        return "Assez bien"
+    if average >= Decimal("10"):
+        return "Passable"
+    return "Insuffisant"
+
+
 class Deadline(models.Model):
     title = models.CharField(max_length=255, default="Date limite des demandes")
     deadline_date = models.DateTimeField()
@@ -712,6 +744,14 @@ class Result(models.Model):
         self.is_published = True
         self.published_at = timezone.now()
         self.save()
+
+    @property
+    def mention(self):
+        return mention_for_average(self.average)
+
+    @property
+    def is_validated(self):
+        return self.average is not None and self.average >= PASS_THRESHOLD
 
     def __str__(self):
         return f"Résultat - {self.jury_student.student.full_name} - {self.average}"

@@ -18,29 +18,35 @@ FILIERES = ['DS', 'FINTECH', 'LGTR', 'RXTL', 'MAEF', 'MAN']
 
 
 def _mention(avg):
+    """Libellé court (pour graphiques / badges), aligné sur le barème officiel."""
     if avg is None:
         return '-'
     if avg >= 18:
-        return 'Excellent'
+        return 'Félicitations'
     if avg >= 16:
         return 'Très bien'
     if avg >= 14:
         return 'Bien'
     if avg >= 12:
+        return 'Assez bien'
+    if avg >= 10:
         return 'Passable'
     return 'Insuffisant'
 
 
 def _mention_display(avg):
+    """Libellé complet officiel."""
     if avg is None:
         return '-'
     if avg >= 18:
-        return 'Excellent'
+        return 'Très bien avec les félicitations du jury'
     if avg >= 16:
         return 'Très bien'
     if avg >= 14:
         return 'Bien'
     if avg >= 12:
+        return 'Assez bien'
+    if avg >= 10:
         return 'Passable'
     return 'Insuffisant'
 
@@ -536,8 +542,8 @@ def _compute_resultats():
     total_results = pub_results.count()
     global_avg_agg = pub_results.aggregate(a=Avg('average'))['a']
     global_avg_f = round(float(global_avg_agg), 2) if global_avg_agg else 0
-    # Seuil réussite : moyenne >= 12 (Passable ou supérieur), conformément aux mentions
-    passed = pub_results.filter(average__gte=12).count()
+    # Seuil réussite : moyenne >= 10 (Passable ou supérieur), conformément aux mentions
+    passed = pub_results.filter(average__gte=10).count()
     taux_reussite = round(passed / total_results * 100, 1) if total_results else 0
 
     all_evals = Evaluation.objects.filter(is_submitted=True)
@@ -548,8 +554,8 @@ def _compute_resultats():
     best_comp = max(comp_map, key=comp_map.get) if any(comp_map.values()) else '-'
     best_comp_avg = round(comp_map.get(best_comp, 0), 2)
 
-    MENTION_KEYS = ['Excellent', 'Très bien', 'Bien', 'Passable', 'Insuffisant']
-    MENTION_COLORS = ['#0d9488', '#6ee7b7', '#84cc16', '#fb923c', '#ef4444']
+    MENTION_KEYS = ['Félicitations', 'Très bien', 'Bien', 'Assez bien', 'Passable', 'Insuffisant']
+    MENTION_COLORS = ['#0d9488', '#22c55e', '#84cc16', '#facc15', '#fb923c', '#ef4444']
 
     filiere_data = []
     bar_avgs = []
@@ -580,7 +586,7 @@ def _compute_resultats():
 
         avg = f_results.aggregate(a=Avg('average'))['a']
         avg_f = round(float(avg), 2) if avg else 0
-        passed_f = f_results.filter(average__gte=12).count()
+        passed_f = f_results.filter(average__gte=10).count()
         taux_f = round(passed_f / f_count * 100, 1)
 
         js_ids = list(f_results.values_list('jury_student_id', flat=True))
@@ -597,18 +603,20 @@ def _compute_resultats():
         else:
             std = 0
 
-        mc = {'Excellent': 0, 'Très bien': 0, 'Bien': 0, 'Passable': 0, 'Insuffisant': 0}
+        mc = {k: 0 for k in MENTION_KEYS}
         for r in f_results:
             if r.average is None:
                 continue
             a = float(r.average)
             if a >= 18:
-                mc['Excellent'] += 1
+                mc['Félicitations'] += 1
             elif a >= 16:
                 mc['Très bien'] += 1
             elif a >= 14:
                 mc['Bien'] += 1
             elif a >= 12:
+                mc['Assez bien'] += 1
+            elif a >= 10:
                 mc['Passable'] += 1
             else:
                 mc['Insuffisant'] += 1

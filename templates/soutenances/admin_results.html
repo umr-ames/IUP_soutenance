@@ -339,6 +339,16 @@
         color: white;
     }
 
+    .criteria-chip.mention {
+        color: #14543a;
+        background: rgba(36, 144, 96, 0.13);
+        border-color: rgba(36, 144, 96, 0.18);
+    }
+
+    .criteria-chip.mention strong {
+        color: #14543a;
+    }
+
     .evaluations-list {
         display: grid;
         gap: 10px;
@@ -595,6 +605,9 @@
                     <span class="criteria-chip">Présentation <strong>{{ item.avg_presentation }}/20</strong> <small>·&nbsp;coef 0,30</small></span>
                     <span class="criteria-chip">Questions <strong>{{ item.avg_questions }}/20</strong> <small>·&nbsp;coef 0,40</small></span>
                     <span class="criteria-chip final">Moyenne finale <strong>{% if item.result and item.result.average %}{{ item.result.average }}{% else %}{{ item.computed_average }}{% endif %}/20</strong></span>
+                    {% if item.mention %}
+                        <span class="criteria-chip mention">Mention <strong>{{ item.mention }}</strong></span>
+                    {% endif %}
                 </div>
             {% endif %}
 

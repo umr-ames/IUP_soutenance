@@ -37,6 +37,7 @@ from .models import (
     JuryStudent,
     PFERequest,
     Result,
+    mention_for_average,
 )
 
 from .pdf import simple_pdf_response
@@ -1794,6 +1795,9 @@ def admin_results(request):
             avg_presentation = (sum((e.presentation_note for e in submitted_evaluations), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
             avg_questions = (sum((e.questions_note for e in submitted_evaluations), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
 
+        mention_average = result.average if (result and result.average is not None) else computed_average
+        mention = mention_for_average(mention_average) if mention_average is not None else None
+
         items.append({
             "assignment": assignment,
             "evaluations": submitted_evaluations,
@@ -1805,6 +1809,7 @@ def admin_results(request):
             "avg_rapport": avg_rapport,
             "avg_presentation": avg_presentation,
             "avg_questions": avg_questions,
+            "mention": mention,
         })
 
     return render(request, "soutenances/admin_results.html", {

@@ -7,7 +7,10 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.decorators import role_required
-from soutenances.models import Evaluation, Jury, JuryMember, JuryStudent, PFERequest, Result
+from soutenances.models import (
+    Evaluation, Jury, JuryMember, JuryStudent, PFERequest, Result,
+    mention_for_average,
+)
 from students.models import StudentProfile, StudentReference
 
 from .forms import (
@@ -791,6 +794,9 @@ def professor_president_results(request):
             avg_presentation = (sum((e.presentation_note for e in submitted_evals), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
             avg_questions = (sum((e.questions_note for e in submitted_evals), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
 
+        mention_average = published_result.average if published_result else computed_average
+        mention = mention_for_average(mention_average) if mention_average is not None else None
+
         rows.append({
             "assignment": assignment,
             "published_result": published_result,
@@ -798,6 +804,7 @@ def professor_president_results(request):
             "avg_rapport": avg_rapport,
             "avg_presentation": avg_presentation,
             "avg_questions": avg_questions,
+            "mention": mention,
             "evals_count": len(submitted_evals),
         })
 

@@ -431,7 +431,7 @@
                         {# Appréciation professionnelle selon la moyenne #}
                         {% if result.average >= 18 %}
                             <p class="mb-0" style="font-weight:800; color:#14532d; font-size:1rem;">
-                                Félicitations. Votre soutenance est validée avec la mention <strong>Excellent</strong>.
+                                Félicitations. Votre soutenance est validée avec la mention <strong>Très bien avec les félicitations du jury</strong>.
                             </p>
                         {% elif result.average >= 16 %}
                             <p class="mb-0" style="font-weight:800; color:#166534; font-size:1rem;">
@@ -442,6 +442,10 @@
                                 Votre soutenance est validée avec la mention <strong>Bien</strong>.
                             </p>
                         {% elif result.average >= 12 %}
+                            <p class="mb-0" style="font-weight:700; color:#3f6212; font-size:1rem;">
+                                Votre soutenance est validée avec la mention <strong>Assez bien</strong>.
+                            </p>
+                        {% elif result.average >= 10 %}
                             <p class="mb-0" style="font-weight:700; color:#3f6212; font-size:1rem;">
                                 Votre soutenance est validée avec la mention <strong>Passable</strong>.
                             </p>

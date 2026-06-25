@@ -27,6 +27,7 @@
                 <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Moy. Présentation<br><small style="font-weight:600; text-transform:none;">coef 0,30</small></th>
                 <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Moy. Questions<br><small style="font-weight:600; text-transform:none;">coef 0,40</small></th>
                 <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Moyenne /20</th>
+                <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Mention</th>
                 <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Statut</th>
             </tr>
         </thead>
@@ -60,6 +61,13 @@
                         {{ row.published_result.average|default:"-" }}
                     {% elif row.computed_average %}
                         <span style="color:var(--muted);">{{ row.computed_average }} <small>(provisoire)</small></span>
+                    {% else %}
+                        <span style="color:var(--muted);">—</span>
+                    {% endif %}
+                </td>
+                <td style="padding:12px; text-align:center; font-weight:700;">
+                    {% if row.mention %}
+                        {{ row.mention }}{% if not row.published_result and row.computed_average %} <small style="color:var(--muted); font-weight:600;">(provisoire)</small>{% endif %}
                     {% else %}
                         <span style="color:var(--muted);">—</span>
                     {% endif %}
