@@ -413,19 +413,7 @@
             </div>
         </div>
 
-        {% if not jury_student.presentation_started %}
-            <div class="locked-note mb-3">
-                La soutenance n’a pas encore démarré. Seul le président de soutenance peut la démarrer, depuis "Mes jurys".
-            </div>
-        {% elif is_pfe_non_soutenable %}
-            <div class="locked-note mb-3" style="color:#7d1f1f; background:rgba(220,38,38,0.09); border-color:rgba(220,38,38,0.20);">
-                &#10007; Ce PFE a été déclaré <strong>non soutenable</strong> par le président du jury. Aucune évaluation ne peut être saisie.
-            </div>
-        {% elif is_pfe_soutenable_pending %}
-            <div class="locked-note mb-3" style="color:#7c3f05; background:rgba(217,119,6,0.09); border-color:rgba(217,119,6,0.20);">
-                &#9679; Le président du jury doit d’abord confirmer que le PFE est soutenable avant que les évaluations puissent être saisies.
-            </div>
-        {% elif evaluation and evaluation.is_locked %}
+        {% if evaluation and evaluation.is_locked %}
             <div class="locked-note mb-3">
                 Cette évaluation est envoyée et verrouillée. Elle ne peut être modifiée que si le département de l'IUP la déverrouille.
             </div>
@@ -434,7 +422,7 @@
         <form method="post" id="evaluationForm">
             {% csrf_token %}
 
-            <fieldset {% if is_evaluation_locked or not jury_student.presentation_started or is_pfe_soutenable_pending or is_pfe_non_soutenable %}disabled{% endif %} style="border:none;padding:0;margin:0;">
+            <fieldset {% if is_evaluation_locked %}disabled{% endif %} style="border:none;padding:0;margin:0;">
             <div class="score-grid">
                 <div class="score-input-card">
                     <h3>Rapport</h3>
@@ -505,7 +493,7 @@
             {% endif %}
 
             <div class="actions-row">
-                {% if not jury_student.presentation_started or is_pfe_soutenable_pending or is_pfe_non_soutenable or evaluation and evaluation.is_locked %}
+                {% if evaluation and evaluation.is_locked %}
                     <a href="{% url 'professor_evaluations' %}" class="btn btn-outline-secondary">
                         Retour
                     </a>

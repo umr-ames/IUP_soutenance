@@ -614,27 +614,6 @@ def professor_evaluation_detail(request, jury_student_id):
         )
 
     if request.method == "POST":
-        if not jury_student.presentation_started:
-            messages.error(
-                request,
-                "La soutenance n'a pas encore démarré. Le président doit d'abord la démarrer."
-            )
-            return redirect("professor_evaluation_detail", jury_student_id=jury_student.id)
-
-        if jury_student.pfe_soutenable_status == JuryStudent.PFE_SOUTENABLE_PENDING:
-            messages.error(
-                request,
-                "Le président doit d'abord confirmer que le PFE est soutenable."
-            )
-            return redirect("professor_evaluation_detail", jury_student_id=jury_student.id)
-
-        if jury_student.pfe_soutenable_status == JuryStudent.PFE_SOUTENABLE_NON:
-            messages.error(
-                request,
-                "Ce PFE a été déclaré non soutenable. Aucune évaluation ne peut être saisie."
-            )
-            return redirect("professor_evaluation_detail", jury_student_id=jury_student.id)
-
         if existing_evaluation and existing_evaluation.is_locked:
             messages.error(
                 request,

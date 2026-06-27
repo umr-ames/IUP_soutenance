@@ -293,79 +293,6 @@
         border-color: rgba(107, 114, 128, 0.15);
     }
 
-    /* Alerte président dynamique */
-    .alert-president-now {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 14px 18px;
-        margin-bottom: 14px;
-        border-radius: 14px;
-        background: linear-gradient(135deg, rgba(22,163,74,0.08), rgba(22,163,74,0.04));
-        border: 1px solid rgba(22, 163, 74, 0.30);
-        color: #14532d;
-        font-size: 0.9rem;
-        font-weight: 600;
-    }
-
-    .alert-president-now .alert-icon { font-size: 1.3rem; flex-shrink: 0; }
-    .alert-president-now .alert-text { flex: 1; }
-    .alert-president-now .alert-text strong { display: block; font-size: 0.95rem; margin-bottom: 2px; }
-    .alert-president-now .alert-text span   { font-size: 0.82rem; color: #166534; font-weight: 500; }
-
-    .btn-start-now {
-        animation: pulse-green 1.8s ease-in-out infinite;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
-
-    @keyframes pulse-green {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45); }
-        50%       { box-shadow: 0 0 0 7px rgba(22, 163, 74, 0); }
-    }
-
-    /* Timer soutenance */
-    .defense-timer {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 12px;
-        border-radius: 999px;
-        font-size: 0.82rem;
-        font-weight: 900;
-        background: rgba(22, 163, 74, 0.10);
-        border: 1px solid rgba(22, 163, 74, 0.25);
-        color: #14532d;
-        white-space: nowrap;
-    }
-    .defense-timer.expired {
-        background: rgba(220, 38, 38, 0.10);
-        border-color: rgba(220, 38, 38, 0.25);
-        color: #7d1f1f;
-    }
-
-    /* Décision soutenable */
-    .soutenable-block {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        margin-top: 8px;
-        padding: 10px 14px;
-        border-radius: 14px;
-        background: rgba(249, 115, 22, 0.07);
-        border: 1px solid rgba(249, 115, 22, 0.16);
-    }
-    .soutenable-block span { font-size: 0.85rem; font-weight: 700; color: var(--text); flex: 1; }
-    .badge-soutenable {
-        display: inline-flex; align-items: center; gap: 5px;
-        padding: 5px 11px; border-radius: 999px; font-size: 0.8rem; font-weight: 850;
-        white-space: nowrap;
-    }
-    .badge-soutenable.oui { background: rgba(22,163,74,0.12); border: 1px solid rgba(22,163,74,0.22); color: #14532d; }
-    .badge-soutenable.non { background: rgba(220,38,38,0.10); border: 1px solid rgba(220,38,38,0.22); color: #7d1f1f; }
-    .badge-soutenable.pending { background: rgba(217,119,6,0.12); border: 1px solid rgba(217,119,6,0.18); color: #7c3f05; }
-
     .no-result {
         display: none;
     }
@@ -460,7 +387,7 @@
 <section class="glass-card" style="margin-bottom:18px; border-left:5px solid #d97706; background:linear-gradient(135deg,#fff7e6,#fdeccd);">
     <strong style="color:#92400e; font-size:1rem;">Président du jury — documents obligatoires au début de chaque soutenance</strong>
     <p style="margin:6px 0 8px; color:#7c4a03; font-size:0.9rem;">
-        Avant de démarrer la soutenance, vérifiez que l'étudiant fournit obligatoirement :
+        Au début de la soutenance, vérifiez que l'étudiant fournit obligatoirement :
     </p>
     <ol style="margin:0; padding-left:20px; color:#5b3503; font-weight:600; line-height:1.6;">
         <li>Attestation de stage (originale).</li>
@@ -492,8 +419,6 @@
             </div>
 
             {# Conteneur d'alertes dynamiques — rempli par JS #}
-            <div class="js-alerts-container" style="margin-bottom:0;"></div>
-
             <div class="jury-content">
                 <div class="members-card">
                     <div class="block-label">Membres</div>
@@ -511,17 +436,7 @@
 
                     <div class="student-list">
                         {% for item in jury.students.all %}
-                            {# data-president : 1 si cet utilisateur est le président pour cet étudiant #}
-                            {# data-start-iso : date+heure ISO locale du créneau (vide si pas de schedule) #}
-                            <div class="student-card"
-                                 data-president="{% if item.president and item.president.user_id == request.user.id and not item.presentation_started %}1{% else %}0{% endif %}"
-                                 data-started="{% if item.presentation_started %}1{% else %}0{% endif %}"
-                                 data-start-iso="{% if item.schedule %}{{ jury.defense_date|date:'Y-m-d' }}T{{ item.schedule.start_time|time:'H:i:s' }}{% endif %}"
-                                 data-started-at="{% if item.presentation_started_at %}{{ item.presentation_started_at|date:'Y-m-d' }}T{{ item.presentation_started_at|time:'H:i:s' }}{% endif %}"
-                                 data-student-name="{{ item.student.full_name }}"
-                                 data-schedule-label="{% if item.schedule %}{{ item.schedule.start_time|time:'H:i' }}{% endif %}"
-                                 data-soutenable="{{ item.pfe_soutenable_status }}"
-                                 data-is-president="{% if item.president and item.president.user_id == request.user.id %}1{% else %}0{% endif %}">
+                            <div class="student-card">
 
                                 <div class="student-avatar">
                                     {{ item.student.full_name|slice:":1"|upper }}
@@ -534,70 +449,15 @@
                                         {% if item.student.filiere %}· {{ item.student.filiere }}{% endif %}
                                         · Encadrant : {{ item.student.encadrant.full_name }}
                                     </span>
-                                    {# Décision soutenable — visible dès que la soutenance est démarrée #}
-                                    {% if item.presentation_started %}
-                                        {% if item.pfe_soutenable_status == 'soutenable' %}
-                                            <span class="badge-soutenable oui" style="margin-top:6px;">&#10003; PFE soutenable</span>
-                                        {% elif item.pfe_soutenable_status == 'non_soutenable' %}
-                                            <span class="badge-soutenable non" style="margin-top:6px;">&#10007; PFE non soutenable</span>
-                                        {% else %}
-                                            <span class="badge-soutenable pending" style="margin-top:6px;">&#9679; Décision soutenable en attente</span>
-                                        {% endif %}
-                                    {% endif %}
                                 </div>
 
-                                {% if item.presentation_started %}
-                                    <span class="time-pill" title="Horaire réel de la soutenance"
-                                          style="background:rgba(13,148,136,.10); color:#0f5e59; border:1px solid rgba(13,148,136,.28);">
-                                        Réel : {{ item.presentation_started_at|date:"d/m H:i" }} – {{ item.presentation_end_at|time:"H:i" }}
-                                    </span>
-                                {% elif item.schedule %}
+                                {% if item.schedule %}
                                     <span class="time-pill">
                                         {{ item.schedule.start_time|time:"H:i" }} – {{ item.schedule.end_time|time:"H:i" }}
                                     </span>
                                 {% else %}
                                     <span class="time-pill warning">Non planifié</span>
                                 {% endif %}
-
-                                {# Zone d'action — JS prend le relais pour le président #}
-                                <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-start;">
-                                {% if item.presentation_started %}
-                                    {# Timer dynamique — JS met à jour toutes les secondes #}
-                                    <span class="defense-timer js-defense-timer">
-                                        Soutenance démarrée
-                                    </span>
-                                    {# Boutons soutenable — uniquement pour le président, si décision non prise #}
-                                    {% if item.president and item.president.user_id == request.user.id and item.pfe_soutenable_status == 'pending' %}
-                                        <div class="soutenable-block">
-                                            <span>PFE soutenable ?</span>
-                                            <form method="post" action="{% url 'professor_set_pfe_soutenable' item.id %}" style="display:inline;">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="action" value="soutenable">
-                                                <button type="submit" class="btn btn-sm btn-success">Oui</button>
-                                            </form>
-                                            <form method="post" action="{% url 'professor_set_pfe_soutenable' item.id %}" style="display:inline;">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="action" value="non_soutenable">
-                                                <button type="submit" class="btn btn-sm btn-danger">Non soutenable</button>
-                                            </form>
-                                        </div>
-                                    {% endif %}
-                                {% elif item.president and item.president.user_id == request.user.id %}
-                                    {# Bouton démarrer — caché initialement, révélé par JS à l'heure #}
-                                    <form class="js-start-form" method="post"
-                                          action="{% url 'professor_start_presentation' item.id %}"
-                                          style="display:none;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-sm btn-success btn-start-now">
-                                            &#9654; Démarrer la soutenance
-                                        </button>
-                                    </form>
-                                    {# "En attente" — visible par défaut, caché par JS à l'heure #}
-                                    <span class="time-pill muted js-waiting-pill">En attente du créneau</span>
-                                {% else %}
-                                    <span class="time-pill warning">Pas encore démarrée</span>
-                                {% endif %}
-                                </div>
 
                                 <div style="display:flex; gap:6px; flex-wrap:wrap;">
                                     <a href="{% url 'professor_evaluation_detail' item.id %}" class="btn btn-sm btn-outline-primary">
@@ -645,88 +505,5 @@ if (jurySearch) {
     });
 }
 
-/* ── Alerte président automatique (polling 10 s) ─────────────────── */
-function checkPresidentAlerts() {
-    const now = new Date();
-
-    document.querySelectorAll('.student-card[data-president="1"]').forEach(function (card) {
-        const isoStr    = card.getAttribute('data-start-iso');
-        const name      = card.getAttribute('data-student-name');
-        const label     = card.getAttribute('data-schedule-label');
-        const startForm = card.querySelector('.js-start-form');
-        const waitPill  = card.querySelector('.js-waiting-pill');
-
-        if (!isoStr) return;   /* pas de créneau planifié */
-
-        const startTime = new Date(isoStr);
-        const isTime    = now >= startTime;
-
-        if (isTime) {
-            /* Révéler le bouton, masquer "En attente" */
-            if (startForm)  startForm.style.display  = '';
-            if (waitPill)   waitPill.style.display    = 'none';
-
-            /* Injecter l'alerte dans le conteneur du jury-card parent */
-            const juryCard       = card.closest('.jury-card');
-            const alertContainer = juryCard ? juryCard.querySelector('.js-alerts-container') : null;
-            if (alertContainer && !alertContainer.querySelector('[data-alert-for="' + name + '"]')) {
-                const alert = document.createElement('div');
-                alert.className = 'alert-president-now';
-                alert.setAttribute('data-alert-for', name);
-                alert.innerHTML =
-                    '<span class="alert-icon">&#128994;</span>' +
-                    '<div class="alert-text">' +
-                        '<strong>C\'est l\'heure de démarrer la soutenance de ' + name + '</strong>' +
-                        '<span>Créneau prévu à ' + label + '. Cliquez sur « Démarrer » dans la ligne de l\'étudiant.</span>' +
-                    '</div>';
-                alertContainer.appendChild(alert);
-                alertContainer.style.marginBottom = '14px';
-            }
-        } else {
-            /* L'heure n'est pas encore arrivée — s'assurer que le bouton est masqué */
-            if (startForm) startForm.style.display = 'none';
-            if (waitPill)  waitPill.style.display  = '';
-        }
-    });
-}
-
-/* Vérification immédiate au chargement puis toutes les 10 s */
-checkPresidentAlerts();
-setInterval(checkPresidentAlerts, 10000);
-
-/* ── Timer 20 min par soutenance démarrée ────────────────────────── */
-const DEFENSE_DURATION_MS = 20 * 60 * 1000;
-
-function pad2(n) { return n < 10 ? '0' + n : '' + n; }
-
-function updateDefenseTimers() {
-    const now = new Date();
-    document.querySelectorAll('.student-card[data-started="1"]').forEach(function (card) {
-        const startedAtIso = card.getAttribute('data-started-at');
-        const timerEl = card.querySelector('.js-defense-timer');
-        if (!startedAtIso || !timerEl) return;
-
-        const startedAt = new Date(startedAtIso);
-        const endAt = new Date(startedAt.getTime() + DEFENSE_DURATION_MS);
-        const remaining = endAt - now;
-
-        var endH = pad2(endAt.getHours());
-        var endM = pad2(endAt.getMinutes());
-
-        if (remaining <= 0) {
-            timerEl.classList.add('expired');
-            timerEl.textContent = 'Temps ecoule — fin prevue ' + endH + ':' + endM;
-        } else {
-            timerEl.classList.remove('expired');
-            var totalSec = Math.ceil(remaining / 1000);
-            var mins = Math.floor(totalSec / 60);
-            var secs = totalSec % 60;
-            timerEl.textContent = 'En cours — ' + pad2(mins) + ':' + pad2(secs) + ' restant(es) (fin ' + endH + ':' + endM + ')';
-        }
-    });
-}
-
-updateDefenseTimers();
-setInterval(updateDefenseTimers, 1000);
 </script>
 {% endblock %}
