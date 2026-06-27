@@ -8,7 +8,10 @@
         <h1>Étudiants</h1>
         <p>Liste des profils étudiants et de leurs encadrants.</p>
     </div>
-    <a class="btn btn-primary" href="{% url 'admin_import_people' %}">Importer</a>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-outline-primary" href="{% url 'admin_check_official_list' %}">Vérifier la liste officielle</a>
+        <a class="btn btn-primary" href="{% url 'admin_import_people' %}">Importer</a>
+    </div>
 </div>
 
 <section class="content-panel">

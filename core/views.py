@@ -272,6 +272,40 @@ def admin_student_list(request):
 
 @login_required
 @role_required(["admin"])
+def admin_check_official_list(request):
+    """Vérifie si un étudiant figure sur la liste officielle (StudentReference)
+    par matricule ou nom, et affiche ses informations même s'il n'est pas encore
+    inscrit sur la plateforme."""
+    query = (request.GET.get("q") or "").strip()
+    results = []
+    searched = bool(query)
+
+    if query:
+        references = StudentReference.objects.filter(
+            Q(matricule__iexact=query) | Q(full_name__icontains=query)
+        ).order_by("full_name")[:50]
+
+        for reference in references:
+            profile = StudentProfile.objects.filter(
+                matricule__iexact=reference.matricule
+            ).select_related("user").first()
+
+            results.append({
+                "reference": reference,
+                "is_registered": profile is not None,
+                "profile": profile,
+                "phone": profile.user.phone_number if profile and profile.user else None,
+            })
+
+    return render(request, "core/admin_check_official.html", {
+        "query": query,
+        "searched": searched,
+        "results": results,
+    })
+
+
+@login_required
+@role_required(["admin"])
 def admin_professor_list(request):
     professors = ProfessorProfile.objects.select_related("user").annotate(
         supervised_count=Count("students", distinct=True),

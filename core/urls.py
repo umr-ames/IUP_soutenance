@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.dashboard_redirect, name="dashboard"),
     path("admin-dashboard/", views.admin_dashboard, name="admin_dashboard"),
     path("admin-dashboard/students/", views.admin_student_list, name="admin_student_list"),
+    path("admin-dashboard/students/verifier-liste-officielle/", views.admin_check_official_list, name="admin_check_official_list"),
     path("admin-dashboard/students/<int:pk>/reset-password/", views.admin_reset_student_password, name="admin_reset_student_password"),
     path("admin-dashboard/professors/", views.admin_professor_list, name="admin_professor_list"),
     path("admin-dashboard/encadrant-etudiants/", views.admin_professor_students, name="admin_professor_students"),
