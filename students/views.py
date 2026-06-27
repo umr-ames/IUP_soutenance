@@ -8,7 +8,7 @@ from documents.models import DocumentTemplate
 from soutenances.forms import PFERequestForm
 from soutenances.models import Deadline, PFERequest
 
-from .models import StudentReference
+from .models import StudentReference, normalize_matricule
 
 
 def get_active_deadline():
@@ -165,6 +165,15 @@ def lookup_student_reference(request):
         return JsonResponse({"found": False})
 
     reference = StudentReference.objects.filter(matricule__iexact=matricule).first()
+
+    if not reference:
+        # Repli tolérant (espaces insécables, caractères invisibles, casse)
+        target = normalize_matricule(matricule)
+        if target:
+            for candidate in StudentReference.objects.all():
+                if normalize_matricule(candidate.matricule) == target:
+                    reference = candidate
+                    break
 
     if not reference:
         return JsonResponse({"found": False})

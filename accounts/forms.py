@@ -6,8 +6,32 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from .models import CustomUser
-from students.models import StudentProfile, StudentReference
+from students.models import StudentProfile, StudentReference, normalize_matricule
 from professors.models import ProfessorProfile
+
+
+def find_student_reference(matricule):
+    """Retourne la fiche officielle correspondant au matricule, en tolérant les
+    espaces, caractères invisibles et la casse (cf. normalize_matricule)."""
+    if not matricule:
+        return None
+
+    target = normalize_matricule(matricule)
+    if not target:
+        return None
+
+    # Correspondance directe (cas nominal, données déjà propres)
+    reference = StudentReference.objects.filter(matricule__iexact=matricule).first()
+    if reference:
+        return reference
+
+    # Repli tolérant : compare les matricules normalisés (données historiques
+    # contenant un espace insécable / caractère invisible).
+    for candidate in StudentReference.objects.all():
+        if normalize_matricule(candidate.matricule) == target:
+            return candidate
+
+    return None
 
 
 PHONE_NUMBER_PATTERN = re.compile(r"^[234][0-9]{7}$")
@@ -169,17 +193,19 @@ class StudentRegisterForm(forms.Form):
     )
 
     def clean_matricule(self):
-        matricule = (self.cleaned_data.get('matricule') or '').strip()
+        matricule = normalize_matricule(self.cleaned_data.get('matricule'))
 
-        if StudentProfile.objects.filter(matricule=matricule).exists():
+        if StudentProfile.objects.filter(matricule__iexact=matricule).exists():
             raise forms.ValidationError("Ce matricule existe déjà.")
 
-        if not StudentReference.objects.filter(matricule__iexact=matricule).exists():
+        reference = find_student_reference(matricule)
+        if reference is None:
             raise forms.ValidationError(
                 "Ce matricule n'est pas dans la liste officielle."
             )
 
-        return matricule
+        # On enregistre le matricule officiel normalisé (cohérence aval).
+        return normalize_matricule(reference.matricule)
 
     def clean_phone_number(self):
         phone_number = clean_mauritanian_phone_number(
@@ -215,9 +241,7 @@ class StudentRegisterForm(forms.Form):
                 self.add_error('password1', error)
 
         if matricule:
-            reference = StudentReference.objects.filter(
-                matricule__iexact=matricule
-            ).first()
+            reference = find_student_reference(matricule)
 
             if reference:
                 cleaned_data['full_name'] = reference.full_name

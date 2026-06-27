@@ -10,7 +10,7 @@ from django.db import transaction
 from accounts.models import CustomUser
 from professors.models import ProfessorAvailability, ProfessorProfile
 from soutenances.models import Evaluation, JuryMember, JuryStudent, Note, PFERequest
-from students.models import StudentProfile, StudentReference
+from students.models import StudentProfile, StudentReference, normalize_matricule
 
 
 COLUMN_ALIASES = {
@@ -125,7 +125,7 @@ class Command(BaseCommand):
                 ignored += 1
                 continue
 
-            matricule = (raw_row.get("matricule") or "").strip()
+            matricule = normalize_matricule(raw_row.get("matricule"))
 
             if not matricule:
                 ignored += 1

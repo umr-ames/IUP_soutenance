@@ -16,7 +16,7 @@ from accounts.decorators import role_required
 from accounts.models import CustomUser
 from documents.models import DocumentTemplate
 from professors.models import ProfessorProfile
-from students.models import StudentProfile, StudentReference
+from students.models import StudentProfile, StudentReference, normalize_matricule
 from soutenances.models import (
     Deadline,
     DefenseSchedule,
@@ -281,9 +281,19 @@ def admin_check_official_list(request):
     searched = bool(query)
 
     if query:
-        references = StudentReference.objects.filter(
+        references = list(StudentReference.objects.filter(
             Q(matricule__iexact=query) | Q(full_name__icontains=query)
-        ).order_by("full_name")[:50]
+        ).order_by("full_name")[:50])
+
+        # Repli tolérant sur le matricule (espaces insécables / caractères
+        # invisibles / casse) si la recherche directe ne donne rien.
+        if not references:
+            target = normalize_matricule(query)
+            if target:
+                for candidate in StudentReference.objects.all():
+                    if normalize_matricule(candidate.matricule) == target:
+                        references = [candidate]
+                        break
 
         for reference in references:
             profile = StudentProfile.objects.filter(
