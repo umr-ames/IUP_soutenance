@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta
+from datetime import date as date_cls, datetime, time, timedelta
 from itertools import combinations
 
 from django.contrib import messages
@@ -37,6 +37,7 @@ from .models import (
     JuryStudent,
     PFERequest,
     Result,
+    FiliereExpert,
     mention_for_average,
 )
 
@@ -45,6 +46,10 @@ from .pdf import simple_pdf_response
 
 DEFENSE_DURATION_MINUTES = 20
 MAX_SIMULTANEOUS_JURIES = 8
+
+# Date limite des soutenances : aucune soutenance possible après cette date.
+DEFENSE_DEADLINE = date_cls(2026, 7, 10)
+DAY_START_TIME = time(9, 0)
 
 
 @login_required
@@ -248,6 +253,57 @@ def admin_deadline(request):
 
 @login_required
 @role_required(["admin"])
+def admin_expert_groups(request):
+    """Gestion des groupes d'experts par filière (un expert = professeur de
+    référence de la filière, distinct de l'encadrant lors des jurys)."""
+    filieres = [c for c in StudentProfile.FILIERE_CHOICES if c[0]]
+    professors = list(ProfessorProfile.objects.order_by("full_name"))
+
+    if request.method == "POST":
+        for filiere_value, _label in filieres:
+            posted_ids = set(request.POST.getlist(f"expert_{filiere_value}"))
+            posted_ids = {int(pid) for pid in posted_ids if pid.isdigit()}
+
+            FiliereExpert.objects.filter(filiere=filiere_value).exclude(
+                professor_id__in=posted_ids
+            ).delete()
+
+            existing = set(
+                FiliereExpert.objects.filter(filiere=filiere_value).values_list(
+                    "professor_id", flat=True
+                )
+            )
+            for pid in posted_ids - existing:
+                FiliereExpert.objects.create(filiere=filiere_value, professor_id=pid)
+
+        messages.success(request, "Groupes d'experts mis à jour.")
+        return redirect("admin_expert_groups")
+
+    experts_by_filiere = {value: set() for value, _ in filieres}
+    for entry in FiliereExpert.objects.all():
+        if entry.filiere in experts_by_filiere:
+            experts_by_filiere[entry.filiere].add(entry.professor_id)
+
+    groups = []
+    for value, label in filieres:
+        selected_ids = experts_by_filiere.get(value, set())
+        groups.append({
+            "value": value,
+            "label": label,
+            "count": len(selected_ids),
+            "professors": [
+                {"id": p.id, "full_name": p.full_name, "checked": p.id in selected_ids}
+                for p in professors
+            ],
+        })
+
+    return render(request, "soutenances/admin_expert_groups.html", {
+        "groups": groups,
+    })
+
+
+@login_required
+@role_required(["admin"])
 def admin_jury_list(request):
     juries = Jury.objects.prefetch_related(
         "members__professor",
@@ -317,6 +373,10 @@ def admin_generate_juries_targeted(request):
                 list(form.cleaned_data["professors"]),
                 form.cleaned_data["num_juries"],
             )
+            if result.get("error"):
+                messages.error(request, result["error"])
+                return render(request, "soutenances/admin_generate_targeted.html", {"form": form})
+
             messages.success(
                 request,
                 f"{result['created']} jury(s) créé(s), "
@@ -340,93 +400,215 @@ def admin_generate_juries_targeted(request):
 
 @transaction.atomic
 def generate_targeted_juries(defense_date, students, professors, num_juries):
-    """Crée jusqu'à num_juries jurys le jour choisi à partir des étudiants et
-    professeurs sélectionnés. Chaque jury : 3 professeurs distincts (encadrants
-    inclus), créneaux de 20 min, président ≠ encadrant. Jurys parallèles (profs
-    disjoints) → pas de conflit."""
+    """Génère les jurys ciblés en respectant :
+    - la date limite des soutenances (DEFENSE_DEADLINE) ;
+    - les disponibilités déclarées des membres (obligatoire) ;
+    - la priorité aux jurys mono-filière avec un expert de la filière
+      (différent de l'encadrant) ; à défaut, au moins un expert ≠ encadrant.
+    Chaque jury : 3 professeurs distincts (encadrants inclus), créneaux de 20 min,
+    président ≠ encadrant.
+    """
     from collections import defaultdict
 
-    result = {"created": 0, "assigned": 0, "scheduled": 0, "skipped": [], "juries": []}
+    result = {
+        "created": 0, "assigned": 0, "scheduled": 0,
+        "skipped": [], "juries": [], "error": None,
+    }
 
-    prof_ids = {p.id for p in professors}
-    enc_obj = {p.id: p for p in professors}
+    if defense_date > DEFENSE_DEADLINE:
+        result["error"] = (
+            f"Aucune soutenance n'est possible après le "
+            f"{DEFENSE_DEADLINE.strftime('%d/%m/%Y')}."
+        )
+        return result
 
+    prof_by_id = {p.id: p for p in professors}
+    prof_ids = set(prof_by_id)
+
+    # Experts par filière, restreints aux professeurs sélectionnés.
+    experts_by_filiere = defaultdict(set)
+    for entry in FiliereExpert.objects.filter(professor_id__in=prof_ids):
+        experts_by_filiere[entry.filiere].add(entry.professor_id)
+    all_expert_ids = set().union(*experts_by_filiere.values()) if experts_by_filiere else set()
+
+    # 1. Étudiants exploitables (acceptés + encadrant sélectionné).
     ready = []
     for student in students:
-        if student.encadrant_id in prof_ids:
-            ready.append(student)
-        else:
+        if student.encadrant_id not in prof_ids:
             result["skipped"].append((student, "encadrant non sélectionné"))
+        else:
+            ready.append(student)
 
     if not ready:
         return result
 
+    # 2. Regroupement par encadrant (en conservant la filière).
     by_enc = defaultdict(list)
     for student in ready:
         by_enc[student.encadrant_id].append(student)
 
-    enc_ids_sorted = sorted(by_enc.keys(), key=lambda eid: -len(by_enc[eid]))
+    enc_filiere = {}
+    for eid, group in by_enc.items():
+        enc_filiere[eid] = group[0].filiere or ""
 
+    # 3. Répartition des encadrants dans num_juries bandes, priorité mono-filière
+    #    et au plus 2 encadrants par jury (1 place réservée à l'expert).
     n = max(1, num_juries)
-    buckets = [{"members": [], "students": []} for _ in range(n)]
+    buckets = [
+        {"filiere": None, "enc_ids": [], "students": []} for _ in range(n)
+    ]
+    enc_sorted = sorted(by_enc.keys(), key=lambda e: (enc_filiere[e], -len(by_enc[e])))
 
-    for eid in enc_ids_sorted:
-        candidates = [b for b in buckets if len(b["members"]) < 3]
-        if not candidates:
+    for eid in enc_sorted:
+        fil = enc_filiere[eid]
+        target = None
+        # a) bande de même filière avec une place d'encadrant libre
+        same = [b for b in buckets if b["filiere"] == fil and len(b["enc_ids"]) < 2]
+        if same:
+            target = min(same, key=lambda b: len(b["students"]))
+        else:
+            # b) bande vide
+            empty = [b for b in buckets if not b["enc_ids"]]
+            if empty:
+                target = empty[0]
+                target["filiere"] = fil
+            else:
+                # c) repli : bande avec place d'encadrant libre (filières mêlées)
+                room = [b for b in buckets if len(b["enc_ids"]) < 2]
+                if room:
+                    target = min(room, key=lambda b: len(b["students"]))
+        if target is None:
             for student in by_enc[eid]:
-                result["skipped"].append((student, "pas assez de jurys pour placer cet encadrant"))
+                result["skipped"].append((student, "pas assez de jurys disponibles"))
             continue
-        bucket = min(candidates, key=lambda b: len(b["students"]))
-        bucket["members"].append(enc_obj[eid])
-        bucket["students"].extend(by_enc[eid])
+        target["enc_ids"].append(eid)
+        target["students"].extend(by_enc[eid])
 
-    used = {p.id for b in buckets for p in b["members"]}
-    fillers = [p for p in professors if p.id not in used]
-    fi = 0
+    # Les encadrants ne servent que dans leur propre jury : on les exclut des
+    # pools d'experts / remplissage pour ne pas les rendre indisponibles ailleurs.
+    all_enc_ids = set(by_enc.keys())
+    used_prof_ids = set()  # professeurs déjà engagés (jurys parallèles disjoints)
 
     for bucket in buckets:
         if not bucket["students"]:
             continue
-        while len(bucket["members"]) < 3 and fi < len(fillers):
-            bucket["members"].append(fillers[fi])
-            fi += 1
-        if len(bucket["members"]) < 3:
-            for student in bucket["students"]:
-                result["skipped"].append((student, "pas assez de professeurs pour compléter le jury"))
+
+        enc_ids = list(dict.fromkeys(bucket["enc_ids"]))
+
+        # 3a. Bloc provisoire pour tester la disponibilité des encadrants.
+        full_block = DEFENSE_DURATION_MINUTES * len(bucket["students"])
+        kept_enc = []
+        for eid in enc_ids:
+            p = prof_by_id[eid]
+            if is_professor_available(p, defense_date, DAY_START_TIME, full_block):
+                kept_enc.append(eid)
+            else:
+                for student in [s for s in bucket["students"] if s.encadrant_id == eid]:
+                    result["skipped"].append(
+                        (student, f"encadrant indisponible ({p.full_name})")
+                    )
+
+        bucket_students = [s for s in bucket["students"] if s.encadrant_id in kept_enc]
+        if not bucket_students:
             continue
 
+        n_students = len(bucket_students)
+        block_minutes = DEFENSE_DURATION_MINUTES * n_students
+        bucket_filieres = {s.filiere or "" for s in bucket_students}
+
+        members = [prof_by_id[e] for e in kept_enc]
+        members_ids = {p.id for p in members}
+
+        def can_use(pid):
+            if pid in members_ids or pid in used_prof_ids or pid in all_enc_ids:
+                return False
+            return is_professor_available(
+                prof_by_id[pid], defense_date, DAY_START_TIME, block_minutes
+            )
+
+        # 3b. Ajouter un expert de la filière (≠ encadrants), disponible.
+        has_expert = False
+        for fil in bucket_filieres:
+            if len(members) >= 3:
+                break
+            candidates = [
+                pid for pid in experts_by_filiere.get(fil, set())
+                if pid not in kept_enc and can_use(pid)
+            ]
+            if candidates:
+                pid = candidates[0]
+                members.append(prof_by_id[pid])
+                members_ids.add(pid)
+                has_expert = True
+
+        # 3c. Compléter à 3 avec des professeurs disponibles. On privilégie les
+        #     non-experts pour réserver les experts à leur propre filière.
+        non_experts = [pid for pid in prof_ids if pid not in all_expert_ids]
+        expert_fillers = [pid for pid in prof_ids if pid in all_expert_ids]
+        for pid in non_experts + expert_fillers:
+            if len(members) >= 3:
+                break
+            if can_use(pid):
+                members.append(prof_by_id[pid])
+                members_ids.add(pid)
+
+        if len(members) < 3:
+            for student in bucket_students:
+                result["skipped"].append(
+                    (student, "pas assez de professeurs disponibles pour compléter le jury")
+                )
+            continue
+
+        # 4. Création du jury et planification (save() vérifie dispo + conflits).
         idx = result["created"] + 1
         jury = Jury.objects.create(
             name=f"Jury {defense_date.strftime('%d/%m')} #{idx}",
             defense_date=defense_date,
             is_validated=False,
         )
-        for professor in bucket["members"]:
+        for professor in members:
             JuryMember.objects.create(jury=jury, professor=professor)
+        used_prof_ids.update(members_ids)
         result["created"] += 1
 
-        cursor = datetime.combine(defense_date, time(9, 0))
-        schedules = []
-        for student in sorted(bucket["students"], key=lambda s: s.full_name.lower()):
+        cursor = datetime.combine(defense_date, DAY_START_TIME)
+        scheduled_here = 0
+        for student in sorted(bucket_students, key=lambda s: s.full_name.lower()):
+            # Président : un expert de la filière de préférence, sinon tout
+            # membre ≠ encadrant de l'étudiant.
+            student_experts = experts_by_filiere.get(student.filiere or "", set())
             president = next(
-                (p for p in bucket["members"] if p.id != student.encadrant_id), None
+                (m for m in members
+                 if m.id != student.encadrant_id and m.id in student_experts),
+                None,
+            ) or next(
+                (m for m in members if m.id != student.encadrant_id), None
             )
-            js = JuryStudent.objects.create(student=student, jury=jury, president=president)
-            schedules.append(DefenseSchedule(
-                jury_student=js,
-                start_time=cursor.time(),
-                end_time=(cursor + timedelta(minutes=20)).time(),
-                duration_minutes=20,
-            ))
+            js = JuryStudent.objects.create(
+                student=student, jury=jury, president=president
+            )
+            try:
+                DefenseSchedule.objects.create(
+                    jury_student=js,
+                    start_time=cursor.time(),
+                    end_time=(cursor + timedelta(minutes=DEFENSE_DURATION_MINUTES)).time(),
+                    duration_minutes=DEFENSE_DURATION_MINUTES,
+                )
+            except ValidationError as exc:
+                js.delete()
+                result["skipped"].append((student, "; ".join(exc.messages)))
+                continue
             result["assigned"] += 1
-            cursor += timedelta(minutes=20)
+            scheduled_here += 1
+            cursor += timedelta(minutes=DEFENSE_DURATION_MINUTES)
 
-        DefenseSchedule.objects.bulk_create(schedules)
-        result["scheduled"] += len(schedules)
+        result["scheduled"] += scheduled_here
         result["juries"].append({
             "name": jury.name,
-            "members": [p.full_name for p in bucket["members"]],
-            "count": len(bucket["students"]),
+            "members": [p.full_name for p in members],
+            "count": scheduled_here,
+            "has_expert": has_expert,
+            "mono_filiere": len(bucket_filieres) == 1,
         })
 
     return result

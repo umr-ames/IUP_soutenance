@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Groupes d'experts par filière{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Groupes d'experts par filière</h1>
+        <p>Désignez les professeurs experts de chaque filière. Lors de la génération des jurys, un expert de la filière (différent de l'encadrant) est ajouté en priorité.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'admin_jury_list' %}">Retour aux jurys</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+
+    {% for group in groups %}
+        <section class="content-panel">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 style="margin:0;">{{ group.label }}</h2>
+                <span class="status-pill info">{{ group.count }} expert(s)</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:6px;">
+                {% for prof in group.professors %}
+                    <label style="display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--line); border-radius:8px;">
+                        <input type="checkbox" name="expert_{{ group.value }}" value="{{ prof.id }}" {% if prof.checked %}checked{% endif %}>
+                        <span style="font-size:0.86rem;">{{ prof.full_name }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+        </section>
+    {% endfor %}
+
+    <section class="content-panel">
+        <button type="submit" class="btn btn-primary">Enregistrer les groupes d'experts</button>
+    </section>
+</form>
+{% endblock %}

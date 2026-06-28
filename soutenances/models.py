@@ -42,6 +42,29 @@ def mention_for_average(average):
     return "Insuffisant"
 
 
+class FiliereExpert(models.Model):
+    """Groupe de professeurs experts par filière. L'admin le gère ; la
+    génération de jury privilégie la présence d'un expert (≠ encadrant) de la
+    filière de l'étudiant."""
+    filiere = models.CharField(
+        max_length=20,
+        choices=StudentProfile.FILIERE_CHOICES,
+    )
+    professor = models.ForeignKey(
+        ProfessorProfile,
+        on_delete=models.CASCADE,
+        related_name="expert_filieres",
+    )
+
+    class Meta:
+        unique_together = ("filiere", "professor")
+        verbose_name = "Expert de filière"
+        verbose_name_plural = "Experts de filière"
+
+    def __str__(self):
+        return f"{self.get_filiere_display()} — {self.professor.full_name}"
+
+
 class Deadline(models.Model):
     title = models.CharField(max_length=255, default="Date limite des demandes")
     deadline_date = models.DateTimeField()

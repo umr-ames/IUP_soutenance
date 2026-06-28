@@ -8,8 +8,14 @@
         <span class="eyebrow">Département de l'IUP</span>
         <h1>Génération ciblée de jurys</h1>
         <p>Choisissez une date, le nombre de jurys, les étudiants à programmer et le groupe de professeurs.</p>
+        <p class="text-muted" style="font-size:0.88rem;">
+            L'algorithme respecte les <strong>disponibilités déclarées</strong> des membres (les professeurs non disponibles au créneau sont écartés) et privilégie un <strong>jury mono-filière avec un expert de la filière</strong> (différent de l'encadrant). Aucune soutenance n'est possible après le <strong>10/07/2026</strong>.
+        </p>
     </div>
-    <a class="btn btn-outline-secondary" href="{% url 'admin_jury_list' %}">Retour</a>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-light" href="{% url 'admin_expert_groups' %}">Experts par filière</a>
+        <a class="btn btn-outline-secondary" href="{% url 'admin_jury_list' %}">Retour</a>
+    </div>
 </div>
 
 <form method="post">
