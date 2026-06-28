@@ -48,8 +48,18 @@
         </article>
 
         <article class="soft-card">
-            <span class="label">Publiés</span>
+            <span class="label">Publiés (à venir)</span>
             <strong>{{ published_juries_count|default:"0" }}</strong>
+        </article>
+
+        <article class="soft-card">
+            <span class="label">Terminés</span>
+            <strong>{{ completed_juries_count|default:"0" }}</strong>
+        </article>
+
+        <article class="soft-card">
+            <span class="label">En attente de notes</span>
+            <strong>{{ awaiting_notes_count|default:"0" }}</strong>
         </article>
 
         <article class="soft-card">

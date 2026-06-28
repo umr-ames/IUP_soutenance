@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -321,9 +321,40 @@ def admin_jury_list(request):
         date__gte=timezone.localdate()
     ).count()
 
-    published_juries_count = juries.filter(is_validated=True).count()
     draft_juries_count = juries.filter(is_validated=False).count()
     assigned_students_count = JuryStudent.objects.count()
+
+    # Répartition des jurys validés :
+    # - Publiés    : date pas encore passée (soutenance à venir)
+    # - Terminés   : date passée ET les 3 membres ont noté tous les étudiants
+    # - En attente : date passée mais notes pas toutes saisies
+    today = timezone.localdate()
+    submitted_counts = dict(
+        Evaluation.objects.filter(is_submitted=True)
+        .values("jury_student_id")
+        .annotate(c=Count("id"))
+        .values_list("jury_student_id", "c")
+    )
+
+    upcoming_juries_count = 0
+    completed_juries_count = 0
+    awaiting_notes_count = 0
+
+    for jury in juries:
+        if not jury.is_validated:
+            continue
+        if jury.defense_date and jury.defense_date >= today:
+            upcoming_juries_count += 1
+            continue
+        # Date passée : terminé si tous les étudiants ont 3 évaluations soumises.
+        jury_students = list(jury.students.all())
+        all_graded = bool(jury_students) and all(
+            submitted_counts.get(js.id, 0) >= 3 for js in jury_students
+        )
+        if all_graded:
+            completed_juries_count += 1
+        else:
+            awaiting_notes_count += 1
 
     return render(request, "soutenances/admin_jury_list.html", {
         "juries": juries,
@@ -332,7 +363,9 @@ def admin_jury_list(request):
         "future_availabilities_count": future_availabilities_count,
         "duration_minutes": DEFENSE_DURATION_MINUTES,
         "total_juries_count": juries.count(),
-        "published_juries_count": published_juries_count,
+        "published_juries_count": upcoming_juries_count,
+        "completed_juries_count": completed_juries_count,
+        "awaiting_notes_count": awaiting_notes_count,
         "draft_juries_count": draft_juries_count,
         "assigned_students_count": assigned_students_count,
     })
