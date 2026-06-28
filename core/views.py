@@ -270,6 +270,171 @@ def admin_student_list(request):
     })
 
 
+def _build_students_overview(filters):
+    """Construit la liste unifiée des étudiants (liste officielle + comptes
+    inscrits), avec leur statut : inscrit, accepté, soutenu. Applique les
+    filtres fournis (filiere, inscrit, accepte, soutenu : '1', '0' ou '')."""
+    accepted_ids = set(
+        PFERequest.objects.filter(
+            status=PFERequest.STATUS_ACCEPTED
+        ).values_list("student_id", flat=True)
+    )
+    defended_ids = set(
+        Result.objects.filter(is_published=True).values_list(
+            "jury_student__student_id", flat=True
+        )
+    )
+
+    profiles = StudentProfile.objects.select_related("user", "encadrant")
+    profiles_by_mat = {
+        normalize_matricule(profile.matricule): profile for profile in profiles
+    }
+
+    rows = []
+    seen = set()
+
+    # 1) Base = liste officielle
+    for reference in StudentReference.objects.all():
+        key = normalize_matricule(reference.matricule)
+        seen.add(key)
+        profile = profiles_by_mat.get(key)
+        rows.append(_overview_row(reference, profile, accepted_ids, defended_ids))
+
+    # 2) Comptes inscrits absents de la liste officielle (cas limite)
+    for key, profile in profiles_by_mat.items():
+        if key in seen:
+            continue
+        rows.append(_overview_row(None, profile, accepted_ids, defended_ids))
+
+    # Filtres
+    f_filiere = (filters.get("filiere") or "").strip()
+    f_inscrit = (filters.get("inscrit") or "").strip()
+    f_accepte = (filters.get("accepte") or "").strip()
+    f_soutenu = (filters.get("soutenu") or "").strip()
+
+    def keep(row):
+        if f_filiere and row["filiere"] != f_filiere:
+            return False
+        if f_inscrit == "1" and not row["inscrit"]:
+            return False
+        if f_inscrit == "0" and row["inscrit"]:
+            return False
+        if f_accepte == "1" and not row["accepte"]:
+            return False
+        if f_accepte == "0" and row["accepte"]:
+            return False
+        if f_soutenu == "1" and not row["soutenu"]:
+            return False
+        if f_soutenu == "0" and row["soutenu"]:
+            return False
+        return True
+
+    rows = [row for row in rows if keep(row)]
+    rows.sort(key=lambda r: (r["filiere"] or "~", r["full_name"].lower()))
+    return rows
+
+
+def _overview_row(reference, profile, accepted_ids, defended_ids):
+    matricule = (profile.matricule if profile else reference.matricule)
+    full_name = (profile.full_name if profile else reference.full_name)
+    filiere = (
+        (profile.filiere if profile and profile.filiere else None)
+        or (reference.filiere if reference else "")
+        or ""
+    )
+    if profile and profile.encadrant_id:
+        encadrant = profile.encadrant.full_name
+    elif reference and reference.encadrant_name:
+        encadrant = reference.encadrant_name
+    else:
+        encadrant = ""
+
+    return {
+        "matricule": matricule,
+        "full_name": full_name,
+        "filiere": filiere,
+        "encadrant": encadrant,
+        "entreprise": profile.entreprise if profile else "",
+        "telephone": (profile.user.phone_number if profile and profile.user else "") or "",
+        "inscrit": profile is not None,
+        "accepte": bool(profile and profile.id in accepted_ids),
+        "soutenu": bool(profile and profile.id in defended_ids),
+    }
+
+
+@login_required
+@role_required(["admin"])
+def admin_students_overview(request):
+    rows = _build_students_overview(request.GET)
+
+    stats = {
+        "total": len(rows),
+        "inscrits": sum(1 for r in rows if r["inscrit"]),
+        "acceptes": sum(1 for r in rows if r["accepte"]),
+        "soutenus": sum(1 for r in rows if r["soutenu"]),
+    }
+
+    return render(request, "core/admin_students_overview.html", {
+        "rows": rows,
+        "stats": stats,
+        "filiere_choices": [c for c in StudentProfile.FILIERE_CHOICES if c[0]],
+        "selected": {
+            "filiere": request.GET.get("filiere", ""),
+            "inscrit": request.GET.get("inscrit", ""),
+            "accepte": request.GET.get("accepte", ""),
+            "soutenu": request.GET.get("soutenu", ""),
+        },
+        "querystring": request.GET.urlencode(),
+    })
+
+
+@login_required
+@role_required(["admin"])
+def admin_students_overview_export(request):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    rows = _build_students_overview(request.GET)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Etudiants"
+
+    headers = [
+        "Matricule", "Nom complet", "Filiere", "Encadrant",
+        "Inscrit", "Accepte", "Soutenu", "Entreprise", "Telephone",
+    ]
+    sheet.append(headers)
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="0F766E")
+    for cell in sheet[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+
+    def yn(value):
+        return "Oui" if value else "Non"
+
+    for row in rows:
+        sheet.append([
+            row["matricule"], row["full_name"], row["filiere"], row["encadrant"],
+            yn(row["inscrit"]), yn(row["accepte"]), yn(row["soutenu"]),
+            row["entreprise"], row["telephone"],
+        ])
+
+    widths = [14, 30, 10, 26, 9, 9, 9, 24, 14]
+    for i, width in enumerate(widths, start=1):
+        sheet.column_dimensions[chr(64 + i)].width = width
+
+    from django.http import HttpResponse
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="etudiants.xlsx"'
+    workbook.save(response)
+    return response
+
+
 @login_required
 @role_required(["admin"])
 def admin_check_official_list(request):

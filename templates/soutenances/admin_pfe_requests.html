@@ -329,6 +329,7 @@
             <button class="filter-tab" type="button" data-filter="pending_admin">Admin</button>
             <button class="filter-tab" type="button" data-filter="pending_professor">Encadrant</button>
             <button class="filter-tab" type="button" data-filter="accepted">Acceptées</button>
+            <button class="filter-tab" type="button" data-filter="soutenu">Soutenu</button>
             <button class="filter-tab" type="button" data-filter="refused">Refusées</button>
         </div>
     </aside>
@@ -336,7 +337,7 @@
 
 <section class="requests-board" id="requestsBoard">
     {% for demande in requests %}
-        <article class="request-card" data-status="{{ demande.status }}">
+        <article class="request-card" data-status="{{ demande.status }}" data-defended="{% if demande.has_defended %}1{% else %}0{% endif %}">
             <div class="request-card-inner">
                 <div class="student-main">
                     <div class="student-avatar">
@@ -375,7 +376,9 @@
                     <span>{{ demande.submitted_at|date:"H:i" }}</span>
 
                     <div class="mt-2">
-                        {% if demande.status == 'accepted' %}
+                        {% if demande.status == 'accepted' and demande.has_defended %}
+                            <span class="status-pill accepted">Soutenu</span>
+                        {% elif demande.status == 'accepted' %}
                             <span class="status-pill accepted">{{ demande.get_status_display }}</span>
                         {% elif demande.status == 'refused_by_professor' or demande.status == 'refused_by_admin' %}
                             <span class="status-pill refused">{{ demande.get_status_display }}</span>
@@ -415,13 +418,24 @@ const filterTabs = document.querySelectorAll('.filter-tab');
 
 let activeFilter = 'all';
 
-function statusMatches(status) {
+function statusMatches(card, status) {
     if (activeFilter === 'all') {
         return true;
     }
 
+    const defended = card.getAttribute('data-defended') === '1';
+
     if (activeFilter === 'refused') {
         return status === 'refused_by_professor' || status === 'refused_by_admin';
+    }
+
+    if (activeFilter === 'soutenu') {
+        return defended;
+    }
+
+    if (activeFilter === 'accepted') {
+        // Acceptées = acceptées par le département mais pas encore soutenues
+        return status === 'accepted' && !defended;
     }
 
     return status === activeFilter;
@@ -435,7 +449,7 @@ function refreshRequests() {
         const text = card.innerText.toLowerCase();
         const status = card.getAttribute('data-status');
 
-        const visible = text.includes(query) && statusMatches(status);
+        const visible = text.includes(query) && statusMatches(card, status);
 
         card.style.display = visible ? '' : 'none';
 

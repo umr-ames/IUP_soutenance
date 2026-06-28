@@ -121,6 +121,16 @@ def admin_pfe_requests(request):
         "student__encadrant",
     ).order_by("-submitted_at")
 
+    # Étudiants ayant soutenu = résultat publié par le chef de département.
+    defended_student_ids = set(
+        Result.objects.filter(is_published=True).values_list(
+            "jury_student__student_id", flat=True
+        )
+    )
+
+    for demande in requests:
+        demande.has_defended = demande.student_id in defended_student_ids
+
     return render(request, "soutenances/admin_pfe_requests.html", {
         "requests": requests,
     })

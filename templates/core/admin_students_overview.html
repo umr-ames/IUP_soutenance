@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Liste des étudiants{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Liste des étudiants</h1>
+        <p>Tous les étudiants (liste officielle et comptes inscrits), filtrables par filière et par statut.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-outline-secondary" href="{% url 'admin_student_list' %}">Comptes inscrits</a>
+        <a class="btn btn-primary" href="{% url 'admin_students_overview_export' %}{% if querystring %}?{{ querystring }}{% endif %}">
+            Télécharger Excel
+        </a>
+    </div>
+</div>
+
+<section class="content-panel">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label">Filière</label>
+            <select name="filiere" class="form-select">
+                <option value="">Toutes</option>
+                {% for value, label in filiere_choices %}
+                    <option value="{{ value }}" {% if selected.filiere == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Inscrit</label>
+            <select name="inscrit" class="form-select">
+                <option value="">Tous</option>
+                <option value="1" {% if selected.inscrit == '1' %}selected{% endif %}>Oui</option>
+                <option value="0" {% if selected.inscrit == '0' %}selected{% endif %}>Non</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Accepté</label>
+            <select name="accepte" class="form-select">
+                <option value="">Tous</option>
+                <option value="1" {% if selected.accepte == '1' %}selected{% endif %}>Oui</option>
+                <option value="0" {% if selected.accepte == '0' %}selected{% endif %}>Non</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Soutenu</label>
+            <select name="soutenu" class="form-select">
+                <option value="">Tous</option>
+                <option value="1" {% if selected.soutenu == '1' %}selected{% endif %}>Oui</option>
+                <option value="0" {% if selected.soutenu == '0' %}selected{% endif %}>Non</option>
+            </select>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Filtrer</button>
+            <a href="{% url 'admin_students_overview' %}" class="btn btn-outline-secondary">Réinitialiser</a>
+        </div>
+    </form>
+</section>
+
+<section class="content-panel">
+    <div class="d-flex gap-2 flex-wrap mb-3">
+        <span class="status-pill info">Total : {{ stats.total }}</span>
+        <span class="status-pill info">Inscrits : {{ stats.inscrits }}</span>
+        <span class="status-pill success">Acceptés : {{ stats.acceptes }}</span>
+        <span class="status-pill success">Soutenus : {{ stats.soutenus }}</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Matricule</th>
+                    <th>Nom complet</th>
+                    <th>Filière</th>
+                    <th>Encadrant</th>
+                    <th>Inscrit</th>
+                    <th>Accepté</th>
+                    <th>Soutenu</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                    <tr>
+                        <td>{{ row.matricule }}</td>
+                        <td>{{ row.full_name }}</td>
+                        <td>{{ row.filiere|default:"-" }}</td>
+                        <td>{{ row.encadrant|default:"-" }}</td>
+                        <td>
+                            {% if row.inscrit %}<span class="status-pill success">Oui</span>
+                            {% else %}<span class="status-pill muted">Non</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if row.accepte %}<span class="status-pill success">Oui</span>
+                            {% else %}<span class="status-pill muted">Non</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if row.soutenu %}<span class="status-pill success">Oui</span>
+                            {% else %}<span class="status-pill muted">Non</span>{% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7"><div class="empty-state">Aucun étudiant ne correspond aux filtres.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
