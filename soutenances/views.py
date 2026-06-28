@@ -49,7 +49,6 @@ MAX_SIMULTANEOUS_JURIES = 8
 
 # Date limite des soutenances : aucune soutenance possible après cette date.
 DEFENSE_DEADLINE = date_cls(2026, 7, 10)
-DAY_START_TIME = time(9, 0)
 
 
 @login_required
@@ -489,20 +488,63 @@ def generate_targeted_juries(defense_date, students, professors, num_juries):
     all_enc_ids = set(by_enc.keys())
     used_prof_ids = set()  # professeurs déjà engagés (jurys parallèles disjoints)
 
+    # Heures de début candidates : grille de 20 min couvrant les plages de
+    # disponibilité déclarées ce jour-là (ex. 15:00–19:00). On ne suppose plus
+    # un démarrage à 09:00.
+    day_avails = list(
+        ProfessorAvailability.objects.filter(
+            professor_id__in=prof_ids, date=defense_date
+        )
+    )
+    candidate_starts = []
+    if day_avails:
+        cursor_t = datetime.combine(defense_date, min(a.start_time for a in day_avails))
+        end_t = datetime.combine(defense_date, max(a.end_time for a in day_avails))
+        while cursor_t <= end_t:
+            candidate_starts.append(cursor_t.time())
+            cursor_t += timedelta(minutes=DEFENSE_DURATION_MINUTES)
+
+    def earliest_start_for(encadrant_objs, n_students):
+        """Renvoie (heure_début, encadrants_disponibles) : d'abord un créneau où
+        TOUS les encadrants sont disponibles pour tout le bloc, sinon le créneau
+        qui en rend le plus disponibles."""
+        block = DEFENSE_DURATION_MINUTES * n_students
+        for start in candidate_starts:
+            if all(
+                is_professor_available(p, defense_date, start, block)
+                for p in encadrant_objs
+            ):
+                return start, list(encadrant_objs)
+        best = None
+        for start in candidate_starts:
+            avail = [
+                p for p in encadrant_objs
+                if is_professor_available(p, defense_date, start, block)
+            ]
+            if avail and (best is None or len(avail) > len(best[1])):
+                best = (start, avail)
+        return best if best else (None, [])
+
     for bucket in buckets:
         if not bucket["students"]:
             continue
 
         enc_ids = list(dict.fromkeys(bucket["enc_ids"]))
+        enc_objs = [prof_by_id[e] for e in enc_ids]
 
-        # 3a. Bloc provisoire pour tester la disponibilité des encadrants.
-        full_block = DEFENSE_DURATION_MINUTES * len(bucket["students"])
-        kept_enc = []
+        # 3a. Choix du créneau de début selon la disponibilité des encadrants.
+        start_time, avail_enc = earliest_start_for(enc_objs, len(bucket["students"]))
+        if start_time is None:
+            for student in bucket["students"]:
+                result["skipped"].append(
+                    (student, "aucune disponibilité commune des encadrants ce jour")
+                )
+            continue
+
+        kept_enc = [p.id for p in avail_enc]
         for eid in enc_ids:
-            p = prof_by_id[eid]
-            if is_professor_available(p, defense_date, DAY_START_TIME, full_block):
-                kept_enc.append(eid)
-            else:
+            if eid not in kept_enc:
+                p = prof_by_id[eid]
                 for student in [s for s in bucket["students"] if s.encadrant_id == eid]:
                     result["skipped"].append(
                         (student, f"encadrant indisponible ({p.full_name})")
@@ -523,7 +565,7 @@ def generate_targeted_juries(defense_date, students, professors, num_juries):
             if pid in members_ids or pid in used_prof_ids or pid in all_enc_ids:
                 return False
             return is_professor_available(
-                prof_by_id[pid], defense_date, DAY_START_TIME, block_minutes
+                prof_by_id[pid], defense_date, start_time, block_minutes
             )
 
         # 3b. Ajouter un expert de la filière (≠ encadrants), disponible.
@@ -571,7 +613,7 @@ def generate_targeted_juries(defense_date, students, professors, num_juries):
         used_prof_ids.update(members_ids)
         result["created"] += 1
 
-        cursor = datetime.combine(defense_date, DAY_START_TIME)
+        cursor = datetime.combine(defense_date, start_time)
         scheduled_here = 0
         for student in sorted(bucket_students, key=lambda s: s.full_name.lower()):
             # Président : un expert de la filière de préférence, sinon tout
