@@ -367,11 +367,28 @@ def _overview_row(reference, profile, accepted_ids, defended_ids):
 def admin_students_overview(request):
     rows = _build_students_overview(request.GET)
 
+    # Compteurs récap calculés sur la base de la filière seule (sans les filtres
+    # inscrit/accepté/soutenu), afin qu'ils restent significatifs. Chaque
+    # compteur suit le sens choisi : « Oui » → positifs, « Non » → négatifs.
+    base = _build_students_overview({"filiere": request.GET.get("filiere", "")})
+
+    def directional(rows_, key, flag):
+        if flag == "0":
+            return sum(1 for r in rows_ if not r[key])
+        return sum(1 for r in rows_ if r[key])
+
+    inscrit_flag = request.GET.get("inscrit", "")
+    accepte_flag = request.GET.get("accepte", "")
+    soutenu_flag = request.GET.get("soutenu", "")
+
     stats = {
-        "total": len(rows),
-        "inscrits": sum(1 for r in rows if r["inscrit"]),
-        "acceptes": sum(1 for r in rows if r["accepte"]),
-        "soutenus": sum(1 for r in rows if r["soutenu"]),
+        "total": len(base),
+        "inscrit_label": "Non inscrits" if inscrit_flag == "0" else "Inscrits",
+        "inscrit_count": directional(base, "inscrit", inscrit_flag),
+        "accepte_label": "Non acceptés" if accepte_flag == "0" else "Acceptés",
+        "accepte_count": directional(base, "accepte", accepte_flag),
+        "soutenu_label": "Non soutenus" if soutenu_flag == "0" else "Soutenus",
+        "soutenu_count": directional(base, "soutenu", soutenu_flag),
     }
 
     return render(request, "core/admin_students_overview.html", {

@@ -61,9 +61,9 @@
 <section class="content-panel">
     <div class="d-flex gap-2 flex-wrap mb-3">
         <span class="status-pill info">Total : {{ stats.total }}</span>
-        <span class="status-pill info">Inscrits : {{ stats.inscrits }}</span>
-        <span class="status-pill success">Acceptés : {{ stats.acceptes }}</span>
-        <span class="status-pill success">Soutenus : {{ stats.soutenus }}</span>
+        <span class="status-pill info">{{ stats.inscrit_label }} : {{ stats.inscrit_count }}</span>
+        <span class="status-pill success">{{ stats.accepte_label }} : {{ stats.accepte_count }}</span>
+        <span class="status-pill success">{{ stats.soutenu_label }} : {{ stats.soutenu_count }}</span>
     </div>
 
     <div class="table-responsive">
