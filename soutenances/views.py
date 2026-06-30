@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -2435,9 +2435,12 @@ def export_student_pv_pdf(request, pk):
 @login_required
 @role_required(["admin", "professor"])
 def export_evaluation_fiche_pdf(request, pk):
-    """Fiche d'Évaluation de Stage de Fin d'études pré-remplie avec les moyennes
-    du jury (Rapport ×0,30, Présentation ×0,30, Questions ×0,40, Note finale).
-    Accessible au président du jury concerné et au chef de département."""
+    """Fiche d'Évaluation de Stage de Fin d'études (Word), identique au document
+    officiel et pré-remplie avec les moyennes du jury (Rapport ×0,30,
+    Présentation ×0,30, Questions ×0,40, Note finale). Accessible au président du
+    jury concerné et au chef de département."""
+    from .fiche import build_fiche_docx, DOCX_CONTENT_TYPE
+
     assignment = get_object_or_404(
         JuryStudent.objects.select_related(
             "student", "student__user", "student__encadrant", "jury", "president"
@@ -2452,55 +2455,13 @@ def export_evaluation_fiche_pdf(request, pk):
             messages.error(request, "Seul le président du jury ou le département peut accéder à cette fiche.")
             return redirect("professor_my_juries")
 
-    student = assignment.student
     avgs = compute_criteria_averages(assignment)
+    document = build_fiche_docx(assignment, avgs)
 
-    def note_or_blank(value):
-        return decimal_text(value) if value is not None else "............"
-
-    members = list(assignment.jury.members.select_related("professor").all())
-    president_name = assignment.president.full_name if assignment.president else ""
-    other_members = [
-        m.professor.full_name for m in members
-        if not assignment.president or m.professor_id != assignment.president_id
-    ]
-
-    lines = []
-    lines.append("Institut Superieur de Genie Industriel - Departement des Formations de l'IUP")
-    lines.append("")
-    lines.append("FICHE D'EVALUATION DE STAGE DE FIN D'ETUDES")
-    lines.append("")
-    lines.append(f"Matricule : {student.matricule}")
-    lines.append(f"Nom & Prenom : {student.full_name}")
-    lines.append(f"Filiere : {student.filiere or '-'}")
-    lines.append(f"Entreprise d'accueil : {student.entreprise or '-'}")
-    lines.append(f"Date de soutenance : {format_date(assignment.jury.defense_date)}")
-    lines.append("")
-    lines.append("EVALUATION DE LA SOUTENANCE (moyenne du jury) :")
-    if not avgs["complete"]:
-        lines.append(
-            f"(Provisoire : {avgs['submitted_count']} note(s) sur "
-            f"{avgs['members_count']} - en attente des autres membres)"
-        )
-    lines.append(f"Rapport (Respect de forme) : {note_or_blank(avgs['avg_rapport'])} / 20  (x0,30)")
-    lines.append(f"Presentation Personnelle (Aisance, Mobilite) : {note_or_blank(avgs['avg_presentation'])} / 20  (x0,30)")
-    lines.append(f"Reponses aux Questions (Qualite & Capacite) : {note_or_blank(avgs['avg_questions'])} / 20  (x0,40)")
-    lines.append("")
-    lines.append(f"NOTE FINALE : {note_or_blank(avgs['avg_finale'])} / 20")
-    lines.append("")
-    lines.append("JURY :")
-    lines.append(f"President : {president_name}    Signature : ______________________")
-    for index, name in enumerate(other_members, start=1):
-        lines.append(f"Membre {index} : {name}    Signature : ______________________")
-    # Compléter à 2 membres si le jury en a moins (gabarit du document)
-    for index in range(len(other_members) + 1, 3):
-        lines.append(f"Membre {index} : ____________________    Signature : ______________________")
-
-    return simple_pdf_response(
-        f"Fiche d'evaluation - {student.full_name}",
-        lines,
-        f"fiche-evaluation-{student.matricule}.pdf",
-    )
+    filename = f"fiche-evaluation-{assignment.student.matricule}.docx"
+    response = HttpResponse(document, content_type=DOCX_CONTENT_TYPE)
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 def get_assignment_schedule(assignment):
