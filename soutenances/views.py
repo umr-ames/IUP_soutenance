@@ -2449,13 +2449,24 @@ def export_evaluation_fiche_pdf(request, pk):
     )
 
     # Contrôle d'accès : admin OU président de ce jury.
-    if getattr(request.user, "role", None) != "admin":
+    is_admin = getattr(request.user, "role", None) == "admin"
+    if not is_admin:
         professor = getattr(request.user, "professor_profile", None)
         if not professor or assignment.president_id != professor.id:
             messages.error(request, "Seul le président du jury ou le département peut accéder à cette fiche.")
             return redirect("professor_my_juries")
 
     avgs = compute_criteria_averages(assignment)
+
+    # La fiche n'est imprimable que lorsque les 3 membres ont tous noté.
+    if not avgs["complete"]:
+        messages.warning(
+            request,
+            "La fiche d'évaluation sera disponible une fois les 3 notes saisies "
+            f"({avgs['submitted_count']}/{avgs['members_count']} pour le moment)."
+        )
+        return redirect("admin_results" if is_admin else "professor_president_results")
+
     document = build_fiche_docx(assignment, avgs)
 
     filename = f"fiche-evaluation-{assignment.student.matricule}.docx"

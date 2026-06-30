@@ -777,8 +777,10 @@ def professor_president_results(request):
             "avg_rapport": avgs["avg_rapport"] if complete else None,
             "avg_presentation": avgs["avg_presentation"] if complete else None,
             "avg_questions": avgs["avg_questions"] if complete else None,
-            "mention": mention,
+            "mention": mention if complete or published_result else None,
+            "complete": complete,
             "evals_count": avgs["submitted_count"],
+            "members_count": avgs["members_count"],
         })
 
     return render(request, "professors/professor_president_results.html", {

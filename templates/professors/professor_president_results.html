@@ -44,46 +44,39 @@
                 <td style="padding:12px;">{{ row.assignment.jury.name }}</td>
                 <td style="padding:12px; white-space:nowrap;">{{ row.assignment.jury.defense_date|date:"d/m/Y" }}</td>
                 <td style="padding:12px; text-align:center;">
-                    <span class="status-pill {% if row.evals_count == 3 %}success{% else %}warning{% endif %}">
-                        {{ row.evals_count }}/3
+                    <span class="status-pill {% if row.complete %}success{% else %}warning{% endif %}">
+                        {{ row.evals_count }}/{{ row.members_count }}
                     </span>
                 </td>
-                <td style="padding:12px; text-align:center; font-weight:700;">
-                    {% if row.avg_rapport is not None %}{{ row.avg_rapport }}{% else %}<span style="color:var(--muted);">—</span>{% endif %}
-                </td>
-                <td style="padding:12px; text-align:center; font-weight:700;">
-                    {% if row.avg_presentation is not None %}{{ row.avg_presentation }}{% else %}<span style="color:var(--muted);">—</span>{% endif %}
-                </td>
-                <td style="padding:12px; text-align:center; font-weight:700;">
-                    {% if row.avg_questions is not None %}{{ row.avg_questions }}{% else %}<span style="color:var(--muted);">—</span>{% endif %}
-                </td>
+                {% if row.complete or row.published_result %}
+                <td style="padding:12px; text-align:center; font-weight:700;">{{ row.avg_rapport }}</td>
+                <td style="padding:12px; text-align:center; font-weight:700;">{{ row.avg_presentation }}</td>
+                <td style="padding:12px; text-align:center; font-weight:700;">{{ row.avg_questions }}</td>
                 <td style="padding:12px; text-align:center; font-weight:900; font-size:1.05rem;">
-                    {% if row.published_result %}
-                        {{ row.published_result.average|default:"-" }}
-                    {% elif row.computed_average %}
-                        <span style="color:var(--muted);">{{ row.computed_average }} <small>(provisoire)</small></span>
-                    {% else %}
-                        <span style="color:var(--muted);">—</span>
-                    {% endif %}
+                    {% if row.published_result %}{{ row.published_result.average|default:"-" }}{% else %}{{ row.computed_average }}{% endif %}
                 </td>
-                <td style="padding:12px; text-align:center; font-weight:700;">
-                    {% if row.mention %}
-                        {{ row.mention }}{% if not row.published_result and row.computed_average %} <small style="color:var(--muted); font-weight:600;">(provisoire)</small>{% endif %}
-                    {% else %}
-                        <span style="color:var(--muted);">—</span>
-                    {% endif %}
+                <td style="padding:12px; text-align:center; font-weight:700;">{{ row.mention|default:"—" }}</td>
+                {% else %}
+                <td colspan="4" style="padding:12px; text-align:center; color:var(--muted);">
+                    En attente des notes des 3 membres
                 </td>
+                <td style="padding:12px; text-align:center; color:var(--muted);">—</td>
+                {% endif %}
                 <td style="padding:12px; text-align:center;">
                     {% if row.published_result %}
                         <span class="status-pill success">Publié</span>
-                    {% elif row.evals_count == 3 %}
+                    {% elif row.complete %}
                         <span class="status-pill warning">En attente de publication</span>
                     {% else %}
-                        <span class="status-pill muted">Évaluations incomplètes</span>
+                        <span class="status-pill muted">En attente des notes</span>
                     {% endif %}
                 </td>
                 <td style="padding:12px; text-align:center;">
-                    <a href="{% url 'export_evaluation_fiche_pdf' row.assignment.id %}" class="btn btn-sm btn-outline-primary">Fiche</a>
+                    {% if row.complete %}
+                        <a href="{% url 'export_evaluation_fiche_pdf' row.assignment.id %}" class="btn btn-sm btn-outline-primary">Fiche</a>
+                    {% else %}
+                        <span class="status-pill muted" title="Disponible une fois les 3 notes saisies">Indisponible</span>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
