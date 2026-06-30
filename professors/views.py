@@ -750,28 +750,22 @@ def professor_president_results(request):
         "result",
     ).prefetch_related(
         "evaluations__professor",
+        "jury__members",
     ).order_by(
         "jury__defense_date",
         "student__full_name",
     )
+
+    from soutenances.views import compute_criteria_averages
 
     rows = []
     for assignment in assignments:
         result = getattr(assignment, "result", None)
         published_result = result if (result and result.is_published) else None
 
-        submitted_evals = [e for e in assignment.evaluations.all() if e.is_submitted]
-        computed_average = None
-        avg_rapport = None
-        avg_presentation = None
-        avg_questions = None
-        if len(submitted_evals) == 3:
-            from decimal import Decimal
-            notes = [e.final_note for e in submitted_evals]
-            computed_average = (sum(notes, Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
-            avg_rapport = (sum((e.rapport_note for e in submitted_evals), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
-            avg_presentation = (sum((e.presentation_note for e in submitted_evals), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
-            avg_questions = (sum((e.questions_note for e in submitted_evals), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
+        avgs = compute_criteria_averages(assignment)
+        complete = avgs["complete"]
+        computed_average = avgs["avg_finale"] if complete else None
 
         mention_average = published_result.average if published_result else computed_average
         mention = mention_for_average(mention_average) if mention_average is not None else None
@@ -780,11 +774,11 @@ def professor_president_results(request):
             "assignment": assignment,
             "published_result": published_result,
             "computed_average": computed_average,
-            "avg_rapport": avg_rapport,
-            "avg_presentation": avg_presentation,
-            "avg_questions": avg_questions,
+            "avg_rapport": avgs["avg_rapport"] if complete else None,
+            "avg_presentation": avgs["avg_presentation"] if complete else None,
+            "avg_questions": avgs["avg_questions"] if complete else None,
             "mention": mention,
-            "evals_count": len(submitted_evals),
+            "evals_count": avgs["submitted_count"],
         })
 
     return render(request, "professors/professor_president_results.html", {

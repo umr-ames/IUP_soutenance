@@ -29,6 +29,7 @@
                 <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Moyenne /20</th>
                 <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Mention</th>
                 <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Statut</th>
+                <th style="padding:10px 12px; text-align:center; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);">Fiche</th>
             </tr>
         </thead>
         <tbody>
@@ -80,6 +81,9 @@
                     {% else %}
                         <span class="status-pill muted">Évaluations incomplètes</span>
                     {% endif %}
+                </td>
+                <td style="padding:12px; text-align:center;">
+                    <a href="{% url 'export_evaluation_fiche_pdf' row.assignment.id %}" class="btn btn-sm btn-outline-primary">Fiche</a>
                 </td>
             </tr>
             {% endfor %}

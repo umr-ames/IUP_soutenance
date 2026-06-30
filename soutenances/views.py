@@ -2017,6 +2017,55 @@ def supervised_students_count(professor):
         return 0
 
 
+def compute_criteria_averages(assignment):
+    """Moyennes des notes des membres du jury par critère (Rapport, Présentation,
+    Questions) et note finale. Robuste aux changements de composition : ne compte
+    que les évaluations envoyées par les membres ACTUELS du jury. « complete » est
+    vrai quand tous les membres actuels ont envoyé leur note."""
+    from decimal import Decimal
+
+    member_ids = set(assignment.jury.members.values_list("professor_id", flat=True))
+    submitted = [
+        e for e in assignment.evaluations.all()
+        if e.is_submitted and e.professor_id in member_ids
+    ]
+    members_count = len(member_ids)
+    n = len(submitted)
+    complete = members_count > 0 and n >= members_count
+
+    data = {
+        "submitted_count": n,
+        "members_count": members_count,
+        "complete": complete,
+        "avg_rapport": None,
+        "avg_presentation": None,
+        "avg_questions": None,
+        "avg_finale": None,
+        "gap": None,
+        "gap_alert": False,
+        "submitted": submitted,
+    }
+
+    if n == 0:
+        return data
+
+    div = Decimal(n)
+
+    def avg(field):
+        total = sum((getattr(e, field) for e in submitted), Decimal("0"))
+        return (total / div).quantize(Decimal("0.01"))
+
+    data["avg_rapport"] = avg("rapport_note")
+    data["avg_presentation"] = avg("presentation_note")
+    data["avg_questions"] = avg("questions_note")
+    data["avg_finale"] = avg("final_note")
+
+    finals = [e.final_note for e in submitted]
+    data["gap"] = (max(finals) - min(finals)).quantize(Decimal("0.01"))
+    data["gap_alert"] = data["gap"] >= Decimal("3.00")
+    return data
+
+
 @login_required
 @role_required(["admin"])
 def admin_results(request):
@@ -2027,55 +2076,37 @@ def admin_results(request):
         "result",
     ).prefetch_related(
         "evaluations__professor",
+        "jury__members",
     ).order_by(
         "jury__defense_date",
         "student__full_name",
     )
 
-    from decimal import Decimal
-
     items = []
 
     for assignment in assignments:
         result = getattr(assignment, "result", None)
+        avgs = compute_criteria_averages(assignment)
+        ready = avgs["complete"]
 
-        submitted_evaluations = [
-            evaluation for evaluation in assignment.evaluations.all()
-            if evaluation.is_submitted
-        ]
-
-        ready = len(submitted_evaluations) == 3
-
-        # Moyenne et écart provisoires calculés inline sans toucher la base
-        computed_average = None
-        computed_gap = None
-        computed_gap_alert = False
-        avg_rapport = None
-        avg_presentation = None
-        avg_questions = None
-        if ready:
-            notes = [e.final_note for e in submitted_evaluations]
-            computed_average = (sum(notes, Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
-            computed_gap = (max(notes) - min(notes)).quantize(Decimal("0.01"))
-            computed_gap_alert = computed_gap >= Decimal("3.00")
-            avg_rapport = (sum((e.rapport_note for e in submitted_evaluations), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
-            avg_presentation = (sum((e.presentation_note for e in submitted_evaluations), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
-            avg_questions = (sum((e.questions_note for e in submitted_evaluations), Decimal("0")) / Decimal("3")).quantize(Decimal("0.01"))
+        computed_average = avgs["avg_finale"] if ready else None
+        computed_gap = avgs["gap"] if ready else None
+        computed_gap_alert = avgs["gap_alert"] if ready else False
 
         mention_average = result.average if (result and result.average is not None) else computed_average
         mention = mention_for_average(mention_average) if mention_average is not None else None
 
         items.append({
             "assignment": assignment,
-            "evaluations": submitted_evaluations,
+            "evaluations": avgs["submitted"],
             "result": result,
             "ready": ready,
             "computed_average": computed_average,
             "computed_gap": computed_gap,
             "computed_gap_alert": computed_gap_alert,
-            "avg_rapport": avg_rapport,
-            "avg_presentation": avg_presentation,
-            "avg_questions": avg_questions,
+            "avg_rapport": avgs["avg_rapport"] if ready else None,
+            "avg_presentation": avgs["avg_presentation"] if ready else None,
+            "avg_questions": avgs["avg_questions"] if ready else None,
             "mention": mention,
         })
 
@@ -2398,6 +2429,77 @@ def export_student_pv_pdf(request, pk):
         f"PV de soutenance - {student.full_name}",
         lines,
         f"pv-{student.matricule}.pdf",
+    )
+
+
+@login_required
+@role_required(["admin", "professor"])
+def export_evaluation_fiche_pdf(request, pk):
+    """Fiche d'Évaluation de Stage de Fin d'études pré-remplie avec les moyennes
+    du jury (Rapport ×0,30, Présentation ×0,30, Questions ×0,40, Note finale).
+    Accessible au président du jury concerné et au chef de département."""
+    assignment = get_object_or_404(
+        JuryStudent.objects.select_related(
+            "student", "student__user", "student__encadrant", "jury", "president"
+        ).prefetch_related("jury__members__professor", "evaluations"),
+        pk=pk,
+    )
+
+    # Contrôle d'accès : admin OU président de ce jury.
+    if getattr(request.user, "role", None) != "admin":
+        professor = getattr(request.user, "professor_profile", None)
+        if not professor or assignment.president_id != professor.id:
+            messages.error(request, "Seul le président du jury ou le département peut accéder à cette fiche.")
+            return redirect("professor_my_juries")
+
+    student = assignment.student
+    avgs = compute_criteria_averages(assignment)
+
+    def note_or_blank(value):
+        return decimal_text(value) if value is not None else "............"
+
+    members = list(assignment.jury.members.select_related("professor").all())
+    president_name = assignment.president.full_name if assignment.president else ""
+    other_members = [
+        m.professor.full_name for m in members
+        if not assignment.president or m.professor_id != assignment.president_id
+    ]
+
+    lines = []
+    lines.append("Institut Superieur de Genie Industriel - Departement des Formations de l'IUP")
+    lines.append("")
+    lines.append("FICHE D'EVALUATION DE STAGE DE FIN D'ETUDES")
+    lines.append("")
+    lines.append(f"Matricule : {student.matricule}")
+    lines.append(f"Nom & Prenom : {student.full_name}")
+    lines.append(f"Filiere : {student.filiere or '-'}")
+    lines.append(f"Entreprise d'accueil : {student.entreprise or '-'}")
+    lines.append(f"Date de soutenance : {format_date(assignment.jury.defense_date)}")
+    lines.append("")
+    lines.append("EVALUATION DE LA SOUTENANCE (moyenne du jury) :")
+    if not avgs["complete"]:
+        lines.append(
+            f"(Provisoire : {avgs['submitted_count']} note(s) sur "
+            f"{avgs['members_count']} - en attente des autres membres)"
+        )
+    lines.append(f"Rapport (Respect de forme) : {note_or_blank(avgs['avg_rapport'])} / 20  (x0,30)")
+    lines.append(f"Presentation Personnelle (Aisance, Mobilite) : {note_or_blank(avgs['avg_presentation'])} / 20  (x0,30)")
+    lines.append(f"Reponses aux Questions (Qualite & Capacite) : {note_or_blank(avgs['avg_questions'])} / 20  (x0,40)")
+    lines.append("")
+    lines.append(f"NOTE FINALE : {note_or_blank(avgs['avg_finale'])} / 20")
+    lines.append("")
+    lines.append("JURY :")
+    lines.append(f"President : {president_name}    Signature : ______________________")
+    for index, name in enumerate(other_members, start=1):
+        lines.append(f"Membre {index} : {name}    Signature : ______________________")
+    # Compléter à 2 membres si le jury en a moins (gabarit du document)
+    for index in range(len(other_members) + 1, 3):
+        lines.append(f"Membre {index} : ____________________    Signature : ______________________")
+
+    return simple_pdf_response(
+        f"Fiche d'evaluation - {student.full_name}",
+        lines,
+        f"fiche-evaluation-{student.matricule}.pdf",
     )
 
 
