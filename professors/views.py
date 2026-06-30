@@ -770,6 +770,12 @@ def professor_president_results(request):
         mention_average = published_result.average if published_result else computed_average
         mention = mention_for_average(mention_average) if mention_average is not None else None
 
+        member_notes = []
+        if complete:
+            member_notes = sorted(
+                avgs["submitted"], key=lambda e: e.professor.full_name.lower()
+            )
+
         rows.append({
             "assignment": assignment,
             "published_result": published_result,
@@ -781,6 +787,7 @@ def professor_president_results(request):
             "complete": complete,
             "evals_count": avgs["submitted_count"],
             "members_count": avgs["members_count"],
+            "member_notes": member_notes,
         })
 
     return render(request, "professors/professor_president_results.html", {

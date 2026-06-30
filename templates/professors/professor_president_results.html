@@ -47,6 +47,10 @@
                     <span class="status-pill {% if row.complete %}success{% else %}warning{% endif %}">
                         {{ row.evals_count }}/{{ row.members_count }}
                     </span>
+                    {% if row.complete %}
+                        <br>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-1 js-detail-toggle" data-target="detail-{{ row.assignment.id }}" style="font-size:.74rem;">Détail</button>
+                    {% endif %}
                 </td>
                 {% if row.complete or row.published_result %}
                 <td style="padding:12px; text-align:center; font-weight:700;">{{ row.avg_rapport }}</td>
@@ -79,6 +83,46 @@
                     {% endif %}
                 </td>
             </tr>
+            {% if row.complete %}
+            <tr id="detail-{{ row.assignment.id }}" class="js-detail-row" style="display:none; background:rgba(13,148,136,.04);">
+                <td colspan="13" style="padding:14px 18px;">
+                    <strong style="font-size:.85rem; color:var(--orange-deep);">Détail des notes par membre du jury — {{ row.assignment.student.full_name }}</strong>
+                    <table style="width:100%; border-collapse:collapse; margin-top:8px;">
+                        <thead>
+                            <tr style="border-bottom:1px solid var(--line);">
+                                <th style="padding:6px 10px; text-align:left; font-size:.76rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Membre</th>
+                                <th style="padding:6px 10px; text-align:center; font-size:.76rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Rapport<br><small style="text-transform:none; font-weight:600;">/20 · 0,30</small></th>
+                                <th style="padding:6px 10px; text-align:center; font-size:.76rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Présentation<br><small style="text-transform:none; font-weight:600;">/20 · 0,30</small></th>
+                                <th style="padding:6px 10px; text-align:center; font-size:.76rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Questions<br><small style="text-transform:none; font-weight:600;">/20 · 0,40</small></th>
+                                <th style="padding:6px 10px; text-align:center; font-size:.76rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Note finale<br><small style="text-transform:none; font-weight:600;">/20</small></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ev in row.member_notes %}
+                            <tr style="border-bottom:1px solid var(--line);">
+                                <td style="padding:6px 10px; font-weight:700;">
+                                    {{ ev.professor.full_name }}
+                                    {% if ev.professor_id == row.assignment.president_id %}<span class="status-pill info" style="margin-left:6px;">Président</span>{% endif %}
+                                    {% if ev.professor_id == row.assignment.student.encadrant_id %}<span class="status-pill muted" style="margin-left:6px;">Encadrant</span>{% endif %}
+                                </td>
+                                <td style="padding:6px 10px; text-align:center;">{{ ev.rapport_note }}</td>
+                                <td style="padding:6px 10px; text-align:center;">{{ ev.presentation_note }}</td>
+                                <td style="padding:6px 10px; text-align:center;">{{ ev.questions_note }}</td>
+                                <td style="padding:6px 10px; text-align:center; font-weight:900;">{{ ev.final_note }}</td>
+                            </tr>
+                            {% endfor %}
+                            <tr style="border-top:2px solid var(--line);">
+                                <td style="padding:6px 10px; font-weight:900; color:var(--orange-deep);">Moyenne du jury</td>
+                                <td style="padding:6px 10px; text-align:center; font-weight:900;">{{ row.avg_rapport }}</td>
+                                <td style="padding:6px 10px; text-align:center; font-weight:900;">{{ row.avg_presentation }}</td>
+                                <td style="padding:6px 10px; text-align:center; font-weight:900;">{{ row.avg_questions }}</td>
+                                <td style="padding:6px 10px; text-align:center; font-weight:900; color:var(--orange-deep);">{% if row.published_result %}{{ row.published_result.average }}{% else %}{{ row.computed_average }}{% endif %}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+            {% endif %}
             {% endfor %}
         </tbody>
     </table>
@@ -90,5 +134,17 @@
     </div>
 </div>
 {% endif %}
+
+<script>
+document.querySelectorAll('.js-detail-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var row = document.getElementById(btn.getAttribute('data-target'));
+        if (!row) return;
+        var shown = row.style.display !== 'none';
+        row.style.display = shown ? 'none' : '';
+        btn.textContent = shown ? 'Détail' : 'Masquer';
+    });
+});
+</script>
 
 {% endblock %}
