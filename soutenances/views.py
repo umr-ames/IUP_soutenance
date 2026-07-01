@@ -51,6 +51,13 @@ MAX_SIMULTANEOUS_JURIES = 8
 # Date limite des soutenances : aucune soutenance possible après cette date.
 DEFENSE_DEADLINE = date_cls(2026, 7, 10)
 
+# Créneaux de soutenance : matin et après-midi. Un jury doit tenir entièrement
+# dans un seul créneau (pas de chevauchement de la coupure 14h–15h).
+DEFENSE_SLOTS = [
+    (time(9, 0), time(14, 0)),   # Matin
+    (time(15, 0), time(19, 0)),  # Après-midi
+]
+
 
 @login_required
 @role_required(["student"])
@@ -676,16 +683,17 @@ def _generate_juries_one_date(defense_date, students, professors, num_juries, sa
     for eid in enc_sorted:
         fil = enc_filiere[eid]
         target = None
-        # a) bande de même filière avec une place d'encadrant libre
-        same = [b for b in buckets if b["filiere"] == fil and len(b["enc_ids"]) < 2]
-        if same:
-            target = min(same, key=lambda b: len(b["students"]))
+        # a) privilégier une bande vide (maximise le parallélisme et garde chaque
+        #    jury mono-filière tant qu'il reste des bandes libres)
+        empty = [b for b in buckets if not b["enc_ids"]]
+        if empty:
+            target = empty[0]
+            target["filiere"] = fil
         else:
-            # b) bande vide
-            empty = [b for b in buckets if not b["enc_ids"]]
-            if empty:
-                target = empty[0]
-                target["filiere"] = fil
+            # b) sinon, bande de même filière avec une place d'encadrant libre
+            same = [b for b in buckets if b["filiere"] == fil and len(b["enc_ids"]) < 2]
+            if same:
+                target = min(same, key=lambda b: len(b["students"]))
             else:
                 # c) repli : bande avec place d'encadrant libre (filières mêlées)
                 room = [b for b in buckets if len(b["enc_ids"]) < 2]
@@ -703,28 +711,35 @@ def _generate_juries_one_date(defense_date, students, professors, num_juries, sa
     all_enc_ids = set(by_enc.keys())
     used_prof_ids = set()  # professeurs déjà engagés (jurys parallèles disjoints)
 
-    # Heures de début candidates : grille de 20 min couvrant les plages de
-    # disponibilité déclarées ce jour-là (ex. 15:00–19:00). On ne suppose plus
-    # un démarrage à 09:00.
-    day_avails = list(
-        ProfessorAvailability.objects.filter(
-            professor_id__in=prof_ids, date=defense_date
-        )
-    )
+    # Heures de début candidates : grille de 20 min à l'intérieur de chaque
+    # créneau (matin 9h–14h, après-midi 15h–19h). Un jury ne peut pas démarrer
+    # dans la coupure 14h–15h.
     candidate_starts = []
-    if day_avails:
-        cursor_t = datetime.combine(defense_date, min(a.start_time for a in day_avails))
-        end_t = datetime.combine(defense_date, max(a.end_time for a in day_avails))
-        while cursor_t <= end_t:
+    for slot_start, slot_end in DEFENSE_SLOTS:
+        cursor_t = datetime.combine(defense_date, slot_start)
+        slot_end_dt = datetime.combine(defense_date, slot_end)
+        while cursor_t < slot_end_dt:
             candidate_starts.append(cursor_t.time())
             cursor_t += timedelta(minutes=DEFENSE_DURATION_MINUTES)
 
+    def block_fits_slot(start, block_minutes):
+        """Le bloc [start, start+durée] doit tenir entièrement dans un créneau."""
+        start_dt = datetime.combine(defense_date, start)
+        end_dt = start_dt + timedelta(minutes=block_minutes)
+        for slot_start, slot_end in DEFENSE_SLOTS:
+            if start >= slot_start and end_dt <= datetime.combine(defense_date, slot_end):
+                return True
+        return False
+
     def earliest_start_for(encadrant_objs, n_students):
         """Renvoie (heure_début, encadrants_disponibles) : d'abord un créneau où
-        TOUS les encadrants sont disponibles pour tout le bloc, sinon le créneau
-        qui en rend le plus disponibles."""
+        TOUS les encadrants sont disponibles pour tout le bloc (qui doit tenir
+        dans un seul créneau matin/après-midi), sinon le créneau qui en rend le
+        plus disponibles."""
         block = DEFENSE_DURATION_MINUTES * n_students
         for start in candidate_starts:
+            if not block_fits_slot(start, block):
+                continue
             if all(
                 is_professor_available(p, defense_date, start, block)
                 for p in encadrant_objs
@@ -732,6 +747,8 @@ def _generate_juries_one_date(defense_date, students, professors, num_juries, sa
                 return start, list(encadrant_objs)
         best = None
         for start in candidate_starts:
+            if not block_fits_slot(start, block):
+                continue
             avail = [
                 p for p in encadrant_objs
                 if is_professor_available(p, defense_date, start, block)
