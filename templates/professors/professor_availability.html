@@ -104,13 +104,13 @@
         {% else %}
             <h1>Mes créneaux disponibles</h1>
             <p class="muted">
-                Cochez les heures où vous êtes disponible cette semaine. Ces créneaux
-                permettent au système de choisir automatiquement les jurys.
+                Cochez, pour chaque jour, si vous êtes disponible le <strong>matin</strong> et/ou
+                l'<strong>après-midi</strong>. Cocher un créneau vous rend disponible sur toute sa durée.
             </p>
 
             <div class="availability-chip-row">
-                <span class="availability-chip status-pill info">Grille hebdomadaire</span>
-                <span class="availability-chip status-pill info">09h - 19h</span>
+                <span class="availability-chip status-pill info">Matin 9h–14h (vendredi 9h–12h)</span>
+                <span class="availability-chip status-pill info">Après-midi 15h–19h (vendredi 16h–19h)</span>
                 <span class="availability-chip status-pill warning">Session jusqu'au {{ session_end_date|date:"d/m/Y" }}</span>
             </div>
         {% endif %}
@@ -135,7 +135,7 @@
     </section>
 {% endif %}
 
-{% if grid_rows %}
+{% if day_rows %}
 <section class="grid-card glass-card">
     <form method="post" id="availabilityGridForm">
         {% csrf_token %}
@@ -172,42 +172,35 @@
             </div>
         </div>
 
-        <div class="week-grid-wrapper">
-            <table class="week-grid">
+        <div class="table-responsive">
+            <table class="table mb-0" style="text-align:center;">
                 <thead>
                     <tr>
-                        <th class="hour-col-header">Heure</th>
-                        {% for day in week_days %}
-                            <th>
-                                {{ day|date:"D" }}<br>{{ day|date:"d/m" }}
-                                <div class="day-shortcuts">
-                                    <button type="button" class="shortcut-btn"
-                                        data-date="{{ day|date:'Y-m-d' }}" data-key="matin">Matin</button>
-                                    <button type="button" class="shortcut-btn"
-                                        data-date="{{ day|date:'Y-m-d' }}" data-key="apmidi">Après-midi</button>
-                                    <button type="button" class="shortcut-btn"
-                                        data-date="{{ day|date:'Y-m-d' }}" data-key="journee">Journée</button>
-                                </div>
-                            </th>
-                        {% endfor %}
+                        <th style="text-align:left;">Jour</th>
+                        <th>Matin</th>
+                        <th>Après-midi</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in grid_rows %}
-                        <tr>
-                            <td class="hour-label">{{ row.hour }}h - {{ row.hour|add:1 }}h</td>
-                            {% for cell in row.cells %}
-                                <td class="week-cell {% if cell.disabled %}disabled-cell{% endif %}">
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            name="slot_{{ cell.date|date:'Y-m-d' }}_{{ cell.hour }}"
-                                            {% if cell.checked %}checked{% endif %}
-                                            {% if cell.disabled %}disabled{% endif %}
-                                        >
-                                    </label>
-                                </td>
-                            {% endfor %}
+                    {% for row in day_rows %}
+                        <tr {% if row.disabled %}style="opacity:.45;"{% endif %}>
+                            <td style="text-align:left; font-weight:700;">
+                                {{ row.date|date:"l d/m/Y" }}
+                            </td>
+                            <td>
+                                <label style="display:inline-flex; gap:6px; align-items:center; cursor:pointer;">
+                                    <input type="checkbox" name="slot_{{ row.date|date:'Y-m-d' }}_morning"
+                                           {% if row.morning_checked %}checked{% endif %} {% if row.disabled %}disabled{% endif %}>
+                                    <span style="font-size:.82rem; color:var(--muted);">{{ row.morning_label }}</span>
+                                </label>
+                            </td>
+                            <td>
+                                <label style="display:inline-flex; gap:6px; align-items:center; cursor:pointer;">
+                                    <input type="checkbox" name="slot_{{ row.date|date:'Y-m-d' }}_afternoon"
+                                           {% if row.afternoon_checked %}checked{% endif %} {% if row.disabled %}disabled{% endif %}>
+                                    <span style="font-size:.82rem; color:var(--muted);">{{ row.afternoon_label }}</span>
+                                </label>
+                            </td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -264,95 +257,4 @@
     </div>
 </section>
 {% endif %}
-{% endblock %}
-
-{% block extra_js %}
-<script>
-(function () {
-    var SLOTS = {
-        matin: [9, 10, 11, 12, 13],
-        apmidi: [14, 15, 16, 17, 18],
-        journee: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
-    };
-
-    function getCheckbox(date, hour) {
-        return document.querySelector('input[name="slot_' + date + '_' + hour + '"]');
-    }
-
-    function setSlots(date, hours, checked) {
-        hours.forEach(function (hour) {
-            var checkbox = getCheckbox(date, hour);
-            if (checkbox && !checkbox.disabled) {
-                checkbox.checked = checked;
-            }
-        });
-    }
-
-    function allChecked(date, hours) {
-        return hours.every(function (hour) {
-            var checkbox = getCheckbox(date, hour);
-            if (!checkbox || checkbox.disabled) {
-                return true;
-            }
-            return checkbox.checked;
-        });
-    }
-
-    function detectActive(date) {
-        var morning = allChecked(date, SLOTS.matin);
-        var afternoon = allChecked(date, SLOTS.apmidi);
-        if (morning && afternoon) {
-            return 'journee';
-        }
-        if (morning) {
-            return 'matin';
-        }
-        if (afternoon) {
-            return 'apmidi';
-        }
-        return null;
-    }
-
-    function updateButtons(date) {
-        var active = detectActive(date);
-        document.querySelectorAll('.shortcut-btn[data-date="' + date + '"]').forEach(function (button) {
-            button.classList.toggle('is-active', button.dataset.key === active);
-        });
-    }
-
-    function toggleShortcut(date, key) {
-        var current = detectActive(date);
-        if (current === key) {
-            setSlots(date, SLOTS[key], false);
-        } else {
-            if (current) {
-                setSlots(date, SLOTS[current], false);
-            }
-            setSlots(date, SLOTS[key], true);
-        }
-        updateButtons(date);
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.shortcut-btn').forEach(function (button) {
-            button.addEventListener('click', function () {
-                toggleShortcut(this.dataset.date, this.dataset.key);
-            });
-        });
-
-        document.querySelectorAll('.week-grid input[type="checkbox"]').forEach(function (checkbox) {
-            checkbox.addEventListener('change', function () {
-                var date = this.name.split('_')[1];
-                updateButtons(date);
-            });
-        });
-
-        var dates = new Set();
-        document.querySelectorAll('.shortcut-btn').forEach(function (button) {
-            dates.add(button.dataset.date);
-        });
-        dates.forEach(updateButtons);
-    });
-})();
-</script>
 {% endblock %}

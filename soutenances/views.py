@@ -51,12 +51,9 @@ MAX_SIMULTANEOUS_JURIES = 8
 # Date limite des soutenances : aucune soutenance possible après cette date.
 DEFENSE_DEADLINE = date_cls(2026, 7, 10)
 
-# Créneaux de soutenance : matin et après-midi. Un jury doit tenir entièrement
-# dans un seul créneau (pas de chevauchement de la coupure 14h–15h).
-DEFENSE_SLOTS = [
-    (time(9, 0), time(14, 0)),   # Matin
-    (time(15, 0), time(19, 0)),  # Après-midi
-]
+# Créneaux de soutenance (matin / après-midi, exception vendredi) : voir
+# professors.slots. Un jury doit tenir entièrement dans un seul créneau.
+from professors.slots import slots_for as defense_slots_for
 
 
 @login_required
@@ -714,8 +711,9 @@ def _generate_juries_one_date(defense_date, students, professors, num_juries, sa
     # Heures de début candidates : grille de 20 min à l'intérieur de chaque
     # créneau (matin 9h–14h, après-midi 15h–19h). Un jury ne peut pas démarrer
     # dans la coupure 14h–15h.
+    day_slots = defense_slots_for(defense_date)
     candidate_starts = []
-    for slot_start, slot_end in DEFENSE_SLOTS:
+    for slot_start, slot_end in day_slots:
         cursor_t = datetime.combine(defense_date, slot_start)
         slot_end_dt = datetime.combine(defense_date, slot_end)
         while cursor_t < slot_end_dt:
@@ -726,7 +724,7 @@ def _generate_juries_one_date(defense_date, students, professors, num_juries, sa
         """Le bloc [start, start+durée] doit tenir entièrement dans un créneau."""
         start_dt = datetime.combine(defense_date, start)
         end_dt = start_dt + timedelta(minutes=block_minutes)
-        for slot_start, slot_end in DEFENSE_SLOTS:
+        for slot_start, slot_end in day_slots:
             if start >= slot_start and end_dt <= datetime.combine(defense_date, slot_end):
                 return True
         return False

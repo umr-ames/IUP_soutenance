@@ -19,6 +19,7 @@ from .forms import (
     ProfessorRequestDecisionForm,
 )
 from .models import ProfessorAvailability, ProfessorProfile
+from . import slots
 
 
 SESSION_START_DATE = datetime.date(2026, 6, 1)
@@ -133,40 +134,33 @@ def admin_professor_availability(request):
 
 
 def _save_week_availability(request, professor):
-    """Enregistre (remplace) les créneaux d'une semaine pour un professeur."""
+    """Enregistre (remplace) les créneaux d'une semaine pour un professeur.
+    Deux créneaux par jour : Matin et Après-midi (couvrant tout le créneau)."""
     week_start = parse_week_start(request.POST.get("week_start"))
     week_dates = [week_start + datetime.timedelta(days=i) for i in range(7)]
-
-    checked_hours_by_date = {}
-    for day in week_dates:
-        checked_hours = [
-            hour
-            for hour in range(GRID_START_HOUR, GRID_END_HOUR)
-            if request.POST.get(f"slot_{day.isoformat()}_{hour}")
-        ]
-        if checked_hours:
-            checked_hours_by_date[day] = checked_hours
 
     ProfessorAvailability.objects.filter(
         professor=professor, date__in=week_dates
     ).delete()
 
     created_count = 0
-    for day, hours in checked_hours_by_date.items():
-        for start_hour, end_hour in merge_consecutive_hours(hours):
-            ProfessorAvailability.objects.create(
-                professor=professor,
-                date=day,
-                start_time=datetime.time(start_hour, 0),
-                end_time=datetime.time(end_hour, 0),
-            )
-            created_count += 1
+    for day in week_dates:
+        for slot in (slots.MORNING, slots.AFTERNOON):
+            if request.POST.get(f"slot_{day.isoformat()}_{slot}"):
+                start_time, end_time = slots.slot_bounds(day, slot)
+                ProfessorAvailability.objects.create(
+                    professor=professor,
+                    date=day,
+                    start_time=start_time,
+                    end_time=end_time,
+                )
+                created_count += 1
 
     return week_start, created_count
 
 
 def _availability_context(professor, week_param):
-    """Construit le contexte de la grille hebdomadaire pour un professeur."""
+    """Construit le contexte de la grille hebdomadaire (Matin / Après-midi)."""
     week_start = parse_week_start(week_param)
     week_dates = [week_start + datetime.timedelta(days=i) for i in range(7)]
 
@@ -175,32 +169,36 @@ def _availability_context(professor, week_param):
         date__range=(week_dates[0], week_dates[-1]),
     )
 
-    checked_cells = set()
+    checked = set()  # (date, slot)
     for availability in existing:
-        for hour in range(
-            max(availability.start_time.hour, GRID_START_HOUR),
-            min(availability.end_time.hour, GRID_END_HOUR),
+        for slot in slots.slots_touched(
+            availability.date, availability.start_time, availability.end_time
         ):
-            checked_cells.add((availability.date, hour))
+            checked.add((availability.date, slot))
 
-    grid_rows = []
-    for hour in range(GRID_START_HOUR, GRID_END_HOUR):
-        row_cells = [{
+    today = timezone.localdate()
+    day_rows = []
+    for day in week_dates:
+        disabled = day < today or day > SESSION_END_DATE
+        morning = slots.morning_slot(day)
+        afternoon = slots.afternoon_slot(day)
+        day_rows.append({
             "date": day,
-            "hour": hour,
-            "checked": (day, hour) in checked_cells,
-            "disabled": day < timezone.localdate() or day > SESSION_END_DATE,
-        } for day in week_dates]
-        grid_rows.append({"hour": hour, "cells": row_cells})
+            "disabled": disabled,
+            "morning_checked": (day, slots.MORNING) in checked,
+            "afternoon_checked": (day, slots.AFTERNOON) in checked,
+            "morning_label": f"{morning[0].strftime('%Hh%M')}–{morning[1].strftime('%Hh%M')}",
+            "afternoon_label": f"{afternoon[0].strftime('%Hh%M')}–{afternoon[1].strftime('%Hh%M')}",
+        })
 
-    earliest_week = clamp_week_start(monday_of(min(timezone.localdate(), SESSION_START_DATE)))
+    earliest_week = clamp_week_start(monday_of(min(today, SESSION_START_DATE)))
     latest_week = clamp_week_start(monday_of(SESSION_END_DATE))
 
     return {
         "week_start": week_start,
         "week_end": week_dates[-1],
         "week_days": week_dates,
-        "grid_rows": grid_rows,
+        "day_rows": day_rows,
         "can_go_prev": week_start > earliest_week,
         "can_go_next": week_start < latest_week,
         "prev_week": (week_start - datetime.timedelta(days=7)).isoformat(),
