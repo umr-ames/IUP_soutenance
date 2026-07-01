@@ -279,6 +279,9 @@ def _build_students_overview(filters):
             status=PFERequest.STATUS_ACCEPTED
         ).values_list("student_id", flat=True)
     )
+    request_ids = set(
+        PFERequest.objects.values_list("student_id", flat=True)
+    )
     defended_ids = set(
         Result.objects.filter(is_published=True).values_list(
             "jury_student__student_id", flat=True
@@ -298,19 +301,20 @@ def _build_students_overview(filters):
         key = normalize_matricule(reference.matricule)
         seen.add(key)
         profile = profiles_by_mat.get(key)
-        rows.append(_overview_row(reference, profile, accepted_ids, defended_ids))
+        rows.append(_overview_row(reference, profile, accepted_ids, defended_ids, request_ids))
 
     # 2) Comptes inscrits absents de la liste officielle (cas limite)
     for key, profile in profiles_by_mat.items():
         if key in seen:
             continue
-        rows.append(_overview_row(None, profile, accepted_ids, defended_ids))
+        rows.append(_overview_row(None, profile, accepted_ids, defended_ids, request_ids))
 
     # Filtres
     f_filiere = (filters.get("filiere") or "").strip()
     f_inscrit = (filters.get("inscrit") or "").strip()
     f_accepte = (filters.get("accepte") or "").strip()
     f_soutenu = (filters.get("soutenu") or "").strip()
+    f_demande = (filters.get("demande") or "").strip()
 
     def keep(row):
         if f_filiere and row["filiere"] != f_filiere:
@@ -327,6 +331,10 @@ def _build_students_overview(filters):
             return False
         if f_soutenu == "0" and row["soutenu"]:
             return False
+        if f_demande == "1" and not row["demande"]:
+            return False
+        if f_demande == "0" and row["demande"]:
+            return False
         return True
 
     rows = [row for row in rows if keep(row)]
@@ -334,7 +342,7 @@ def _build_students_overview(filters):
     return rows
 
 
-def _overview_row(reference, profile, accepted_ids, defended_ids):
+def _overview_row(reference, profile, accepted_ids, defended_ids, request_ids):
     matricule = (profile.matricule if profile else reference.matricule)
     full_name = (profile.full_name if profile else reference.full_name)
     filiere = (
@@ -357,6 +365,7 @@ def _overview_row(reference, profile, accepted_ids, defended_ids):
         "entreprise": profile.entreprise if profile else "",
         "telephone": (profile.user.phone_number if profile and profile.user else "") or "",
         "inscrit": profile is not None,
+        "demande": bool(profile and profile.id in request_ids),
         "accepte": bool(profile and profile.id in accepted_ids),
         "soutenu": bool(profile and profile.id in defended_ids),
     }
@@ -378,6 +387,7 @@ def admin_students_overview(request):
         return sum(1 for r in rows_ if r[key])
 
     inscrit_flag = request.GET.get("inscrit", "")
+    demande_flag = request.GET.get("demande", "")
     accepte_flag = request.GET.get("accepte", "")
     soutenu_flag = request.GET.get("soutenu", "")
 
@@ -385,6 +395,8 @@ def admin_students_overview(request):
         "total": len(base),
         "inscrit_label": "Non inscrits" if inscrit_flag == "0" else "Inscrits",
         "inscrit_count": directional(base, "inscrit", inscrit_flag),
+        "demande_label": "Sans demande" if demande_flag == "0" else "Demande déposée",
+        "demande_count": directional(base, "demande", demande_flag),
         "accepte_label": "Non acceptés" if accepte_flag == "0" else "Acceptés",
         "accepte_count": directional(base, "accepte", accepte_flag),
         "soutenu_label": "Non soutenus" if soutenu_flag == "0" else "Soutenus",
@@ -398,6 +410,7 @@ def admin_students_overview(request):
         "selected": {
             "filiere": request.GET.get("filiere", ""),
             "inscrit": request.GET.get("inscrit", ""),
+            "demande": request.GET.get("demande", ""),
             "accepte": request.GET.get("accepte", ""),
             "soutenu": request.GET.get("soutenu", ""),
         },
@@ -419,7 +432,7 @@ def admin_students_overview_export(request):
 
     headers = [
         "Matricule", "Nom complet", "Filiere", "Encadrant",
-        "Inscrit", "Accepte", "Soutenu", "Entreprise", "Telephone",
+        "Inscrit", "Demande deposee", "Accepte", "Soutenu", "Entreprise", "Telephone",
     ]
     sheet.append(headers)
 
@@ -435,11 +448,11 @@ def admin_students_overview_export(request):
     for row in rows:
         sheet.append([
             row["matricule"], row["full_name"], row["filiere"], row["encadrant"],
-            yn(row["inscrit"]), yn(row["accepte"]), yn(row["soutenu"]),
+            yn(row["inscrit"]), yn(row["demande"]), yn(row["accepte"]), yn(row["soutenu"]),
             row["entreprise"], row["telephone"],
         ])
 
-    widths = [14, 30, 10, 26, 9, 9, 9, 24, 14]
+    widths = [14, 30, 10, 26, 9, 15, 9, 9, 24, 14]
     for i, width in enumerate(widths, start=1):
         sheet.column_dimensions[chr(64 + i)].width = width
 

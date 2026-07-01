@@ -18,7 +18,7 @@
 
 <section class="content-panel">
     <form method="get" class="row g-2 align-items-end">
-        <div class="col-md-3">
+        <div class="col-md-2">
             <label class="form-label">Filière</label>
             <select name="filiere" class="form-select">
                 <option value="">Toutes</option>
@@ -33,6 +33,14 @@
                 <option value="">Tous</option>
                 <option value="1" {% if selected.inscrit == '1' %}selected{% endif %}>Oui</option>
                 <option value="0" {% if selected.inscrit == '0' %}selected{% endif %}>Non</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Demande déposée</label>
+            <select name="demande" class="form-select">
+                <option value="">Tous</option>
+                <option value="1" {% if selected.demande == '1' %}selected{% endif %}>Oui</option>
+                <option value="0" {% if selected.demande == '0' %}selected{% endif %}>Non</option>
             </select>
         </div>
         <div class="col-md-2">
@@ -51,7 +59,7 @@
                 <option value="0" {% if selected.soutenu == '0' %}selected{% endif %}>Non</option>
             </select>
         </div>
-        <div class="col-md-3 d-flex gap-2">
+        <div class="col-md-2 d-flex gap-2">
             <button type="submit" class="btn btn-primary">Filtrer</button>
             <a href="{% url 'admin_students_overview' %}" class="btn btn-outline-secondary">Réinitialiser</a>
         </div>
@@ -62,6 +70,7 @@
     <div class="d-flex gap-2 flex-wrap mb-3">
         <span class="status-pill info">Total : {{ stats.total }}</span>
         <span class="status-pill info">{{ stats.inscrit_label }} : {{ stats.inscrit_count }}</span>
+        <span class="status-pill info">{{ stats.demande_label }} : {{ stats.demande_count }}</span>
         <span class="status-pill success">{{ stats.accepte_label }} : {{ stats.accepte_count }}</span>
         <span class="status-pill success">{{ stats.soutenu_label }} : {{ stats.soutenu_count }}</span>
     </div>
@@ -75,6 +84,7 @@
                     <th>Filière</th>
                     <th>Encadrant</th>
                     <th>Inscrit</th>
+                    <th>Demande</th>
                     <th>Accepté</th>
                     <th>Soutenu</th>
                 </tr>
@@ -91,6 +101,10 @@
                             {% else %}<span class="status-pill muted">Non</span>{% endif %}
                         </td>
                         <td>
+                            {% if row.demande %}<span class="status-pill success">Oui</span>
+                            {% else %}<span class="status-pill muted">Non</span>{% endif %}
+                        </td>
+                        <td>
                             {% if row.accepte %}<span class="status-pill success">Oui</span>
                             {% else %}<span class="status-pill muted">Non</span>{% endif %}
                         </td>
@@ -100,7 +114,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="7"><div class="empty-state">Aucun étudiant ne correspond aux filtres.</div></td></tr>
+                    <tr><td colspan="8"><div class="empty-state">Aucun étudiant ne correspond aux filtres.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>
