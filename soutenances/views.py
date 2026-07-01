@@ -53,7 +53,21 @@ DEFENSE_DEADLINE = date_cls(2026, 7, 10)
 
 # Créneaux de soutenance (matin / après-midi, exception vendredi) : voir
 # professors.slots. Un jury doit tenir entièrement dans un seul créneau.
+from professors import slots as defense_slots
 from professors.slots import slots_for as defense_slots_for
+
+
+def _slot_label_at(date, start_time):
+    """'morning'/'afternoon'/None selon le créneau contenant start_time."""
+    touched = defense_slots.slots_touched(
+        date, start_time,
+        (datetime.combine(date, start_time) + timedelta(minutes=1)).time(),
+    )
+    if defense_slots.MORNING in touched:
+        return defense_slots.MORNING
+    if defense_slots.AFTERNOON in touched:
+        return defense_slots.AFTERNOON
+    return None
 
 
 @login_required
@@ -964,6 +978,11 @@ def generate_smart_juries():
 
     jury_index = 1
 
+    # Suivi des membres déjà engagés par (date, créneau) : un membre programmé le
+    # matin ne doit pas être réaffecté l'après-midi (et inversement).
+    from collections import defaultdict as _dd
+    slot_used = _dd(set)
+
     # 4. Walk through slots chronologically
     for defense_date, block_start in candidate_slots:
         # Stop early if no students remain
@@ -974,10 +993,19 @@ def generate_smart_juries():
         if jury_slot_capacity_reached(defense_date, block_start):
             continue
 
-        # Find professors free at this slot (available + no conflict)
+        current_slot = _slot_label_at(defense_date, block_start)
+        other_slot = (
+            defense_slots.AFTERNOON if current_slot == defense_slots.MORNING
+            else defense_slots.MORNING
+        )
+        blocked_ids = slot_used.get((defense_date, other_slot), set())
+
+        # Find professors free at this slot (available + no conflict + pas déjà
+        # engagés dans l'autre créneau de la journée)
         available_profs = [
             p for p in professors
-            if is_professor_available(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
+            if p.id not in blocked_ids
+            and is_professor_available(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
             and not professor_has_conflict(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
         ]
 
@@ -1065,6 +1093,10 @@ def generate_smart_juries():
         result["scheduled"] += len(selected_students)
         jury_index += 1
 
+        # Membres engagés dans ce créneau : indisponibles pour l'autre créneau.
+        if current_slot:
+            slot_used[(defense_date, current_slot)].update(m.id for m in jury_members)
+
         # Build report entry for this jury
         report_entry = {
             "jury_name": jury.name,
@@ -1139,6 +1171,13 @@ def build_consecutive_available_slots(members, defense_date, block_start, max_sl
     if jury_slot_capacity_reached(defense_date, block_start):
         return []
 
+    # Le jury reste dans le créneau (matin/après-midi) où il démarre : on borne
+    # la fin des créneaux consécutifs à la fin de ce créneau.
+    slot_label = _slot_label_at(defense_date, block_start)
+    slot_end = None
+    if slot_label:
+        _, slot_end = defense_slots.slot_bounds(defense_date, slot_label)
+
     slots = []
     cursor = datetime.combine(defense_date, block_start)
 
@@ -1146,6 +1185,15 @@ def build_consecutive_available_slots(members, defense_date, block_start, max_sl
         current_time = (
             cursor + timedelta(minutes=index * DEFENSE_DURATION_MINUTES)
         ).time()
+
+        # Ne pas déborder du créneau (matin/après-midi).
+        if slot_end is not None:
+            end_dt = (
+                datetime.combine(defense_date, current_time)
+                + timedelta(minutes=DEFENSE_DURATION_MINUTES)
+            )
+            if end_dt > datetime.combine(defense_date, slot_end):
+                break
 
         all_members_available = True
 
@@ -2190,14 +2238,11 @@ def build_slots_from_availability(availability):
 
 
 def build_slots(defense_date):
-    windows = [
-        (time(9, 0), time(12, 0)),
-        (time(16, 0), time(19, 0)),
-    ]
-
+    """Créneaux de 20 min disponibles ce jour-là, à l'intérieur des deux
+    créneaux matin/après-midi (exception vendredi)."""
     slots = []
 
-    for start, end in windows:
+    for start, end in defense_slots_for(defense_date):
         cursor = datetime.combine(defense_date, start)
         limit = datetime.combine(defense_date, end)
 
