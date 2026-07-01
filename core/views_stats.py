@@ -647,6 +647,31 @@ def _compute_resultats():
         for i, k in enumerate(MENTION_KEYS)
     ]
 
+    # Répartition globale des mentions (tous résultats publiés confondus).
+    mentions_global = {k: 0 for k in MENTION_KEYS}
+    for r in pub_results:
+        if r.average is None:
+            continue
+        a = float(r.average)
+        if a >= 18:
+            mentions_global['Félicitations'] += 1
+        elif a >= 16:
+            mentions_global['Très bien'] += 1
+        elif a >= 14:
+            mentions_global['Bien'] += 1
+        elif a >= 12:
+            mentions_global['Assez bien'] += 1
+        elif a >= 10:
+            mentions_global['Passable'] += 1
+        else:
+            mentions_global['Insuffisant'] += 1
+
+    mentions_global_labels = [k for k in MENTION_KEYS if mentions_global[k] > 0]
+    mentions_global_counts = [mentions_global[k] for k in mentions_global_labels]
+    mentions_global_colors = [
+        MENTION_COLORS[MENTION_KEYS.index(k)] for k in mentions_global_labels
+    ]
+
     return {
         'res_global_avg': global_avg_f,
         'res_taux_reussite': taux_reussite,
@@ -663,6 +688,9 @@ def _compute_resultats():
         'res_bar_quest_json': json.dumps(bar_questions),
         'res_bar_std_json': json.dumps(bar_std),
         'res_mentions_ds_json': json.dumps(mentions_ds),
+        'res_mentions_global_labels_json': json.dumps(mentions_global_labels),
+        'res_mentions_global_counts_json': json.dumps(mentions_global_counts),
+        'res_mentions_global_colors_json': json.dumps(mentions_global_colors),
         'res_filieres_json': json.dumps(FILIERES),
     }
 

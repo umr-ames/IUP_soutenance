@@ -730,6 +730,16 @@ if (typeof Chart === 'undefined') {
         </div>
     </div>
 
+    <!-- Répartition globale des mentions (doughnut) -->
+    <div class="grid-2" style="margin-top:12px;">
+        <div class="stat-card" style="margin-bottom:0;">
+            <h3>Répartition globale des mentions</h3>
+            <div style="position:relative;height:260px;">
+                <canvas id="chartResMentionsGlobal"></canvas>
+            </div>
+        </div>
+    </div>
+
     <!-- Ligne 2 : Analyse des écarts | Détail par spécialité -->
     <div class="grid-2" style="margin-top:12px;">
         <!-- 4 Ecarts -->
@@ -1052,6 +1062,34 @@ tabs.forEach(function(tab) {
             scales: {
                 x: { stacked: true, max: 100, ticks: { callback: function(v) { return v + '%'; }, font: { size: 9 } } },
                 y: { stacked: true, ticks: { font: { size: 10 } } }
+            }
+        }
+    });
+})();
+
+// ── Chart: Répartition globale des mentions (doughnut) ──────────────────
+(function() {
+    const el = document.getElementById('chartResMentionsGlobal');
+    if (!el) return;
+    const labels = {{ res_mentions_global_labels_json|safe }};
+    const counts = {{ res_mentions_global_counts_json|safe }};
+    const colors = {{ res_mentions_global_colors_json|safe }};
+    if (!labels.length) {
+        el.parentNode.innerHTML = '<p style="color:var(--muted);font-size:.85rem;text-align:center;padding-top:90px;">Aucun résultat publié pour le moment.</p>';
+        return;
+    }
+    const total = counts.reduce(function(a, b) { return a + b; }, 0);
+    new Chart(el, {
+        type: 'doughnut',
+        data: { labels: labels, datasets: [{ data: counts, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '55%',
+            plugins: {
+                legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } },
+                tooltip: { callbacks: { label: function(ctx) {
+                    const pct = total ? Math.round(ctx.parsed / total * 100) : 0;
+                    return ctx.label + ' : ' + ctx.parsed + ' (' + pct + '%)';
+                } } }
             }
         }
     });
