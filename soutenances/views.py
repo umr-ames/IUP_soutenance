@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from accounts.decorators import role_required
+from core.models import Notification, notify
 from professors.models import ProfessorAvailability, ProfessorProfile
 from students.models import StudentProfile
 
@@ -176,6 +177,13 @@ def admin_pfe_request_detail(request, pk):
             pfe_request.save(update_fields=[
                 "reupload_document", "reupload_comment", REUPLOAD_FIELDS[doc],
             ])
+            notify(
+                getattr(pfe_request.student, "user", None),
+                "Document à redéposer",
+                f"Le département demande le redépôt : {pfe_request.get_reupload_document_display}. {comment}".strip(),
+                "/student-dashboard/",
+                category=Notification.CATEGORY_DOCUMENT,
+            )
             messages.success(
                 request,
                 "Demande de redépôt envoyée à l'étudiant (visible aussi par l'encadrant)."
@@ -198,6 +206,13 @@ def admin_pfe_request_detail(request, pk):
                     return redirect("admin_pfe_request_detail", pk=pfe_request.pk)
 
                 pfe_request.admin_accept(request.user)
+                notify(
+                    getattr(pfe_request.student, "user", None),
+                    "Demande acceptée",
+                    "Votre demande de soutenance a été acceptée par le département de l'IUP.",
+                    "/student-dashboard/",
+                    category=Notification.CATEGORY_REQUEST,
+                )
                 messages.success(request, "La demande a été acceptée avec succès.")
                 return redirect("admin_pfe_requests")
 
@@ -210,6 +225,13 @@ def admin_pfe_request_detail(request, pk):
                     return redirect("admin_pfe_request_detail", pk=pfe_request.pk)
 
                 pfe_request.admin_refuse(request.user, comment)
+                notify(
+                    getattr(pfe_request.student, "user", None),
+                    "Demande refusée par le département",
+                    "Votre demande de soutenance a été refusée par le département de l'IUP. Consultez le commentaire.",
+                    "/student-dashboard/",
+                    category=Notification.CATEGORY_REQUEST,
+                )
                 messages.success(request, "La demande a été refusée.")
                 return redirect("admin_pfe_requests")
 
@@ -1734,14 +1756,52 @@ def admin_jury_remove_student(request, pk, assignment_pk):
     return redirect("admin_jury_detail", pk=jury.pk)
 
 
+def _notify_jury_published(jury):
+    """Prévient les étudiants (date + horaire) et les membres du jury publié."""
+    jury_students = JuryStudent.objects.filter(jury=jury).select_related(
+        "student", "student__user"
+    )
+    for js in jury_students:
+        schedule = get_assignment_schedule(js)
+        horaire = ""
+        if schedule:
+            horaire = (
+                f" à {format_time(schedule.start_time)}"
+                f"–{format_time(schedule.end_time)}"
+            )
+        notify(
+            getattr(js.student, "user", None),
+            "Votre soutenance est planifiée",
+            f"Date : {format_date(jury.defense_date)}{horaire}. Jury : {jury.name}.",
+            "/student-dashboard/",
+            category=Notification.CATEGORY_JURY,
+        )
+
+    for member in JuryMember.objects.filter(jury=jury).select_related(
+        "professor", "professor__user"
+    ):
+        notify(
+            getattr(member.professor, "user", None),
+            "Vous êtes membre d'un jury",
+            f"Jury « {jury.name} » — {format_date(jury.defense_date)}.",
+            "/professors/juries/",
+            category=Notification.CATEGORY_JURY,
+        )
+
+
 @login_required
 @role_required(["admin"])
 def admin_jury_publish(request, pk):
     jury = get_object_or_404(Jury, pk=pk)
 
     if request.method == "POST":
+        already_validated = jury.is_validated
         jury.is_validated = True
         jury.save(update_fields=["is_validated"])
+
+        if not already_validated:
+            _notify_jury_published(jury)
+
         messages.success(request, "Le jury a été publié. Étudiants et professeurs peuvent le voir.")
         next_url = request.POST.get("next") or request.META.get("HTTP_REFERER")
         if next_url:
@@ -2130,6 +2190,13 @@ def admin_publish_result(request, pk):
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))
         else:
+            notify(
+                getattr(assignment.student, "user", None),
+                "Résultat de soutenance publié",
+                "Votre note finale est disponible dans votre espace.",
+                "/student-dashboard/",
+                category=Notification.CATEGORY_RESULT,
+            )
             messages.success(request, "Résultat publié.")
 
     return redirect("admin_results")
@@ -2141,12 +2208,19 @@ def admin_publish_all_results(request):
     if request.method == "POST":
         count = 0
 
-        for assignment in JuryStudent.objects.prefetch_related("evaluations"):
+        for assignment in JuryStudent.objects.prefetch_related("evaluations").select_related("student__user"):
             if assignment.evaluations.filter(is_submitted=True).count() == 3:
                 result, _ = Result.objects.get_or_create(
                     jury_student=assignment,
                 )
                 result.publish()
+                notify(
+                    getattr(assignment.student, "user", None),
+                    "Résultat de soutenance publié",
+                    "Votre note finale est disponible dans votre espace.",
+                    "/student-dashboard/",
+                    category=Notification.CATEGORY_RESULT,
+                )
                 count += 1
 
         messages.success(request, f"{count} résultat(s) publié(s).")

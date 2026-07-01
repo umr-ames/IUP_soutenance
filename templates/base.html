@@ -17,6 +17,60 @@
     {% block extra_css %}{% endblock %}
 
     <link rel="stylesheet" href="{% static 'css/app-theme.css' %}">
+
+    <style>
+        .app-notif { position: relative; margin-right: 10px; }
+        .app-notif-trigger {
+            position: relative; border: none; background: rgba(13,148,136,.08);
+            width: 42px; height: 42px; border-radius: 14px; cursor: pointer;
+            display: grid; place-items: center; font-size: 1.15rem;
+            transition: .15s ease;
+        }
+        .app-notif-trigger:hover { background: rgba(13,148,136,.16); }
+        .app-notif-badge {
+            position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px;
+            padding: 0 5px; border-radius: 999px; background: #dc2626; color: #fff;
+            font-size: .72rem; font-weight: 900; display: grid; place-items: center;
+            box-shadow: 0 0 0 2px #fff;
+        }
+        .app-notif-dropdown {
+            position: absolute; right: 0; top: calc(100% + 8px); width: 340px; max-width: 88vw;
+            background: #fff; border: 1px solid rgba(35,31,27,.10); border-radius: 16px;
+            box-shadow: 0 18px 40px rgba(0,0,0,.16); z-index: 1200; display: none; overflow: hidden;
+        }
+        .app-notif-dropdown.is-open { display: block; }
+        .app-notif-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 14px; border-bottom: 1px solid rgba(35,31,27,.08);
+        }
+        .app-notif-head strong { font-size: .95rem; }
+        .app-notif-markall {
+            border: none; background: none; color: var(--orange-dark,#0f766e);
+            font-size: .78rem; font-weight: 800; cursor: pointer; padding: 0;
+        }
+        .app-notif-list { max-height: 60vh; overflow-y: auto; }
+        .app-notif-item {
+            display: block; padding: 11px 14px; border-bottom: 1px solid rgba(35,31,27,.06);
+            text-decoration: none; color: var(--text,#231f1b); transition: .12s ease;
+        }
+        .app-notif-item:hover { background: rgba(13,148,136,.05); }
+        .app-notif-item.unread { background: rgba(13,148,136,.07); }
+        .app-notif-item.unread .app-notif-item-title::before {
+            content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 999px;
+            background: #dc2626; margin-right: 7px; vertical-align: middle;
+        }
+        .app-notif-item-title { display: block; font-weight: 800; font-size: .87rem; line-height: 1.25; }
+        .app-notif-item-msg { display: block; margin-top: 3px; font-size: .8rem; color: var(--muted,#6b7280); }
+        .app-notif-item-time { display: block; margin-top: 4px; font-size: .72rem; color: var(--muted,#9ca3af); }
+        .app-notif-empty { padding: 20px 14px; text-align: center; color: var(--muted,#9ca3af); font-size: .86rem; }
+        .app-notif-toast {
+            position: fixed; right: 18px; bottom: 18px; z-index: 2000; max-width: 340px;
+            background: #0f766e; color: #fff; padding: 12px 16px; border-radius: 14px;
+            box-shadow: 0 16px 40px rgba(0,0,0,.25); font-weight: 700; font-size: .88rem;
+            opacity: 0; transform: translateY(10px); transition: .25s ease;
+        }
+        .app-notif-toast.show { opacity: 1; transform: translateY(0); }
+    </style>
 </head>
 
 <body>
@@ -79,6 +133,34 @@
                         <a href="{% url 'submit_pfe_request' %}" class="{% if current_url == 'submit_pfe_request' %}active{% endif %}">Demande de soutenance</a>
                     {% endif %}
                 </nav>
+
+                <div class="app-notif" id="notifMenu">
+                    <button type="button" class="app-notif-trigger" id="notifBtn" aria-label="Notifications">
+                        <span class="app-notif-bell" aria-hidden="true">&#128276;</span>
+                        <span class="app-notif-badge" id="notifBadge" {% if not notif_unread_count %}style="display:none;"{% endif %}>{{ notif_unread_count }}</span>
+                    </button>
+
+                    <div class="app-notif-dropdown" id="notifDropdown">
+                        <div class="app-notif-head">
+                            <strong>Notifications</strong>
+                            <form method="post" action="{% url 'notifications_mark_all_read' %}" style="margin:0;">
+                                {% csrf_token %}
+                                <button type="submit" class="app-notif-markall">Tout marquer comme lu</button>
+                            </form>
+                        </div>
+                        <div class="app-notif-list" id="notifList">
+                            {% for n in notif_items %}
+                                <a href="{% url 'notification_open' n.id %}" class="app-notif-item {% if not n.is_read %}unread{% endif %}">
+                                    <span class="app-notif-item-title">{{ n.title }}</span>
+                                    {% if n.message %}<span class="app-notif-item-msg">{{ n.message }}</span>{% endif %}
+                                    <span class="app-notif-item-time">{{ n.created_at|date:"d/m/Y H:i" }}</span>
+                                </a>
+                            {% empty %}
+                                <div class="app-notif-empty">Aucune notification.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
 
                 <div class="app-user" id="userMenu">
                     <button type="button" class="app-user-trigger" id="userMenuBtn">
@@ -194,6 +276,88 @@ if (userMenuBtn && userMenuDropdown) {
         }
     });
 }
+
+/* ── Notifications : dropdown, sondage, toast + son ─────────────────────── */
+(function () {
+    const notifBtn = document.getElementById('notifBtn');
+    const notifDropdown = document.getElementById('notifDropdown');
+    const notifBadge = document.getElementById('notifBadge');
+    if (!notifBtn || !notifDropdown) return;
+
+    notifBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        notifDropdown.classList.toggle('is-open');
+    });
+    document.addEventListener('click', function (event) {
+        if (!notifDropdown.contains(event.target) && !notifBtn.contains(event.target)) {
+            notifDropdown.classList.remove('is-open');
+        }
+    });
+
+    // Le son ne peut démarrer qu'après une interaction utilisateur (règle navigateur).
+    let audioReady = false;
+    let audioCtx = null;
+    function unlockAudio() {
+        if (audioReady) return;
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            audioReady = true;
+        } catch (e) { audioReady = false; }
+    }
+    document.addEventListener('click', unlockAudio, { once: false });
+    document.addEventListener('keydown', unlockAudio, { once: false });
+
+    function beep() {
+        if (!audioReady || !audioCtx) return;
+        try {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = 'sine'; o.frequency.value = 880;
+            g.gain.setValueAtTime(0.001, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + 0.36);
+        } catch (e) {}
+    }
+
+    function showToast(text) {
+        const toast = document.createElement('div');
+        toast.className = 'app-notif-toast';
+        toast.textContent = text;
+        document.body.appendChild(toast);
+        requestAnimationFrame(function () { toast.classList.add('show'); });
+        setTimeout(function () {
+            toast.classList.remove('show');
+            setTimeout(function () { toast.remove(); }, 300);
+        }, 5000);
+    }
+
+    let lastLatestId = null;
+    function poll() {
+        fetch("{% url 'notifications_feed' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (notifBadge) {
+                    if (data.unread > 0) {
+                        notifBadge.textContent = data.unread;
+                        notifBadge.style.display = '';
+                    } else {
+                        notifBadge.style.display = 'none';
+                    }
+                }
+                if (lastLatestId !== null && data.latest_id && data.latest_id > lastLatestId && data.unread > 0) {
+                    beep();
+                    const top = data.items && data.items[0] ? data.items[0].title : 'Nouvelle notification';
+                    showToast('🔔 ' + top);
+                }
+                lastLatestId = data.latest_id || 0;
+            })
+            .catch(function () {});
+    }
+    poll();
+    setInterval(poll, 45000);
+})();
 </script>
 
 {% block extra_js %}{% endblock %}

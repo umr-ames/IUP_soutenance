@@ -889,3 +889,55 @@ def unique_username(username_base):
         suffix += 1
         candidate = f"{base}_{suffix}"[:150]
     return candidate
+
+
+# ── Notifications in-app ──────────────────────────────────────────────────────
+
+@login_required
+def notifications_feed(request):
+    """Sondage JSON : nombre de non-lus + dernières notifications (pour la cloche
+    et le déclenchement de l'alerte sonore côté client)."""
+    from django.http import JsonResponse
+    from .models import Notification
+
+    queryset = Notification.objects.filter(recipient=request.user)
+    unread = queryset.filter(is_read=False).count()
+    items = []
+    for notification in queryset[:12]:
+        items.append({
+            "id": notification.id,
+            "title": notification.title,
+            "message": notification.message,
+            "url": notification.url,
+            "category": notification.category,
+            "is_read": notification.is_read,
+            "created_at": notification.created_at.strftime("%d/%m/%Y %H:%M"),
+        })
+    latest_id = items[0]["id"] if items else 0
+    return JsonResponse({"unread": unread, "latest_id": latest_id, "items": items})
+
+
+@login_required
+def notification_open(request, pk):
+    """Marque une notification comme lue puis redirige vers sa page cible."""
+    from django.shortcuts import get_object_or_404
+    from .models import Notification
+
+    notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
+    if not notification.is_read:
+        notification.is_read = True
+        notification.save(update_fields=["is_read"])
+    return redirect(notification.url or "dashboard")
+
+
+@login_required
+def notifications_mark_all_read(request):
+    """Marque toutes les notifications de l'utilisateur comme lues."""
+    from .models import Notification
+
+    if request.method == "POST":
+        Notification.objects.filter(
+            recipient=request.user, is_read=False
+        ).update(is_read=True)
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "dashboard"
+    return redirect(next_url)

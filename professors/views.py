@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.decorators import role_required
+from core.models import Notification, notify, notify_admins
 from soutenances.models import (
     Evaluation, Jury, JuryMember, JuryStudent, PFERequest, Result,
     mention_for_average,
@@ -420,6 +421,21 @@ def professor_request_detail(request, pk):
             if action == "accept":
                 pfe_request.professor_accept(professor)
 
+                student_user = getattr(pfe_request.student, "user", None)
+                notify(
+                    student_user,
+                    "Demande validée par votre encadrant",
+                    "Votre encadrant a validé votre demande. Elle est transmise au département de l'IUP.",
+                    "/student-dashboard/",
+                    category=Notification.CATEGORY_REQUEST,
+                )
+                notify_admins(
+                    "Demande à valider",
+                    f"{pfe_request.student.full_name} ({pfe_request.student.matricule}) — demande validée par l'encadrant, en attente du département.",
+                    "/soutenances/admin/demandes/",
+                    category=Notification.CATEGORY_REQUEST,
+                )
+
                 messages.success(
                     request,
                     "La demande a été validée et envoyée au département de l'IUP."
@@ -429,6 +445,15 @@ def professor_request_detail(request, pk):
 
             if action == "refuse":
                 pfe_request.professor_refuse(professor, comment)
+
+                student_user = getattr(pfe_request.student, "user", None)
+                notify(
+                    student_user,
+                    "Demande refusée par votre encadrant",
+                    "Votre encadrant a refusé votre demande. Consultez son commentaire et redéposez si nécessaire.",
+                    "/student-dashboard/",
+                    category=Notification.CATEGORY_REQUEST,
+                )
 
                 messages.success(request, "La demande a été refusée.")
 

@@ -4,6 +4,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
 from accounts.decorators import role_required
+from core.models import Notification, notify
 from documents.models import DocumentTemplate
 from soutenances.forms import PFERequestForm
 from soutenances.models import Deadline, PFERequest
@@ -114,6 +115,15 @@ def submit_pfe_request(request):
                     messages.success(
                         request,
                         "Votre demande de soutenance a été envoyée avec succès."
+                    )
+                encadrant = student.encadrant
+                if encadrant and encadrant.user_id:
+                    notify(
+                        encadrant.user,
+                        "Nouvelle demande de soutenance",
+                        f"{student.full_name} ({student.matricule}) a déposé une demande à valider.",
+                        "/professors/requests/",
+                        category=Notification.CATEGORY_REQUEST,
                     )
                 return redirect("student_dashboard")
     else:

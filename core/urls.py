@@ -20,4 +20,7 @@ urlpatterns = [
     path("admin-dashboard/statistiques/", admin_statistiques, name="admin_statistiques"),
     path("professor-dashboard/", views.professor_dashboard, name="professor_dashboard"),
     path("student-dashboard/", views.student_dashboard, name="student_dashboard"),
+    path("notifications/feed/", views.notifications_feed, name="notifications_feed"),
+    path("notifications/<int:pk>/open/", views.notification_open, name="notification_open"),
+    path("notifications/mark-all-read/", views.notifications_mark_all_read, name="notifications_mark_all_read"),
 ]

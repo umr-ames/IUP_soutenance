@@ -24,6 +24,24 @@ def institution(request):
     }
 
 
+def notifications(request):
+    """Cloche de notifications : nombre de non-lus + dernières notifications."""
+    user = getattr(request, "user", None)
+    if not user or not user.is_authenticated:
+        return {"notif_unread_count": 0, "notif_items": []}
+
+    from .models import Notification
+
+    queryset = Notification.objects.filter(recipient=user)
+    items = list(queryset[:12])
+    unread = queryset.filter(is_read=False).count()
+
+    return {
+        "notif_unread_count": unread,
+        "notif_items": items,
+    }
+
+
 def soutenance_deadline(request):
     """Date limite active des demandes de soutenance, disponible partout
     (page de connexion incluse) pour l'afficher de façon remarquable."""

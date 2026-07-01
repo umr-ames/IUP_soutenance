@@ -122,6 +122,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.institution",
                 "core.context_processors.soutenance_deadline",
+                "core.context_processors.notifications",
             ],
         },
     },
