@@ -141,6 +141,78 @@ def admin_pfe_requests(request):
     })
 
 
+def _notify_student_decision(pfe_request, accepted):
+    if accepted:
+        notify(
+            getattr(pfe_request.student, "user", None),
+            "Demande acceptée",
+            "Votre demande de soutenance a été acceptée par le département de l'IUP.",
+            "/student-dashboard/",
+            category=Notification.CATEGORY_REQUEST,
+        )
+    else:
+        notify(
+            getattr(pfe_request.student, "user", None),
+            "Demande refusée par le département",
+            "Votre demande de soutenance a été refusée par le département de l'IUP.",
+            "/student-dashboard/",
+            category=Notification.CATEGORY_REQUEST,
+        )
+
+
+@login_required
+@role_required(["admin"])
+def admin_pfe_quick_accept(request, pk):
+    """Accepter une demande (déjà validée par l'encadrant) sans ouvrir le dossier."""
+    pfe_request = get_object_or_404(
+        PFERequest.objects.select_related("student", "student__user"), pk=pk
+    )
+    if request.method == "POST":
+        if pfe_request.status != PFERequest.STATUS_PENDING_ADMIN:
+            messages.error(request, "Cette demande n'est pas en attente du département.")
+        else:
+            pfe_request.admin_accept(request.user)
+            _notify_student_decision(pfe_request, True)
+            messages.success(request, f"Demande de {pfe_request.student.full_name} acceptée.")
+    return redirect("admin_pfe_requests")
+
+
+@login_required
+@role_required(["admin"])
+def admin_pfe_quick_refuse(request, pk):
+    """Refuser une demande (en attente du département) sans ouvrir le dossier."""
+    pfe_request = get_object_or_404(
+        PFERequest.objects.select_related("student", "student__user"), pk=pk
+    )
+    if request.method == "POST":
+        if pfe_request.status != PFERequest.STATUS_PENDING_ADMIN:
+            messages.error(request, "Cette demande n'est pas en attente du département.")
+        else:
+            comment = (request.POST.get("comment") or "").strip()
+            pfe_request.admin_refuse(request.user, comment or None)
+            _notify_student_decision(pfe_request, False)
+            messages.success(request, f"Demande de {pfe_request.student.full_name} refusée.")
+    return redirect("admin_pfe_requests")
+
+
+@login_required
+@role_required(["admin"])
+def admin_pfe_accept_all(request):
+    """Accepte toutes les demandes déjà validées par les encadrants (en attente
+    du département)."""
+    if request.method == "POST":
+        pending = PFERequest.objects.filter(
+            status=PFERequest.STATUS_PENDING_ADMIN
+        ).select_related("student", "student__user")
+        count = 0
+        for pfe_request in pending:
+            pfe_request.admin_accept(request.user)
+            _notify_student_decision(pfe_request, True)
+            count += 1
+        messages.success(request, f"{count} demande(s) acceptée(s).")
+    return redirect("admin_pfe_requests")
+
+
 @login_required
 @role_required(["admin"])
 def admin_pfe_request_detail(request, pk):
@@ -1605,6 +1677,17 @@ def admin_jury_update(request, pk):
             )
         return redirect("admin_jury_update", pk=jury.pk)
 
+    if request.method == "POST" and request.POST.get("action") == "set_salle":
+        salle = (request.POST.get("salle") or "").strip()
+        valid = {choice for choice, _ in Jury.SALLE_CHOICES}
+        if salle not in valid:
+            messages.error(request, "Salle invalide.")
+        else:
+            Jury.objects.filter(pk=jury.pk).update(salle=salle)
+            messages.success(request, "Salle mise à jour.")
+        return redirect("admin_jury_update", pk=jury.pk)
+
+    context["salle_choices"] = Jury.SALLE_CHOICES
     return render(request, "soutenances/admin_jury_update.html", context)
 
 
@@ -1769,10 +1852,11 @@ def _notify_jury_published(jury):
                 f" à {format_time(schedule.start_time)}"
                 f"–{format_time(schedule.end_time)}"
             )
+        salle = f" Salle : {jury.get_salle_display()}." if jury.salle else ""
         notify(
             getattr(js.student, "user", None),
             "Votre soutenance est planifiée",
-            f"Date : {format_date(jury.defense_date)}{horaire}. Jury : {jury.name}.",
+            f"Date : {format_date(jury.defense_date)}{horaire}.{salle} Jury : {jury.name}.",
             "/student-dashboard/",
             category=Notification.CATEGORY_JURY,
         )

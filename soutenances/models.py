@@ -260,8 +260,23 @@ class PFERequest(models.Model):
 
 
 class Jury(models.Model):
+    SALLE_CHOICES = [
+        ("", "Non définie"),
+        ("Amphi", "Amphi"),
+        ("Salle 1", "Salle 1"),
+        ("Salle 2", "Salle 2"),
+        ("Salle 3", "Salle 3"),
+        ("Salle 7", "Salle 7"),
+        ("Salle 8", "Salle 8"),
+        ("Salle 10", "Salle 10"),
+    ]
+
     name = models.CharField(max_length=255)
     defense_date = models.DateField()
+    salle = models.CharField(
+        max_length=20, choices=SALLE_CHOICES, blank=True, default="",
+        verbose_name="Salle",
+    )
     is_validated = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

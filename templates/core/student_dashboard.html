@@ -374,7 +374,7 @@
                         <span class="eyebrow">Mon jury</span>
                         <h3>{{ jury_assignment.jury.name }}</h3>
                     </div>
-                    <span class="status-pill info">{{ jury_assignment.jury.defense_date|date:"d/m/Y" }}</span>
+                    <span class="status-pill info">{{ jury_assignment.jury.defense_date|date:"d/m/Y" }}{% if jury_assignment.jury.salle %} · {{ jury_assignment.jury.get_salle_display }}{% endif %}</span>
                 </div>
 
                 <div class="jury-members-row">

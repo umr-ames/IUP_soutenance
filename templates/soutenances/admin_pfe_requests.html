@@ -300,6 +300,13 @@
             <a href="{% url 'admin_jury_list' %}" class="btn btn-primary">
                 Jurys intelligents
             </a>
+
+            <form method="post" action="{% url 'admin_pfe_accept_all' %}" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success" data-confirm="Accepter toutes les demandes validées par les encadrants ?">
+                    Tout accepter
+                </button>
+            </form>
         </div>
 
         <div class="requests-chip-row">
@@ -393,6 +400,17 @@
                 </div>
 
                 <div class="request-actions">
+                    {% if demande.status == 'pending_admin' %}
+                        <form method="post" action="{% url 'admin_pfe_quick_accept' demande.id %}" style="margin:0;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-success">Accepter</button>
+                        </form>
+                        <form method="post" action="{% url 'admin_pfe_quick_refuse' demande.id %}" style="margin:0;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                    data-confirm="Refuser la demande de {{ demande.student.full_name }} ?">Refuser</button>
+                        </form>
+                    {% endif %}
                     <a class="btn btn-sm btn-primary" href="{% url 'admin_pfe_request_detail' demande.id %}">
                         Ouvrir
                     </a>

@@ -6,6 +6,9 @@ from . import views
 urlpatterns = [
     path("admin/demandes/", views.admin_pfe_requests, name="admin_pfe_requests"),
     path("admin/demandes/<int:pk>/", views.admin_pfe_request_detail, name="admin_pfe_request_detail"),
+    path("admin/demandes/<int:pk>/accepter/", views.admin_pfe_quick_accept, name="admin_pfe_quick_accept"),
+    path("admin/demandes/<int:pk>/refuser/", views.admin_pfe_quick_refuse, name="admin_pfe_quick_refuse"),
+    path("admin/demandes/accepter-tout/", views.admin_pfe_accept_all, name="admin_pfe_accept_all"),
     path("admin/deadline/", views.admin_deadline, name="admin_deadline"),
     path("admin/jurys/", views.admin_jury_list, name="admin_jury_list"),
     path("admin/jurys/generate/", views.admin_generate_juries, name="admin_generate_juries"),

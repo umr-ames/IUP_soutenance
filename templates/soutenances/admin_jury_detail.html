@@ -9,7 +9,7 @@
             <p class="eyebrow">Détail du jury</p>
             <h1>{{ jury.name }}</h1>
             <p class="muted">
-                Date de soutenance : {{ jury.defense_date|date:"d/m/Y" }}
+                Date de soutenance : {{ jury.defense_date|date:"d/m/Y" }}{% if jury.salle %} · Salle : {{ jury.get_salle_display }}{% endif %}
             </p>
         </div>
 

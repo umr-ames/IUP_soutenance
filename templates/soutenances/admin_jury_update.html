@@ -20,6 +20,32 @@
     </div>
 </div>
 
+<!-- ── Salle de soutenance ─────────────────────────────────────────────────── -->
+<div class="glass-card">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">Lieu</span>
+            <h3>Salle de soutenance</h3>
+            <p class="text-muted mb-0">Salle actuelle : <strong>{{ jury.get_salle_display|default:"Non définie" }}</strong></p>
+        </div>
+    </div>
+    <form method="post" class="row g-2 align-items-end mt-2" style="max-width:520px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="set_salle">
+        <div class="col-md-8">
+            <label class="form-label">Choisir la salle</label>
+            <select name="salle" class="form-select">
+                {% for value, label in salle_choices %}
+                    <option value="{{ value }}" {% if jury.salle == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <button type="submit" class="btn btn-primary w-100">Enregistrer la salle</button>
+        </div>
+    </form>
+</div>
+
 <!-- ── Section 1 : Créneau réel + Composition actuelle ────────────────────── -->
 <div class="glass-card">
     <div class="card-header-flex">

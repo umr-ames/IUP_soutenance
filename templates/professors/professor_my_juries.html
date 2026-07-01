@@ -402,7 +402,7 @@
             <div class="jury-header">
                 <div class="jury-title">
                     <strong>{{ jury.name }}</strong>
-                    <span>Date de soutenance : {{ jury.defense_date|date:"d/m/Y" }}</span>
+                    <span>Date de soutenance : {{ jury.defense_date|date:"d/m/Y" }}{% if jury.salle %} · Salle : {{ jury.get_salle_display }}{% endif %}</span>
                 </div>
 
                 <div class="jury-meta">
