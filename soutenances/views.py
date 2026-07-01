@@ -485,29 +485,71 @@ def admin_generate_juries(request):
     })
 
 
+def _targeted_students_grouped():
+    """Étudiants acceptés sans jury, groupés par encadrant (pour la sélection
+    par encadrant dans la génération ciblée)."""
+    from collections import OrderedDict
+
+    students = StudentProfile.objects.filter(
+        pfe_request__status=PFERequest.STATUS_ACCEPTED,
+        jury_assignment__isnull=True,
+        encadrant__isnull=False,
+    ).select_related("encadrant").order_by("encadrant__full_name", "full_name")
+
+    groups = OrderedDict()
+    for student in students:
+        key = student.encadrant.full_name
+        groups.setdefault(key, []).append(student)
+    return [{"encadrant": name, "students": rows} for name, rows in groups.items()]
+
+
 @login_required
 @role_required(["admin"])
 def admin_generate_juries_targeted(request):
-    """Génération ciblée : date + nombre de jurys + étudiants + professeurs
-    choisis par l'admin (override des disponibilités déclarées)."""
+    """Génération ciblée : dates + nombre de jurys + étudiants + professeurs
+    + salles choisis par l'admin."""
     if request.method == "POST":
         form = TargetedJuryGenerationForm(request.POST)
+        # Dates multiples et salles lues directement (widgets dynamiques).
+        defense_dates = []
+        for raw in request.POST.getlist("defense_dates"):
+            raw = (raw or "").strip()
+            if not raw:
+                continue
+            try:
+                defense_dates.append(date_cls.fromisoformat(raw))
+            except ValueError:
+                pass
+        valid_salles = {choice for choice, _ in Jury.SALLE_CHOICES if choice}
+        salles = [s for s in request.POST.getlist("salles") if s in valid_salles]
+
         if form.is_valid():
+            if not defense_dates:
+                messages.error(request, "Choisissez au moins une date de soutenance.")
+                return render(request, "soutenances/admin_generate_targeted.html", {
+                    "form": form, "salle_choices": Jury.SALLE_CHOICES,
+                    "students_grouped": _targeted_students_grouped(),
+                })
+
             result = generate_targeted_juries(
-                form.cleaned_data["defense_date"],
+                defense_dates,
                 list(form.cleaned_data["students"]),
                 list(form.cleaned_data["professors"]),
                 form.cleaned_data["num_juries"],
+                salles,
             )
             if result.get("error"):
                 messages.error(request, result["error"])
-                return render(request, "soutenances/admin_generate_targeted.html", {"form": form})
+                return render(request, "soutenances/admin_generate_targeted.html", {
+                    "form": form, "salle_choices": Jury.SALLE_CHOICES,
+                    "students_grouped": _targeted_students_grouped(),
+                })
 
+            dates_label = ", ".join(d.strftime("%d/%m/%Y") for d in sorted(set(defense_dates)))
             messages.success(
                 request,
                 f"{result['created']} jury(s) créé(s), "
-                f"{result['assigned']} étudiant(s) programmé(s) le "
-                f"{form.cleaned_data['defense_date'].strftime('%d/%m/%Y')}."
+                f"{result['assigned']} étudiant(s) programmé(s) sur : {dates_label}."
             )
             if result["skipped"]:
                 detail = "; ".join(
@@ -521,32 +563,78 @@ def admin_generate_juries_targeted(request):
     else:
         form = TargetedJuryGenerationForm()
 
-    return render(request, "soutenances/admin_generate_targeted.html", {"form": form})
+    return render(request, "soutenances/admin_generate_targeted.html", {
+        "form": form, "salle_choices": Jury.SALLE_CHOICES,
+        "students_grouped": _targeted_students_grouped(),
+    })
 
 
 @transaction.atomic
-def generate_targeted_juries(defense_date, students, professors, num_juries):
-    """Génère les jurys ciblés en respectant :
-    - la date limite des soutenances (DEFENSE_DEADLINE) ;
-    - les disponibilités déclarées des membres (obligatoire) ;
-    - la priorité aux jurys mono-filière avec un expert de la filière
-      (différent de l'encadrant) ; à défaut, au moins un expert ≠ encadrant.
-    Chaque jury : 3 professeurs distincts (encadrants inclus), créneaux de 20 min,
-    président ≠ encadrant.
-    """
-    from collections import defaultdict
-
+def generate_targeted_juries(defense_dates, students, professors, num_juries, salles=None):
+    """Génère les jurys ciblés sur une ou plusieurs dates. Pour chaque date, on
+    place jusqu'à num_juries jurys parmi les étudiants encore non programmés ;
+    les étudiants restants passent à la date suivante. Respecte la date limite,
+    les disponibilités, la priorité mono-filière + expert (≠ encadrant), et
+    répartit les salles fournies en rotation."""
     result = {
         "created": 0, "assigned": 0, "scheduled": 0,
         "skipped": [], "juries": [], "error": None,
     }
 
-    if defense_date > DEFENSE_DEADLINE:
+    dates = sorted({d for d in (defense_dates or []) if d})
+    if not dates:
+        result["error"] = "Choisissez au moins une date de soutenance."
+        return result
+    if any(d > DEFENSE_DEADLINE for d in dates):
         result["error"] = (
             f"Aucune soutenance n'est possible après le "
             f"{DEFENSE_DEADLINE.strftime('%d/%m/%Y')}."
         )
         return result
+
+    prof_ids_all = {p.id for p in professors}
+    not_selected = [s for s in students if s.encadrant_id not in prof_ids_all]
+    for student in not_selected:
+        result["skipped"].append((student, "encadrant non sélectionné"))
+
+    remaining = [s for s in students if s.encadrant_id in prof_ids_all]
+    placed_ids = set()
+    salle_index = 0
+
+    for defense_date in dates:
+        sub = [s for s in remaining if s.id not in placed_ids]
+        if not sub:
+            break
+        day = _generate_juries_one_date(
+            defense_date, sub, professors, num_juries, salles, salle_index
+        )
+        result["created"] += day["created"]
+        result["assigned"] += day["assigned"]
+        result["scheduled"] += day["scheduled"]
+        result["juries"].extend(day["juries"])
+        placed_ids.update(day["placed_ids"])
+        salle_index = day["salle_index"]
+
+    for student in remaining:
+        if student.id not in placed_ids:
+            result["skipped"].append(
+                (student, "aucune date/disponibilité ne permet de le programmer")
+            )
+
+    return result
+
+
+def _generate_juries_one_date(defense_date, students, professors, num_juries, salles, salle_index):
+    """Place jusqu'à num_juries jurys sur UNE date. Retourne un dict avec
+    created/assigned/scheduled/juries, placed_ids (étudiants programmés) et
+    salle_index (position de rotation des salles atteinte)."""
+    from collections import defaultdict
+
+    result = {
+        "created": 0, "assigned": 0, "scheduled": 0,
+        "juries": [], "skipped": [], "placed_ids": [], "salle_index": salle_index,
+    }
+    salles = salles or []
 
     prof_by_id = {p.id: p for p in professors}
     prof_ids = set(prof_by_id)
@@ -730,15 +818,18 @@ def generate_targeted_juries(defense_date, students, professors, num_juries):
 
         # 4. Création du jury et planification (save() vérifie dispo + conflits).
         idx = result["created"] + 1
+        salle = salles[result["salle_index"] % len(salles)] if salles else ""
         jury = Jury.objects.create(
             name=f"Jury {defense_date.strftime('%d/%m')} #{idx}",
             defense_date=defense_date,
+            salle=salle,
             is_validated=False,
         )
         for professor in members:
             JuryMember.objects.create(jury=jury, professor=professor)
         used_prof_ids.update(members_ids)
         result["created"] += 1
+        result["salle_index"] += 1
 
         cursor = datetime.combine(defense_date, start_time)
         scheduled_here = 0
@@ -768,12 +859,15 @@ def generate_targeted_juries(defense_date, students, professors, num_juries):
                 result["skipped"].append((student, "; ".join(exc.messages)))
                 continue
             result["assigned"] += 1
+            result["placed_ids"].append(student.id)
             scheduled_here += 1
             cursor += timedelta(minutes=DEFENSE_DURATION_MINUTES)
 
         result["scheduled"] += scheduled_here
         result["juries"].append({
             "name": jury.name,
+            "salle": jury.get_salle_display() if jury.salle else "",
+            "date": defense_date.strftime("%d/%m/%Y"),
             "members": [p.full_name for p in members],
             "count": scheduled_here,
             "has_expert": has_expert,

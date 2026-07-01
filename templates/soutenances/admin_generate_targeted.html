@@ -7,7 +7,7 @@
     <div>
         <span class="eyebrow">Département de l'IUP</span>
         <h1>Génération ciblée de jurys</h1>
-        <p>Choisissez une date, le nombre de jurys, les étudiants à programmer et le groupe de professeurs.</p>
+        <p>Choisissez une ou plusieurs dates, le nombre de jurys par date, les salles, les étudiants à programmer et le groupe de professeurs.</p>
         <p class="text-muted" style="font-size:0.88rem;">
             L'algorithme respecte les <strong>disponibilités déclarées</strong> des membres (les professeurs non disponibles au créneau sont écartés) et privilégie un <strong>jury mono-filière avec un expert de la filière</strong> (différent de l'encadrant). Aucune soutenance n'est possible après le <strong>10/07/2026</strong>.
         </p>
@@ -27,29 +27,58 @@
 
     <section class="content-panel">
         <div class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label">{{ form.defense_date.label }}</label>
-                {{ form.defense_date }}
-                {% for e in form.defense_date.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+            <div class="col-md-5">
+                <label class="form-label">Dates de soutenance</label>
+                <div id="datesList">
+                    <div class="d-flex gap-2 mb-2 date-row">
+                        <input type="date" name="defense_dates" class="form-control" max="2026-07-10">
+                        <button type="button" class="btn btn-outline-danger btn-remove-date" title="Retirer">&times;</button>
+                    </div>
+                </div>
+                <button type="button" id="addDateBtn" class="btn btn-sm btn-outline-primary">+ Ajouter une date</button>
+                <small class="form-help d-block mt-1">Les étudiants non placés à une date passent à la date suivante. Max : 10/07/2026.</small>
             </div>
-            <div class="col-md-4">
-                <label class="form-label">{{ form.num_juries.label }}</label>
+            <div class="col-md-3">
+                <label class="form-label">{{ form.num_juries.label }} <small class="text-muted">(par date)</small></label>
                 {{ form.num_juries }}
                 {% for e in form.num_juries.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Salles (rotation entre jurys)</label>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    {% for value, label in salle_choices %}
+                        {% if value %}
+                            <label style="display:flex; gap:5px; align-items:center; padding:5px 9px; border:1px solid var(--line); border-radius:8px;">
+                                <input type="checkbox" name="salles" value="{{ value }}">
+                                <span style="font-size:0.84rem;">{{ label }}</span>
+                            </label>
+                        {% endif %}
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </section>
 
     <section class="content-panel">
         <h2>Étudiants à programmer</h2>
-        <p class="text-muted">Parmi les étudiants acceptés sans jury.</p>
+        <p class="text-muted">Parmi les étudiants acceptés sans jury, groupés par encadrant. Cochez un encadrant pour sélectionner tous ses étudiants.</p>
         {% for e in form.students.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
-        <div style="max-height:320px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:6px;">
-            {% for cb in form.students %}
-                <label style="display:flex; gap:8px; align-items:flex-start; padding:6px 8px; border:1px solid var(--line); border-radius:8px;">
-                    {{ cb.tag }}
-                    <span style="font-size:0.86rem;">{{ cb.choice_label }}</span>
-                </label>
+        <div style="max-height:420px; overflow:auto; display:grid; gap:12px;">
+            {% for group in students_grouped %}
+                <div style="border:1px solid var(--line); border-radius:10px; padding:10px 12px;">
+                    <label style="display:flex; gap:8px; align-items:center; font-weight:800; margin-bottom:8px;">
+                        <input type="checkbox" class="js-enc-toggle">
+                        <span>{{ group.encadrant }} <small class="text-muted">({{ group.students|length }})</small></span>
+                    </label>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:6px;">
+                        {% for s in group.students %}
+                            <label style="display:flex; gap:8px; align-items:flex-start; padding:6px 8px; border:1px solid var(--line); border-radius:8px;">
+                                <input type="checkbox" name="students" value="{{ s.id }}" class="js-student-cb">
+                                <span style="font-size:0.86rem;">{{ s.full_name }} · {{ s.matricule }}{% if s.filiere %} · {{ s.filiere }}{% endif %}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                </div>
             {% empty %}
                 <div class="empty-state">Aucun étudiant accepté sans jury.</div>
             {% endfor %}
@@ -74,4 +103,36 @@
         <button type="submit" class="btn btn-primary">Générer les jurys</button>
     </section>
 </form>
+
+<script>
+// Ajouter / retirer des dates
+(function () {
+    const list = document.getElementById('datesList');
+    const addBtn = document.getElementById('addDateBtn');
+    function bindRemove(row) {
+        const btn = row.querySelector('.btn-remove-date');
+        if (btn) btn.addEventListener('click', function () {
+            if (list.querySelectorAll('.date-row').length > 1) row.remove();
+            else row.querySelector('input').value = '';
+        });
+    }
+    list.querySelectorAll('.date-row').forEach(bindRemove);
+    if (addBtn) addBtn.addEventListener('click', function () {
+        const row = list.querySelector('.date-row').cloneNode(true);
+        row.querySelector('input').value = '';
+        list.appendChild(row);
+        bindRemove(row);
+    });
+})();
+
+// Sélection par encadrant : cocher un encadrant coche/décoche ses étudiants
+document.querySelectorAll('.js-enc-toggle').forEach(function (toggle) {
+    const group = toggle.closest('div');
+    toggle.addEventListener('change', function () {
+        group.querySelectorAll('.js-student-cb').forEach(function (cb) {
+            cb.checked = toggle.checked;
+        });
+    });
+});
+</script>
 {% endblock %}

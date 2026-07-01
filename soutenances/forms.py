@@ -241,10 +241,6 @@ class TargetedJuryGenerationForm(forms.Form):
     """Génération ciblée : l'admin choisit une date, un nombre de jurys, les
     étudiants (parmi les acceptés) et un groupe de professeurs."""
 
-    defense_date = forms.DateField(
-        label="Date des soutenances",
-        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-    )
     num_juries = forms.IntegerField(
         label="Nombre de jurys souhaité",
         min_value=1,
