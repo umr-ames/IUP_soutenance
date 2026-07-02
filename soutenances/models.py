@@ -362,6 +362,10 @@ class JuryStudent(models.Model):
 
     assigned_at = models.DateTimeField(auto_now_add=True)
 
+    # Vrai lorsque l'encadrant n'a déclaré aucune disponibilité : le jury est
+    # alors formé sans lui, avec obligatoirement un expert de la filière.
+    encadrant_absent = models.BooleanField(default=False)
+
     presentation_started = models.BooleanField(default=False)
     presentation_started_at = models.DateTimeField(blank=True, null=True)
     presentation_started_by = models.ForeignKey(
@@ -404,9 +408,27 @@ class JuryStudent(models.Model):
         )
 
         if self.student.encadrant not in jury_professors:
-            raise ValidationError(
-                "L'encadrant de l'étudiant doit obligatoirement être membre de son jury."
-            )
+            # Exception : si l'encadrant n'a AUCUNE disponibilité future déclarée,
+            # le jury peut être formé sans lui, à condition de contenir un expert
+            # de la filière de l'étudiant.
+            from django.utils import timezone
+            encadrant = self.student.encadrant
+            has_avail = ProfessorAvailability.objects.filter(
+                professor=encadrant, date__gte=timezone.localdate()
+            ).exists()
+            if has_avail:
+                raise ValidationError(
+                    "L'encadrant de l'étudiant doit obligatoirement être membre de son jury."
+                )
+            expert_present = FiliereExpert.objects.filter(
+                filiere=self.student.filiere,
+                professor_id__in=jury_professor_ids,
+            ).exists()
+            if not expert_present:
+                raise ValidationError(
+                    "Encadrant sans disponibilité : le jury doit contenir un "
+                    "expert de la filière de l'étudiant."
+                )
 
         if self.president_id:
             if self.president_id not in jury_professor_ids:

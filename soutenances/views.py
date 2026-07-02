@@ -1240,12 +1240,21 @@ def generate_smart_juries():
         if salle is None:
             continue
 
+        # Président unique privilégié : un expert (de la filière dominante) parmi
+        # les membres, s'il y en a un.
+        dom_fil = selected_students[0].filiere or ""
+        primary_president = next(
+            (m for m in jury_members if m.id in experts_by_filiere.get(dom_fil, set())),
+            None,
+        )
+
         plan = {
             "members": jury_members,
             "students": selected_students,
             "defense_date": defense_date,
             "start_times": selected_slots,
             "salle": salle,
+            "primary_president": primary_president,
         }
 
         try:
@@ -1271,6 +1280,7 @@ def generate_smart_juries():
         # Build report entry for this jury
         report_entry = {
             "jury_name": jury.name,
+            "salle": jury.get_salle_display() if jury.salle else "",
             "members": [p.full_name for p in jury_members],
             "defense_date": defense_date,
             "slot_start": block_start,
@@ -1296,6 +1306,105 @@ def generate_smart_juries():
             if student in pool:
                 pool.remove(student)
 
+    # 8bis. Deuxième passe : étudiants dont l'encadrant n'a AUCUNE disponibilité
+    #       future. On forme pour eux un jury SANS l'encadrant, mais avec un
+    #       expert de la filière (marqué « encadrant absent »).
+    today = timezone.localdate()
+    encadrant_has_avail = {}
+
+    def _enc_absent(enc_id):
+        if enc_id not in encadrant_has_avail:
+            encadrant_has_avail[enc_id] = ProfessorAvailability.objects.filter(
+                professor_id=enc_id, date__gte=today
+            ).exists()
+        return not encadrant_has_avail[enc_id]
+
+    absent_by_fil = defaultdict(list)
+    for enc_id, students in students_by_encadrant.items():
+        if students and _enc_absent(enc_id):
+            for student in students:
+                absent_by_fil[student.filiere or ""].append(student)
+            students_by_encadrant[enc_id] = []
+
+    if any(absent_by_fil.values()):
+        for defense_date, block_start in candidate_slots:
+            if not any(absent_by_fil.values()):
+                break
+            if jury_slot_capacity_reached(defense_date, block_start):
+                continue
+            current_slot = _slot_label_at(defense_date, block_start)
+            other_slot = (
+                defense_slots.AFTERNOON if current_slot == defense_slots.MORNING
+                else defense_slots.MORNING
+            )
+            blocked_ids = slot_used.get((defense_date, other_slot), set())
+            available_profs = [
+                p for p in professors
+                if p.id not in blocked_ids
+                and is_professor_available(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
+                and not professor_has_conflict(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
+            ]
+            if len(available_profs) < 3:
+                continue
+
+            for fil, studs in list(absent_by_fil.items()):
+                if not studs:
+                    continue
+                experts_here = [
+                    p for p in available_profs
+                    if p.id in experts_by_filiere.get(fil, set())
+                ]
+                if not experts_here:
+                    continue  # pas d'expert dispo → on ne peut pas remplacer l'encadrant
+                expert = experts_here[0]
+                others = [p for p in available_profs if p.id != expert.id][:2]
+                if len(others) < 2:
+                    continue
+                members = [expert] + others
+                slots_avail = build_consecutive_available_slots(
+                    members=members, defense_date=defense_date,
+                    block_start=block_start, max_slots=20,
+                )
+                if not slots_avail:
+                    continue
+                sel = studs[:len(slots_avail)]
+                sel_slots = slots_avail[:len(sel)]
+                block_end = (
+                    datetime.combine(defense_date, sel_slots[-1])
+                    + timedelta(minutes=DEFENSE_DURATION_MINUTES)
+                ).time()
+                salle = _choisir_salle_libre(defense_date, block_start, block_end)
+                if salle is None:
+                    continue
+
+                plan = {
+                    "members": members,
+                    "students": sel,
+                    "defense_date": defense_date,
+                    "start_times": sel_slots,
+                    "salle": salle,
+                    "primary_president": expert,
+                    "encadrant_absent": True,
+                }
+                try:
+                    create_grouped_jury_from_plan(plan, jury_index)
+                except ValidationError as exc:
+                    for student in sel:
+                        result["errors"].append({
+                            "student": student, "reason": "validation_error",
+                            "message": "; ".join(exc.messages),
+                        })
+                    continue
+
+                result["created"] += 1
+                result["assigned"] += len(sel)
+                result["scheduled"] += len(sel)
+                jury_index += 1
+                slot_used[(defense_date, current_slot)].update(m.id for m in members)
+                for s in sel:
+                    if s in absent_by_fil[fil]:
+                        absent_by_fil[fil].remove(s)
+
     # 9. Report remaining unassigned students with reason
     for enc_id, students in students_by_encadrant.items():
         for student in students:
@@ -1303,6 +1412,13 @@ def generate_smart_juries():
                 "student": student,
                 "reason": "no_slot_found",
                 "message": "Aucun créneau commun trouvé pour l'encadrant de cet étudiant.",
+            })
+    for fil, studs in absent_by_fil.items():
+        for student in studs:
+            result["errors"].append({
+                "student": student,
+                "reason": "no_expert",
+                "message": "Encadrant sans disponibilité et aucun expert disponible pour le remplacer.",
             })
 
     return result
@@ -1409,6 +1525,9 @@ def create_grouped_jury_from_plan(plan, jury_index):
         is_validated=False,
     )
 
+    primary = plan.get("primary_president")
+    encadrant_absent = plan.get("encadrant_absent", False)
+
     try:
         for professor in plan["members"]:
             JuryMember.objects.create(
@@ -1417,16 +1536,22 @@ def create_grouped_jury_from_plan(plan, jury_index):
             )
 
         for student, start_time in zip(plan["students"], plan["start_times"]):
-            president = choose_president_for_student(
-                student=student,
-                members=plan["members"],
-                defense_date=plan["defense_date"],
-            )
+            # Président unique privilégié (l'expert) ; on ne change que si ce
+            # président est l'encadrant de cet étudiant.
+            if primary is not None and primary.id != student.encadrant_id:
+                president = primary
+            else:
+                president = choose_president_for_student(
+                    student=student,
+                    members=plan["members"],
+                    defense_date=plan["defense_date"],
+                )
 
             assignment = JuryStudent.objects.create(
                 jury=jury,
                 student=student,
                 president=president,
+                encadrant_absent=encadrant_absent,
             )
 
             DefenseSchedule.objects.create(
@@ -1748,6 +1873,15 @@ def admin_jury_update(request, pk):
     current_members = list(
         jury.members.select_related("professor").order_by("professor__full_name")
     )
+
+    # Rôles : expert (de la filière des étudiants du jury) et président.
+    student_filieres = {js.student.filiere for js in jury_students if js.student.filiere}
+    expert_ids = set(
+        FiliereExpert.objects.filter(filiere__in=student_filieres)
+        .values_list("professor_id", flat=True)
+    ) if student_filieres else set()
+    president_ids = {js.president_id for js in jury_students if js.president_id}
+
     member_rows = []
 
     for member in current_members:
@@ -1781,6 +1915,9 @@ def admin_jury_update(request, pk):
             "is_available": is_available,
             "can_remove": can_remove,
             "cannot_remove_reason": cannot_remove_reason,
+            "is_encadrant": len(supervised_here) > 0,
+            "is_expert": professor.id in expert_ids,
+            "is_president": professor.id in president_ids,
         })
 
     # ── 3. Formulaire d'ajout filtré sur le créneau réel ──────────────────

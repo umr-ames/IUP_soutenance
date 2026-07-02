@@ -131,9 +131,20 @@ def admin_professor_availability(request):
 
     professor_rows.sort(key=lambda row: row["professor"].full_name.lower())
 
+    # Professeurs sans AUCUNE disponibilité future (à relancer).
+    with_future = set(
+        ProfessorAvailability.objects.filter(date__gte=today)
+        .values_list("professor_id", flat=True)
+    )
+    profs_sans_dispo = ProfessorProfile.objects.exclude(
+        id__in=with_future
+    ).order_by("full_name")
+
     return render(request, "professors/admin_professor_availability.html", {
         "professor_rows": professor_rows,
         "filtered_professor": filtered_professor,
+        "profs_sans_dispo": profs_sans_dispo,
+        "profs_sans_dispo_count": profs_sans_dispo.count(),
     })
 
 

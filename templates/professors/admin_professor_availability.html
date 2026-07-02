@@ -31,6 +31,18 @@
     </div>
 </div>
 
+{% if not filtered_professor and profs_sans_dispo_count %}
+<div class="glass-card" style="margin-bottom:16px; border-left:5px solid #dc2626;">
+    <strong style="color:#b91c1c;">Professeurs sans disponibilité ({{ profs_sans_dispo_count }})</strong>
+    <p class="text-muted mb-2" style="font-size:.9rem;">Ces professeurs n'ont déclaré aucun créneau à venir — à relancer. (Leurs étudiants seront placés dans un jury avec un expert de la filière, sans l'encadrant.)</p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        {% for p in profs_sans_dispo %}
+            <a href="{% url 'admin_professor_availability_edit' %}?professor={{ p.id }}" class="status-pill" style="background:rgba(220,38,38,.1); color:#b91c1c; text-decoration:none;">{{ p.full_name }}</a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <div class="glass-card">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
