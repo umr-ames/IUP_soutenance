@@ -541,7 +541,7 @@ def admin_jury_list(request):
         "students__student__encadrant",
         "students__president",
         "students__schedule",
-    ).order_by("-defense_date", "name")
+    ).order_by("defense_date", "name")
 
     pending_students_count = StudentProfile.objects.filter(
         pfe_request__status=PFERequest.STATUS_ACCEPTED,
@@ -570,14 +570,22 @@ def admin_jury_list(request):
     upcoming_juries_count = 0
     completed_juries_count = 0
     awaiting_notes_count = 0
+    past_count = 0
+    future_count = 0
 
+    juries = list(juries)  # on évalue une fois et on attribue une catégorie
     for jury in juries:
         if not jury.is_validated:
+            jury.category = "draft"
             continue
         if jury.defense_date and jury.defense_date >= today:
+            jury.category = "future"
             upcoming_juries_count += 1
+            future_count += 1
             continue
-        # Date passée : terminé si tous les étudiants ont 3 évaluations soumises.
+        # Jury validé, date passée.
+        jury.category = "past"
+        past_count += 1
         jury_students = list(jury.students.all())
         all_graded = bool(jury_students) and all(
             submitted_counts.get(js.id, 0) >= 3 for js in jury_students
@@ -593,11 +601,13 @@ def admin_jury_list(request):
         "pending_students_count": pending_students_count,
         "future_availabilities_count": future_availabilities_count,
         "duration_minutes": DEFENSE_DURATION_MINUTES,
-        "total_juries_count": juries.count(),
+        "total_juries_count": len(juries),
         "published_juries_count": upcoming_juries_count,
         "completed_juries_count": completed_juries_count,
         "awaiting_notes_count": awaiting_notes_count,
         "draft_juries_count": draft_juries_count,
+        "past_count": past_count,
+        "future_count": future_count,
         "assigned_students_count": assigned_students_count,
     })
 

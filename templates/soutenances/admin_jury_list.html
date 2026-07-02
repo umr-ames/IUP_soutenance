@@ -96,9 +96,19 @@
         </div>
     </div>
 
+    <style>
+        .jury-tab.is-active { background: var(--orange, #0d9488) !important; color:#fff !important; border-color: transparent !important; }
+    </style>
+    <div class="jury-filter-tabs" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+        <button type="button" class="btn btn-outline-secondary jury-tab is-active" data-cat="all">Tous ({{ total_juries_count|default:"0" }})</button>
+        <button type="button" class="btn btn-outline-secondary jury-tab" data-cat="draft">Brouillons ({{ draft_juries_count|default:"0" }})</button>
+        <button type="button" class="btn btn-outline-secondary jury-tab" data-cat="past">Passés ({{ past_count|default:"0" }})</button>
+        <button type="button" class="btn btn-outline-secondary jury-tab" data-cat="future">Futurs ({{ future_count|default:"0" }})</button>
+    </div>
+
     <div class="jury-board" id="juryBoard">
         {% for jury in juries %}
-            <article class="jury-card" data-search="{{ jury.name }} {% for member in jury.members.all %} {{ member.professor.full_name }} {% endfor %} {% for item in jury.students.all %} {{ item.student.full_name }} {{ item.student.matricule }} {{ item.student.encadrant.full_name }} {% if item.president %} {{ item.president.full_name }} {% endif %} {% endfor %}">
+            <article class="jury-card" data-category="{{ jury.category }}" data-search="{{ jury.name }} {% for member in jury.members.all %} {{ member.professor.full_name }} {% endfor %} {% for item in jury.students.all %} {{ item.student.full_name }} {{ item.student.matricule }} {{ item.student.encadrant.full_name }} {% if item.president %} {{ item.president.full_name }} {% endif %} {% endfor %}">
                 <div class="jury-card-header">
                     <div>
                         <p class="eyebrow">Jury</p>
@@ -214,16 +224,30 @@
 <script>
     const jurySearch = document.getElementById("jurySearch");
     const juryCards = document.querySelectorAll(".jury-card");
+    const juryTabs = document.querySelectorAll(".jury-tab");
+    let activeCat = "all";
 
-    if (jurySearch) {
-        jurySearch.addEventListener("input", function () {
-            const value = this.value.toLowerCase().trim();
-
-            juryCards.forEach(function (card) {
-                const haystack = (card.dataset.search || "").toLowerCase();
-                card.style.display = haystack.includes(value) ? "" : "none";
-            });
+    function applyJuryFilters() {
+        const value = (jurySearch ? jurySearch.value : "").toLowerCase().trim();
+        juryCards.forEach(function (card) {
+            const haystack = (card.dataset.search || "").toLowerCase();
+            const matchSearch = haystack.includes(value);
+            const matchCat = (activeCat === "all") || (card.dataset.category === activeCat);
+            card.style.display = (matchSearch && matchCat) ? "" : "none";
         });
     }
+
+    if (jurySearch) {
+        jurySearch.addEventListener("input", applyJuryFilters);
+    }
+
+    juryTabs.forEach(function (tab) {
+        tab.addEventListener("click", function () {
+            juryTabs.forEach(function (t) { t.classList.remove("is-active"); });
+            tab.classList.add("is-active");
+            activeCat = tab.dataset.cat;
+            applyJuryFilters();
+        });
+    });
 </script>
 {% endblock %}
