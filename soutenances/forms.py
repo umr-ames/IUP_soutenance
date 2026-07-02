@@ -1,13 +1,88 @@
+from decimal import Decimal
+
 from django import forms
 
 from professors.models import ProfessorProfile
-from students.models import StudentProfile
+from students.models import StudentProfile, StudentReference
 
 from .models import (
     Deadline,
     Jury,
     PFERequest,
 )
+
+
+class HistoricalDefenseForm(forms.Form):
+    """Saisie manuelle d'une soutenance déjà réalisée avant la plateforme, pour
+    un étudiant de la liste officielle non encore inscrit."""
+
+    reference = forms.ModelChoiceField(
+        label="Étudiant (liste officielle, non inscrit)",
+        queryset=StudentReference.objects.none(),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    defense_date = forms.DateField(
+        label="Date de soutenance",
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+    )
+    salle = forms.ChoiceField(
+        label="Salle", required=False, choices=Jury.SALLE_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    president = forms.ModelChoiceField(
+        label="Président du jury",
+        queryset=ProfessorProfile.objects.order_by("full_name"),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    member = forms.ModelChoiceField(
+        label="Autre membre du jury",
+        queryset=ProfessorProfile.objects.order_by("full_name"),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    final_note = forms.DecimalField(
+        label="Note finale /20",
+        min_value=Decimal("0"), max_value=Decimal("20"),
+        max_digits=5, decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0, "max": 20}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        registered = StudentProfile.objects.values_list("matricule", flat=True)
+        self.fields["reference"].queryset = (
+            StudentReference.objects.exclude(matricule__in=registered)
+            .order_by("full_name")
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        reference = cleaned.get("reference")
+        president = cleaned.get("president")
+        member = cleaned.get("member")
+
+        if reference:
+            encadrant = ProfessorProfile.objects.filter(
+                full_name__iexact=(reference.encadrant_name or "").strip()
+            ).first()
+            if not encadrant:
+                self.add_error(
+                    "reference",
+                    "L'encadrant officiel de cet étudiant "
+                    f"(« {reference.encadrant_name} ») n'existe pas encore comme "
+                    "professeur. Importez d'abord la liste officielle.",
+                )
+            else:
+                cleaned["encadrant"] = encadrant
+                if president and president.id == encadrant.id:
+                    self.add_error("president", "Le président ne peut pas être l'encadrant.")
+                if member and member.id == encadrant.id:
+                    self.add_error("member", "Ce membre ne peut pas être l'encadrant.")
+
+        if president and member and president.id == member.id:
+            self.add_error("member", "Le membre doit être différent du président.")
+
+        return cleaned
 
 
 class PFERequestForm(forms.ModelForm):

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Soutenance historique{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Ajouter une soutenance historique</h1>
+        <p>Pour un étudiant ayant soutenu <strong>avant la plateforme</strong> et non inscrit : enregistrez son jury, sa date et sa note. Il basculera automatiquement en « inscrit » et comptera parmi les étudiants soutenus.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'admin_students_overview' %}">Retour à la liste</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <section class="content-panel">
+        <div class="row g-3">
+            <div class="col-md-8">
+                <label class="form-label">{{ form.reference.label }}</label>
+                {{ form.reference }}
+                {% for e in form.reference.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                <small class="form-help">L'encadrant est repris automatiquement depuis la liste officielle (il doit exister comme professeur).</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">{{ form.final_note.label }}</label>
+                {{ form.final_note }}
+                {% for e in form.final_note.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">{{ form.defense_date.label }}</label>
+                {{ form.defense_date }}
+                {% for e in form.defense_date.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">{{ form.salle.label }}</label>
+                {{ form.salle }}
+                {% for e in form.salle.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="content-panel">
+        <h2>Jury</h2>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">{{ form.president.label }}</label>
+                {{ form.president }}
+                {% for e in form.president.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">{{ form.member.label }} <small class="text-muted">(facultatif)</small></label>
+                {{ form.member }}
+                {% for e in form.member.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+            </div>
+        </div>
+        <small class="form-help d-block mt-2">L'encadrant (repris de la liste officielle) est ajouté automatiquement comme membre. Le président doit être différent de l'encadrant.</small>
+    </section>
+
+    <section class="content-panel">
+        <button type="submit" class="btn btn-primary">Enregistrer la soutenance</button>
+    </section>
+</form>
+{% endblock %}

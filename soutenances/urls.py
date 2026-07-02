@@ -9,6 +9,7 @@ urlpatterns = [
     path("admin/demandes/<int:pk>/accepter/", views.admin_pfe_quick_accept, name="admin_pfe_quick_accept"),
     path("admin/demandes/<int:pk>/refuser/", views.admin_pfe_quick_refuse, name="admin_pfe_quick_refuse"),
     path("admin/demandes/accepter-tout/", views.admin_pfe_accept_all, name="admin_pfe_accept_all"),
+    path("admin/soutenance-historique/", views.admin_add_historical_defense, name="admin_add_historical_defense"),
     path("admin/deadline/", views.admin_deadline, name="admin_deadline"),
     path("admin/jurys/", views.admin_jury_list, name="admin_jury_list"),
     path("admin/jurys/generate/", views.admin_generate_juries, name="admin_generate_juries"),

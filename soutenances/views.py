@@ -13,10 +13,11 @@ from django.utils import timezone
 from accounts.decorators import role_required
 from core.models import Notification, notify
 from professors.models import ProfessorAvailability, ProfessorProfile
-from students.models import StudentProfile
+from students.models import StudentProfile, StudentReference, normalize_matricule
 
 from .forms import (
     DeadlineForm,
+    HistoricalDefenseForm,
     JuryForm,
     JuryGenerationForm,
     JuryAddMemberForm,
@@ -211,6 +212,95 @@ def admin_pfe_quick_refuse(request, pk):
             _notify_student_decision(pfe_request, False)
             messages.success(request, f"Demande de {pfe_request.student.full_name} refusée.")
     return redirect("admin_pfe_requests")
+
+
+@login_required
+@role_required(["admin"])
+@transaction.atomic
+def admin_add_historical_defense(request):
+    """Enregistre manuellement une soutenance déjà réalisée avant la plateforme
+    (étudiant de la liste officielle non inscrit) : crée son profil, son jury,
+    sa date et son résultat publié. Il bascule alors en « inscrit » + « soutenu »."""
+    from decimal import Decimal
+    from django.utils import timezone as _tz
+    from accounts.models import CustomUser
+
+    if request.method == "POST":
+        form = HistoricalDefenseForm(request.POST)
+        if form.is_valid():
+            reference = form.cleaned_data["reference"]
+            encadrant = form.cleaned_data["encadrant"]
+            president = form.cleaned_data["president"]
+            member = form.cleaned_data.get("member")
+            defense_date = form.cleaned_data["defense_date"]
+            salle = form.cleaned_data.get("salle") or ""
+            final_note = form.cleaned_data["final_note"]
+
+            matricule = normalize_matricule(reference.matricule)
+
+            if StudentProfile.objects.filter(matricule__iexact=matricule).exists():
+                messages.error(request, "Cet étudiant est déjà inscrit.")
+                return redirect("admin_add_historical_defense")
+
+            # Compte technique (sans connexion) pour rattacher le profil étudiant.
+            base_username = f"hist_{matricule.lower()}"
+            username = base_username
+            suffix = 1
+            while CustomUser.objects.filter(username=username).exists():
+                suffix += 1
+                username = f"{base_username}_{suffix}"
+            user = CustomUser.objects.create(
+                username=username,
+                role=CustomUser.ROLE_STUDENT,
+                is_active=False,
+            )
+            user.set_unusable_password()
+            user.save()
+
+            student = StudentProfile.objects.create(
+                user=user,
+                matricule=matricule,
+                full_name=reference.full_name,
+                filiere=reference.filiere or "",
+                encadrant=encadrant,
+            )
+            PFERequest.objects.create(student=student, status=PFERequest.STATUS_ACCEPTED)
+
+            jury = Jury.objects.create(
+                name=f"Soutenance {reference.full_name} ({defense_date.strftime('%d/%m/%Y')})",
+                defense_date=defense_date,
+                salle=salle,
+                is_validated=True,
+            )
+            members = [encadrant, president]
+            if member and member.id not in (encadrant.id, president.id):
+                members.append(member)
+            for professor in members:
+                JuryMember.objects.create(jury=jury, professor=professor)
+
+            js = JuryStudent.objects.create(
+                student=student, jury=jury, president=president
+            )
+
+            Result.objects.create(
+                jury_student=js,
+                average=final_note,
+                note_gap_value=Decimal("0"),
+                has_note_gap_alert=False,
+                is_published=True,
+                published_at=_tz.now(),
+            )
+
+            messages.success(
+                request,
+                f"Soutenance historique enregistrée pour {reference.full_name} "
+                f"(note {final_note}/20). Il compte désormais parmi les étudiants soutenus."
+            )
+            return redirect("admin_students_overview")
+    else:
+        form = HistoricalDefenseForm()
+
+    return render(request, "soutenances/admin_historical_defense.html", {"form": form})
 
 
 @login_required
