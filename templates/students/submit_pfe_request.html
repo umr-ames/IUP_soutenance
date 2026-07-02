@@ -6,8 +6,8 @@
 <div class="page-header">
     <div>
         {% if completing %}
-            <h1>Compléter mon dossier</h1>
-            <p>Votre demande a déjà été déposée mais il manque une ou plusieurs pièces. Ajoutez la ou les pièce(s) manquante(s) ci-dessous — le statut de votre demande est conservé.</p>
+            <h1>Mettre à jour mon dossier</h1>
+            <p>Déposez uniquement la ou les pièce(s) que vous souhaitez changer. Les documents déjà déposés que vous laissez vides sont <strong>conservés tels quels</strong> — le statut de votre demande n'est pas modifié.</p>
         {% else %}
             <h1>Envoyer une demande</h1>
             <p>Déposez votre dossier de soutenance : autorisation de soutenance et attestation de stage (scannées en PDF, claires et lisibles), ainsi que le rapport de stage.</p>
@@ -40,7 +40,16 @@
 </section>
 
 <section class="content-panel">
-    <h2>Dossier a envoyer</h2>
+    <h2>{% if completing %}Pièces du dossier{% else %}Dossier a envoyer{% endif %}</h2>
+    {% if completing and reupload_field %}
+        <div class="alert alert-warning">
+            Le Département de l'IUP demande le redépôt de :
+            <strong>
+                {% if reupload_field == 'authorization_document' %}Autorisation de soutenance{% elif reupload_field == 'attestation_stage' %}Attestation de stage{% else %}Rapport de stage{% endif %}
+            </strong>.
+            {% if reupload_comment %} Remarque : « {{ reupload_comment }} ».{% endif %}
+        </div>
+    {% endif %}
     <form method="post" enctype="multipart/form-data" class="row g-3">
         {% csrf_token %}
         {% for field in form %}
@@ -48,6 +57,24 @@
                 <label class="form-label" for="{{ field.id_for_label }}">
                     {{ field.label }}{% if field.field.required %} <span style="color:#dc2626;" title="Obligatoire">*</span>{% endif %}
                 </label>
+
+                {% if completing %}
+                    {% if field.name == 'authorization_document' and existing_request.authorization_document or field.name == 'attestation_stage' and existing_request.attestation_stage or field.name == 'rapport_stage' and existing_request.rapport_stage %}
+                        <div class="text-muted-small mb-1" style="color:#0f766e;">
+                            ✓ Document déjà déposé — laissez vide pour le conserver.
+                        </div>
+                    {% else %}
+                        <div class="text-muted-small mb-1" style="color:#b91c1c;">
+                            Pièce manquante.
+                        </div>
+                    {% endif %}
+                    {% if field.name == reupload_field %}
+                        <div class="text-muted-small mb-1" style="color:#92400e;">
+                            ↺ Redépôt demandé par le Département de l'IUP.
+                        </div>
+                    {% endif %}
+                {% endif %}
+
                 {{ field }}
                 {% if field.help_text %}
                     <small class="form-help">{{ field.help_text }}</small>
@@ -57,7 +84,7 @@
         {% endfor %}
         {{ form.non_field_errors }}
         <div class="col-12">
-            <button class="btn btn-primary" type="submit">{% if completing %}Compléter mon dossier{% else %}Envoyer la demande{% endif %}</button>
+            <button class="btn btn-primary" type="submit">{% if completing %}Enregistrer les modifications{% else %}Envoyer la demande{% endif %}</button>
         </div>
     </form>
 </section>

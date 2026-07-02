@@ -222,31 +222,23 @@
     </section>
 {% else %}
 
-    {% if dossier_missing %}
-        <section class="glass-card" style="margin-bottom:18px; border-left:5px solid #dc2626;">
-            <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px;">
-                <div>
-                    <strong style="color:#b91c1c;">Dossier incomplet</strong>
-                    <p class="mb-0" style="color:var(--muted); font-size:0.92rem;">
-                        Il manque : {% for d in dossier_missing %}{{ d }}{% if not forloop.last %}, {% endif %}{% endfor %}.
-                        Complétez votre dossier pour qu'il puisse être traité.
-                    </p>
-                </div>
-                <a class="btn btn-primary" href="{% url 'submit_pfe_request' %}">Compléter mon dossier</a>
-            </div>
-        </section>
-    {% endif %}
-
-    {% if pfe_request.reupload_document %}
+    {% if dossier_missing or pfe_request.reupload_document %}
         <section class="glass-card" style="margin-bottom:18px; border-left:5px solid #d97706; background:linear-gradient(135deg,#fff7e6,#fdeccd);">
             <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px;">
                 <div>
-                    <strong style="color:#92400e;">Le Département de l'IUP demande un nouveau dépôt : {{ pfe_request.get_reupload_document_display }}</strong>
+                    <strong style="color:#92400e;">Action requise sur votre dossier</strong>
                     <p class="mb-0" style="color:#7c4a03; font-size:0.92rem;">
-                        {% if pfe_request.reupload_comment %}Remarque : « {{ pfe_request.reupload_comment }} ». {% endif %}Merci de redéposer ce document scanné, clair et lisible.
+                        {% if dossier_missing %}
+                            Il manque : {% for d in dossier_missing %}{{ d }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+                        {% endif %}
+                        {% if pfe_request.reupload_document %}
+                            Le Département de l'IUP demande un nouveau dépôt : <strong>{{ pfe_request.get_reupload_document_display }}</strong>.
+                            {% if pfe_request.reupload_comment %} Remarque : « {{ pfe_request.reupload_comment }} ».{% endif %}
+                        {% endif %}
+                        Ouvrez votre dossier pour déposer uniquement la pièce concernée — les autres documents restent inchangés.
                     </p>
                 </div>
-                <a class="btn btn-primary" href="{% url 'submit_pfe_request' %}">Redéposer le document</a>
+                <a class="btn btn-primary" href="{% url 'submit_pfe_request' %}">Mettre à jour mon dossier</a>
             </div>
         </section>
     {% endif %}

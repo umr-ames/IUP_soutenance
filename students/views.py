@@ -64,7 +64,7 @@ def submit_pfe_request(request):
 
     if request.method == "POST":
         if completing:
-            form = PFERequestForm(request.POST, request.FILES, instance=existing_request)
+            form = PFERequestForm(request.POST, request.FILES, instance=existing_request, completing=True)
             if form.is_valid():
                 form.save()
                 # Si un redépôt était demandé et que la pièce est de nouveau
@@ -130,7 +130,7 @@ def submit_pfe_request(request):
                     )
                 return redirect("student_dashboard")
     else:
-        form = PFERequestForm(instance=existing_request) if completing else PFERequestForm()
+        form = PFERequestForm(instance=existing_request, completing=True) if completing else PFERequestForm()
 
     document_templates = DocumentTemplate.objects.filter(
         is_active=True,
@@ -138,10 +138,20 @@ def submit_pfe_request(request):
     ).order_by("-uploaded_at")
     official_template = document_templates.first()
 
+    # Pièce dont le département demande explicitement le redépôt (le cas échéant).
+    reupload_field = {
+        "authorization": "authorization_document",
+        "attestation": "attestation_stage",
+        "rapport": "rapport_stage",
+    }.get(getattr(existing_request, "reupload_document", "") or "")
+
     return render(request, "students/submit_pfe_request.html", {
         "form": form,
         "deadline": deadline,
         "completing": completing,
+        "existing_request": existing_request,
+        "reupload_field": reupload_field,
+        "reupload_comment": getattr(existing_request, "reupload_comment", None),
         "document_templates": document_templates,
         "official_template": official_template,
     })

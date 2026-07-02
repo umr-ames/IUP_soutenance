@@ -153,14 +153,24 @@ class PFERequestForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        # Mode « régularisation » : dossier déjà déposé, l'étudiant redépose
+        # seulement la ou les pièce(s) qu'il souhaite changer. Les autres pièces
+        # déjà déposées sont conservées telles quelles.
+        self.completing = kwargs.pop("completing", False)
         super().__init__(*args, **kwargs)
-        # Pièces obligatoires du dossier de soutenance
-        self.fields["authorization_document"].required = True
-        self.fields["attestation_stage"].required = True
-        self.fields["rapport_stage"].required = True
-        self.fields["rapport_stage"].error_messages["required"] = (
-            "Le rapport de stage est obligatoire pour envoyer la demande de soutenance."
-        )
+
+        if self.completing:
+            # Aucune pièce n'est obligatoire : on ne remplace que ce qu'on dépose.
+            for name in ("authorization_document", "attestation_stage", "rapport_stage"):
+                self.fields[name].required = False
+        else:
+            # Première demande : toutes les pièces sont obligatoires.
+            self.fields["authorization_document"].required = True
+            self.fields["attestation_stage"].required = True
+            self.fields["rapport_stage"].required = True
+            self.fields["rapport_stage"].error_messages["required"] = (
+                "Le rapport de stage est obligatoire pour envoyer la demande de soutenance."
+            )
 
     def _validate_pdf_scan(self, file, label):
         if not file:
@@ -181,21 +191,23 @@ class PFERequestForm(forms.ModelForm):
         return file
 
     def clean_authorization_document(self):
-        return self._validate_pdf_scan(
-            self.cleaned_data.get("authorization_document"),
-            "L'autorisation de soutenance",
-        )
+        value = self.cleaned_data.get("authorization_document")
+        # Ne valider que les fichiers fraîchement déposés ; une pièce déjà
+        # stockée et conservée telle quelle n'est pas re-vérifiée.
+        if not self.files.get("authorization_document"):
+            return value
+        return self._validate_pdf_scan(value, "L'autorisation de soutenance")
 
     def clean_attestation_stage(self):
-        return self._validate_pdf_scan(
-            self.cleaned_data.get("attestation_stage"),
-            "L'attestation de stage",
-        )
+        value = self.cleaned_data.get("attestation_stage")
+        if not self.files.get("attestation_stage"):
+            return value
+        return self._validate_pdf_scan(value, "L'attestation de stage")
 
     def clean_rapport_stage(self):
         file = self.cleaned_data.get("rapport_stage")
 
-        if file:
+        if file and self.files.get("rapport_stage"):
             allowed_extensions = ["pdf", "doc", "docx"]
             extension = file.name.split(".")[-1].lower()
 
@@ -211,6 +223,22 @@ class PFERequestForm(forms.ModelForm):
                 )
 
         return file
+
+    def clean(self):
+        cleaned = super().clean()
+        # En régularisation, l'étudiant doit déposer au moins une pièce,
+        # sinon le formulaire ne fait rien (source de confusion).
+        if self.completing:
+            has_new_file = any(
+                bool(self.files.get(name))
+                for name in ("authorization_document", "attestation_stage", "rapport_stage")
+            )
+            if not has_new_file:
+                raise forms.ValidationError(
+                    "Sélectionnez au moins un document à déposer. "
+                    "Les pièces que vous ne changez pas restent inchangées."
+                )
+        return cleaned
 
 
 class PFERequestDecisionForm(forms.Form):
