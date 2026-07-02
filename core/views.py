@@ -511,6 +511,28 @@ def admin_check_official_list(request):
 
 @login_required
 @role_required(["admin"])
+def admin_rename_professor(request, pk):
+    """Corrige le nom d'un professeur (ex. faute d'orthographe corrigée dans la
+    liste officielle) afin qu'il corresponde de nouveau."""
+    from django.shortcuts import get_object_or_404
+
+    professor = get_object_or_404(ProfessorProfile, pk=pk)
+    if request.method == "POST":
+        new_name = (request.POST.get("full_name") or "").strip()
+        if not new_name:
+            messages.error(request, "Le nom ne peut pas être vide.")
+        else:
+            old_name = professor.full_name
+            professor.full_name = new_name
+            professor.save(update_fields=["full_name"])
+            messages.success(
+                request, f"Professeur renommé : « {old_name} » → « {new_name} »."
+            )
+    return redirect("admin_professor_list")
+
+
+@login_required
+@role_required(["admin"])
 def admin_professor_list(request):
     professors = ProfessorProfile.objects.select_related("user").annotate(
         supervised_count=Count("students", distinct=True),

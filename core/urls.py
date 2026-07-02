@@ -13,6 +13,7 @@ urlpatterns = [
     path("admin-dashboard/students/liste-complete/export.xlsx", views.admin_students_overview_export, name="admin_students_overview_export"),
     path("admin-dashboard/students/<int:pk>/reset-password/", views.admin_reset_student_password, name="admin_reset_student_password"),
     path("admin-dashboard/professors/", views.admin_professor_list, name="admin_professor_list"),
+    path("admin-dashboard/professors/<int:pk>/rename/", views.admin_rename_professor, name="admin_rename_professor"),
     path("admin-dashboard/encadrant-etudiants/", views.admin_professor_students, name="admin_professor_students"),
     path("admin-dashboard/professors/<int:pk>/reset-password/", views.admin_reset_professor_password, name="admin_reset_professor_password"),
     path("admin-dashboard/import/", views.admin_import_people, name="admin_import_people"),

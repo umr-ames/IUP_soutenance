@@ -56,6 +56,14 @@
                                     </button>
                                 </form>
                             {% endif %}
+                            <details style="display:inline-block; margin-left:4px;">
+                                <summary class="btn btn-sm btn-outline-secondary" style="list-style:none; cursor:pointer;">Corriger le nom</summary>
+                                <form method="post" action="{% url 'admin_rename_professor' professor.id %}" class="d-flex gap-1 mt-2" style="min-width:280px;">
+                                    {% csrf_token %}
+                                    <input type="text" name="full_name" class="form-control form-control-sm" value="{{ professor.full_name }}" required>
+                                    <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
+                                </form>
+                            </details>
                         </td>
                     </tr>
                 {% empty %}
