@@ -36,12 +36,15 @@ def submit_pfe_request(request):
 
     is_refused = bool(existing_request) and existing_request.status in REFUSED_STATUSES
 
-    # Dossier déjà déposé mais incomplet (ex. rapport manquant) : l'étudiant
-    # peut le compléter sans changer le statut de sa demande.
+    # Redépôt explicitement demandé par le département (correction d'une pièce).
+    has_reupload_request = bool(existing_request) and bool(existing_request.reupload_document)
+
+    # Dossier déjà déposé mais incomplet (ex. rapport manquant) OU redépôt demandé
+    # par le département : l'étudiant peut régulariser sans changer le statut.
     completing = (
         bool(existing_request)
         and not is_refused
-        and not dossier_complete(existing_request)
+        and (not dossier_complete(existing_request) or has_reupload_request)
     )
 
     # Bloquer uniquement si la demande est complète et non refusée.

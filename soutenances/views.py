@@ -2399,11 +2399,16 @@ def admin_jury_publish(request, pk):
 @login_required
 @role_required(["admin"])
 def admin_planning(request):
+    # Planning : uniquement les soutenances À VENIR (date >= aujourd'hui),
+    # publiées ou non. Les jurys passés restent consultables via l'onglet
+    # « Passés » de la liste des jurys.
     schedules = DefenseSchedule.objects.select_related(
         "jury_student__student",
         "jury_student__student__encadrant",
         "jury_student__president",
         "jury_student__jury",
+    ).filter(
+        jury_student__jury__defense_date__gte=timezone.localdate(),
     ).order_by(
         "jury_student__jury__defense_date",
         "start_time",
