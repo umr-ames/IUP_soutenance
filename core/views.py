@@ -135,7 +135,8 @@ def professor_dashboard(request):
     ).select_related("pfe_request")
 
     jury_students = JuryStudent.objects.filter(
-        jury__members__professor=professor
+        jury__members__professor=professor,
+        jury__is_validated=True,
     ).select_related(
         "student",
         "student__encadrant",
@@ -166,7 +167,7 @@ def professor_dashboard(request):
         "professor": professor,
         "supervised_students_count": supervised_students.count(),
         "pending_requests_count": pending_requests_count,
-        "juries_count": Jury.objects.filter(members__professor=professor).distinct().count(),
+        "juries_count": Jury.objects.filter(members__professor=professor, is_validated=True).distinct().count(),
         "pending_evaluations": pending_evaluations,
         "submitted_notes": submitted_notes,
         "availability_blocks": availability_blocks,

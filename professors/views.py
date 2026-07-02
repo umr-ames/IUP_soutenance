@@ -579,7 +579,8 @@ def professor_evaluations(request):
         return redirect("professor_dashboard")
 
     jury_students = JuryStudent.objects.filter(
-        jury__members__professor=professor
+        jury__members__professor=professor,
+        jury__is_validated=True,
     ).select_related(
         "student",
         "jury",
@@ -626,6 +627,7 @@ def professor_evaluation_detail(request, jury_student_id):
         ),
         pk=jury_student_id,
         jury__members__professor=professor,
+        jury__is_validated=True,
     )
 
     existing_evaluation = Evaluation.objects.filter(
@@ -749,6 +751,7 @@ def professor_jury_student_dossier(request, jury_student_id):
         ),
         pk=jury_student_id,
         jury__members__professor=professor,
+        jury__is_validated=True,
     )
 
     pfe_request = PFERequest.objects.filter(student=jury_student.student).first()
@@ -771,6 +774,7 @@ def professor_president_results(request):
 
     assignments = JuryStudent.objects.filter(
         president=professor,
+        jury__is_validated=True,
     ).select_related(
         "student",
         "student__encadrant",
