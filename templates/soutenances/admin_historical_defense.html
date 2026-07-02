@@ -7,7 +7,7 @@
     <div>
         <span class="eyebrow">Département de l'IUP</span>
         <h1>Ajouter une soutenance historique</h1>
-        <p>Pour un étudiant ayant soutenu <strong>avant la plateforme</strong> et non inscrit : enregistrez son jury, sa date et sa note. Il basculera automatiquement en « inscrit » et comptera parmi les étudiants soutenus.</p>
+        <p>Pour un étudiant ayant soutenu <strong>avant la plateforme</strong> : recherchez-le par matricule (qu'il soit <strong>déjà inscrit</strong> ou seulement sur la liste officielle), puis enregistrez son jury, sa date et sa note. Il comptera alors parmi les étudiants soutenus et sortira de la liste « sans demande » / « non inscrits ».</p>
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'admin_students_overview' %}">Retour à la liste</a>
 </div>
@@ -22,10 +22,10 @@
     <section class="content-panel">
         <div class="row g-3">
             <div class="col-md-8">
-                <label class="form-label">{{ form.reference.label }}</label>
-                {{ form.reference }}
-                {% for e in form.reference.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
-                <small class="form-help">L'encadrant est repris automatiquement depuis la liste officielle (il doit exister comme professeur).</small>
+                <label class="form-label">{{ form.matricule.label }}</label>
+                {{ form.matricule }}
+                {% for e in form.matricule.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                <small class="form-help">Recherche par matricule (étudiant inscrit ou liste officielle). L'encadrant est repris automatiquement.</small>
             </div>
             <div class="col-md-4">
                 <label class="form-label">{{ form.final_note.label }}</label>

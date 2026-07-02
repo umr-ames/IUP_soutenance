@@ -13,13 +13,14 @@ from .models import (
 
 
 class HistoricalDefenseForm(forms.Form):
-    """Saisie manuelle d'une soutenance déjà réalisée avant la plateforme, pour
-    un étudiant de la liste officielle non encore inscrit."""
+    """Saisie manuelle d'une soutenance déjà réalisée avant la plateforme.
+    Recherche par matricule : fonctionne pour un étudiant déjà inscrit (sans
+    demande) comme pour un étudiant de la liste officielle non encore inscrit."""
 
-    reference = forms.ModelChoiceField(
-        label="Étudiant (liste officielle, non inscrit)",
-        queryset=StudentReference.objects.none(),
-        widget=forms.Select(attrs={"class": "form-select"}),
+    matricule = forms.CharField(
+        label="Matricule de l'étudiant",
+        max_length=50,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex : IUP23491"}),
     )
     defense_date = forms.DateField(
         label="Date de soutenance",
@@ -47,37 +48,63 @@ class HistoricalDefenseForm(forms.Form):
         widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0, "max": 20}),
     )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        registered = StudentProfile.objects.values_list("matricule", flat=True)
-        self.fields["reference"].queryset = (
-            StudentReference.objects.exclude(matricule__in=registered)
-            .order_by("full_name")
-        )
-
     def clean(self):
+        from students.models import normalize_matricule
+
         cleaned = super().clean()
-        reference = cleaned.get("reference")
         president = cleaned.get("president")
         member = cleaned.get("member")
 
-        if reference:
-            encadrant = ProfessorProfile.objects.filter(
-                full_name__iexact=(reference.encadrant_name or "").strip()
+        raw = cleaned.get("matricule")
+        matricule = normalize_matricule(raw) if raw else ""
+        cleaned["matricule"] = matricule
+        encadrant = None
+
+        if matricule:
+            profile = StudentProfile.objects.select_related("encadrant").filter(
+                matricule__iexact=matricule
             ).first()
-            if not encadrant:
-                self.add_error(
-                    "reference",
-                    "L'encadrant officiel de cet étudiant "
-                    f"(« {reference.encadrant_name} ») n'existe pas encore comme "
-                    "professeur. Importez d'abord la liste officielle.",
-                )
+            reference = StudentReference.objects.filter(
+                matricule__iexact=matricule
+            ).first()
+
+            if profile:
+                # Étudiant déjà inscrit : on réutilise son profil et son encadrant.
+                cleaned["student_profile"] = profile
+                cleaned["reference"] = reference
+                encadrant = profile.encadrant
+                if hasattr(profile, "jury_assignment"):
+                    self.add_error(
+                        "matricule",
+                        "Cet étudiant a déjà un jury / une soutenance enregistrée.",
+                    )
+            elif reference:
+                # Non inscrit : on créera son profil ; encadrant repris de la liste.
+                cleaned["reference"] = reference
+                cleaned["student_profile"] = None
+                encadrant = ProfessorProfile.objects.filter(
+                    full_name__iexact=(reference.encadrant_name or "").strip()
+                ).first()
+                if not encadrant:
+                    self.add_error(
+                        "matricule",
+                        "L'encadrant officiel de cet étudiant "
+                        f"(« {reference.encadrant_name} ») n'existe pas encore comme "
+                        "professeur. Importez d'abord la liste officielle.",
+                    )
             else:
-                cleaned["encadrant"] = encadrant
-                if president and president.id == encadrant.id:
-                    self.add_error("president", "Le président ne peut pas être l'encadrant.")
-                if member and member.id == encadrant.id:
-                    self.add_error("member", "Ce membre ne peut pas être l'encadrant.")
+                self.add_error(
+                    "matricule",
+                    "Aucun étudiant (inscrit ou liste officielle) ne correspond à ce matricule.",
+                )
+
+        cleaned["encadrant"] = encadrant
+
+        if encadrant:
+            if president and president.id == encadrant.id:
+                self.add_error("president", "Le président ne peut pas être l'encadrant.")
+            if member and member.id == encadrant.id:
+                self.add_error("member", "Ce membre ne peut pas être l'encadrant.")
 
         if president and member and president.id == member.id:
             self.add_error("member", "Le membre doit être différent du président.")

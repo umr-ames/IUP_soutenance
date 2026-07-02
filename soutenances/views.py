@@ -228,46 +228,49 @@ def admin_add_historical_defense(request):
     if request.method == "POST":
         form = HistoricalDefenseForm(request.POST)
         if form.is_valid():
-            reference = form.cleaned_data["reference"]
+            reference = form.cleaned_data.get("reference")
+            student = form.cleaned_data.get("student_profile")
             encadrant = form.cleaned_data["encadrant"]
             president = form.cleaned_data["president"]
             member = form.cleaned_data.get("member")
             defense_date = form.cleaned_data["defense_date"]
             salle = form.cleaned_data.get("salle") or ""
             final_note = form.cleaned_data["final_note"]
+            matricule = form.cleaned_data["matricule"]
 
-            matricule = normalize_matricule(reference.matricule)
+            if student is None:
+                # Étudiant non inscrit : créer un compte technique + profil.
+                base_username = f"hist_{matricule.lower()}"
+                username = base_username
+                suffix = 1
+                while CustomUser.objects.filter(username=username).exists():
+                    suffix += 1
+                    username = f"{base_username}_{suffix}"
+                user = CustomUser.objects.create(
+                    username=username,
+                    role=CustomUser.ROLE_STUDENT,
+                    is_active=False,
+                )
+                user.set_unusable_password()
+                user.save()
 
-            if StudentProfile.objects.filter(matricule__iexact=matricule).exists():
-                messages.error(request, "Cet étudiant est déjà inscrit.")
-                return redirect("admin_add_historical_defense")
+                student = StudentProfile.objects.create(
+                    user=user,
+                    matricule=matricule,
+                    full_name=reference.full_name,
+                    filiere=(reference.filiere or ""),
+                    encadrant=encadrant,
+                )
 
-            # Compte technique (sans connexion) pour rattacher le profil étudiant.
-            base_username = f"hist_{matricule.lower()}"
-            username = base_username
-            suffix = 1
-            while CustomUser.objects.filter(username=username).exists():
-                suffix += 1
-                username = f"{base_username}_{suffix}"
-            user = CustomUser.objects.create(
-                username=username,
-                role=CustomUser.ROLE_STUDENT,
-                is_active=False,
-            )
-            user.set_unusable_password()
-            user.save()
-
-            student = StudentProfile.objects.create(
-                user=user,
-                matricule=matricule,
-                full_name=reference.full_name,
-                filiere=reference.filiere or "",
-                encadrant=encadrant,
-            )
-            PFERequest.objects.create(student=student, status=PFERequest.STATUS_ACCEPTED)
+            # Demande de soutenance (acceptée) : la crée si absente, sinon la
+            # marque acceptée (l'étudiant sort de « sans demande »).
+            pfe, _created = PFERequest.objects.get_or_create(student=student)
+            if pfe.status != PFERequest.STATUS_ACCEPTED:
+                pfe.status = PFERequest.STATUS_ACCEPTED
+                pfe.save(update_fields=["status"])
 
             jury = Jury.objects.create(
-                name=f"Soutenance {reference.full_name} ({defense_date.strftime('%d/%m/%Y')})",
+                name=f"Soutenance {student.full_name} ({defense_date.strftime('%d/%m/%Y')})",
                 defense_date=defense_date,
                 salle=salle,
                 is_validated=True,
@@ -293,7 +296,7 @@ def admin_add_historical_defense(request):
 
             messages.success(
                 request,
-                f"Soutenance historique enregistrée pour {reference.full_name} "
+                f"Soutenance historique enregistrée pour {student.full_name} "
                 f"(note {final_note}/20). Il compte désormais parmi les étudiants soutenus."
             )
             return redirect("admin_students_overview")
