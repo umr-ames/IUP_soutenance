@@ -39,12 +39,13 @@ def submit_pfe_request(request):
     # Redépôt explicitement demandé par le département (correction d'une pièce).
     has_reupload_request = bool(existing_request) and bool(existing_request.reupload_document)
 
-    # Dossier déjà déposé mais incomplet (ex. rapport manquant) OU redépôt demandé
-    # par le département : l'étudiant peut régulariser sans changer le statut.
-    completing = (
-        bool(existing_request)
-        and not is_refused
-        and (not dossier_complete(existing_request) or has_reupload_request)
+    # L'étudiant peut « régulariser » (redéposer sans repartir de zéro) dans deux cas :
+    #  - le département a explicitement demandé le redépôt d'une pièce (prioritaire :
+    #    autorisé même si la demande a été refusée et même après la date limite) ;
+    #  - le dossier a été déposé mais reste incomplet (et n'est pas refusé).
+    completing = bool(existing_request) and (
+        has_reupload_request
+        or (not is_refused and not dossier_complete(existing_request))
     )
 
     # Bloquer uniquement si la demande est complète et non refusée.
@@ -73,17 +74,45 @@ def submit_pfe_request(request):
                     "authorization": "authorization_document",
                     "attestation": "attestation_stage",
                     "rapport": "rapport_stage",
-                }.get(existing_request.reupload_document)
+                }.get(existing_request.reupload_document or "")
                 if reupload_field and getattr(existing_request, reupload_field):
                     existing_request.reupload_document = ""
                     existing_request.reupload_comment = None
                     existing_request.save(
                         update_fields=["reupload_document", "reupload_comment"]
                     )
-                messages.success(
-                    request,
-                    "Votre dossier a été complété avec succès. La pièce manquante a été ajoutée."
-                )
+
+                if is_refused:
+                    # La pièce demandée par le département a été redéposée alors que
+                    # la demande était refusée : elle repart en validation encadrant.
+                    existing_request.status = PFERequest.STATUS_PENDING_PROFESSOR
+                    existing_request.professor_comment = None
+                    existing_request.admin_comment = None
+                    existing_request.professor_reviewed_at = None
+                    existing_request.admin_reviewed_at = None
+                    existing_request.reviewed_by_professor = None
+                    existing_request.reviewed_by_admin = None
+                    existing_request.reviewed_at = None
+                    existing_request.reviewed_by = None
+                    existing_request.save()
+                    encadrant = student.encadrant
+                    if encadrant and encadrant.user_id:
+                        notify(
+                            encadrant.user,
+                            "Document redéposé",
+                            f"{student.full_name} ({student.matricule}) a redéposé une pièce à revalider.",
+                            "/professors/requests/",
+                            category=Notification.CATEGORY_REQUEST,
+                        )
+                    messages.success(
+                        request,
+                        "Votre document a été redéposé. Votre demande repart en validation encadrant."
+                    )
+                else:
+                    messages.success(
+                        request,
+                        "Votre dossier a été mis à jour avec succès."
+                    )
                 return redirect("student_dashboard")
         else:
             form = PFERequestForm(request.POST, request.FILES)
