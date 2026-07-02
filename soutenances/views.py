@@ -47,9 +47,14 @@ from .pdf import simple_pdf_response
 
 
 DEFENSE_DURATION_MINUTES = 20
-MAX_SIMULTANEOUS_JURIES = 8
 
-# Date limite des soutenances : aucune soutenance possible après cette date.
+# Salles de soutenance (7). Chaque jury occupe une salle ; deux jurys simultanés
+# ne peuvent pas partager la même salle → au plus 7 jurys en parallèle.
+DEFENSE_SALLES = ["Amphi", "Salle 1", "Salle 2", "Salle 3", "Salle 7", "Salle 8", "Salle 10"]
+MAX_SIMULTANEOUS_JURIES = len(DEFENSE_SALLES)
+
+# Fenêtre des soutenances : du 03/07/2026 au 10/07/2026 inclus (week-end compris).
+DEFENSE_START = date_cls(2026, 7, 3)
 DEFENSE_DEADLINE = date_cls(2026, 7, 10)
 
 # Créneaux de soutenance (matin / après-midi, exception vendredi) : voir
@@ -68,6 +73,27 @@ def _slot_label_at(date, start_time):
         return defense_slots.MORNING
     if defense_slots.AFTERNOON in touched:
         return defense_slots.AFTERNOON
+    return None
+
+
+def _salle_occupee(defense_date, start_time, end_time, salle):
+    """Vrai si la salle est déjà occupée par un jury sur [start_time, end_time]."""
+    if not salle:
+        return False
+    return DefenseSchedule.objects.filter(
+        jury_student__jury__defense_date=defense_date,
+        jury_student__jury__salle=salle,
+        start_time__lt=end_time,
+        end_time__gt=start_time,
+    ).exists()
+
+
+def _choisir_salle_libre(defense_date, start_time, end_time, pool=None):
+    """Renvoie une salle libre sur le créneau [start_time, end_time], ou None si
+    toutes les salles du pool sont occupées à ce moment-là."""
+    for salle in (pool or DEFENSE_SALLES):
+        if salle and not _salle_occupee(defense_date, start_time, end_time, salle):
+            return salle
     return None
 
 
@@ -696,10 +722,11 @@ def generate_targeted_juries(defense_dates, students, professors, num_juries, sa
     if not dates:
         result["error"] = "Choisissez au moins une date de soutenance."
         return result
-    if any(d > DEFENSE_DEADLINE for d in dates):
+    if any(d < DEFENSE_START or d > DEFENSE_DEADLINE for d in dates):
         result["error"] = (
-            f"Aucune soutenance n'est possible après le "
-            f"{DEFENSE_DEADLINE.strftime('%d/%m/%Y')}."
+            f"Les soutenances doivent se tenir entre le "
+            f"{DEFENSE_START.strftime('%d/%m/%Y')} et le "
+            f"{DEFENSE_DEADLINE.strftime('%d/%m/%Y')} (inclus)."
         )
         return result
 
@@ -938,9 +965,24 @@ def _generate_juries_one_date(defense_date, students, professors, num_juries, sa
                 )
             continue
 
-        # 4. Création du jury et planification (save() vérifie dispo + conflits).
+        # 4. Salle : une salle libre pour tout le bloc du jury (deux jurys
+        #    simultanés ne partagent pas de salle). Sans salle libre → on n'ouvre
+        #    pas ce jury (les étudiants passeront à une autre date).
+        block_end = (
+            datetime.combine(defense_date, start_time)
+            + timedelta(minutes=block_minutes)
+        ).time()
+        salle = _choisir_salle_libre(
+            defense_date, start_time, block_end, pool=(salles or DEFENSE_SALLES)
+        )
+        if salle is None:
+            for student in bucket_students:
+                result["skipped"].append(
+                    (student, "aucune salle disponible à ce créneau")
+                )
+            continue
+
         idx = result["created"] + 1
-        salle = salles[result["salle_index"] % len(salles)] if salles else ""
         jury = Jury.objects.create(
             name=f"Jury {defense_date.strftime('%d/%m')} #{idx}",
             defense_date=defense_date,
@@ -951,7 +993,6 @@ def _generate_juries_one_date(defense_date, students, professors, num_juries, sa
             JuryMember.objects.create(jury=jury, professor=professor)
         used_prof_ids.update(members_ids)
         result["created"] += 1
-        result["salle_index"] += 1
 
         cursor = datetime.combine(defense_date, start_time)
         scheduled_here = 0
@@ -1018,6 +1059,11 @@ def generate_smart_juries():
     )
 
     professors = list(ProfessorProfile.objects.order_by("full_name"))
+
+    # Experts par filière (pour privilégier un expert ≠ encadrant dans le jury).
+    experts_by_filiere = defaultdict(set)
+    for entry in FiliereExpert.objects.all():
+        experts_by_filiere[entry.filiere].add(entry.professor_id)
 
     result = {
         "created": 0,
@@ -1121,6 +1167,17 @@ def generate_smart_juries():
             key=lambda p: (-len(students_by_encadrant.get(p.id, [])), p.full_name.lower())
         )
 
+        # Filière dominante du jury (celle de l'encadrant ayant le plus
+        # d'étudiants) → on privilégie un expert de cette filière en complément.
+        target_filiere = ""
+        top_students = students_by_encadrant.get(profs_with_students[0].id, [])
+        if top_students:
+            target_filiere = top_students[0].filiere or ""
+        experts_target = experts_by_filiere.get(target_filiere, set())
+        profs_without_students.sort(
+            key=lambda p: (0 if p.id in experts_target else 1, p.full_name.lower())
+        )
+
         # Form jury of 3: fill first with advisors-with-students, then with others
         if len(profs_with_students) >= 3:
             jury_members = profs_with_students[:3]
@@ -1163,11 +1220,22 @@ def generate_smart_juries():
         if not selected_students:
             continue
 
+        # Salle libre pour tout le bloc du jury (deux jurys simultanés ne
+        # partagent pas de salle). Sans salle libre → on passe ce créneau.
+        block_end = (
+            datetime.combine(defense_date, selected_slots[-1])
+            + timedelta(minutes=DEFENSE_DURATION_MINUTES)
+        ).time()
+        salle = _choisir_salle_libre(defense_date, block_start, block_end)
+        if salle is None:
+            continue
+
         plan = {
             "members": jury_members,
             "students": selected_students,
             "defense_date": defense_date,
             "start_times": selected_slots,
+            "salle": salle,
         }
 
         try:
@@ -1241,8 +1309,11 @@ def build_all_future_slot_starts():
 
     starts = set()
 
+    # Fenêtre des soutenances : du DEFENSE_START au DEFENSE_DEADLINE inclus.
+    lower = max(today, DEFENSE_START)
     availabilities = ProfessorAvailability.objects.filter(
-        date__gte=today,
+        date__gte=lower,
+        date__lte=DEFENSE_DEADLINE,
     ).order_by(
         "date",
         "start_time",
@@ -1324,6 +1395,7 @@ def create_grouped_jury_from_plan(plan, jury_index):
             jury_index=jury_index,
         ),
         defense_date=plan["defense_date"],
+        salle=plan.get("salle", ""),
         is_validated=False,
     )
 
@@ -1966,6 +2038,38 @@ def admin_jury_delete(request, pk):
     # CASCADE Django supprime automatiquement : JuryMember, JuryStudent, DefenseSchedule
     jury.delete()
     messages.success(request, f"Le jury « {jury_name} » a été supprimé.")
+    return redirect("admin_jury_list")
+
+
+@login_required
+@role_required(["admin"])
+def admin_delete_draft_juries(request):
+    """Supprime tous les jurys en brouillon (non validés) en une fois. Ceux qui
+    ont déjà des évaluations ou résultats sont conservés."""
+    if request.method != "POST":
+        return redirect("admin_jury_list")
+
+    drafts = Jury.objects.filter(is_validated=False)
+    deleted = 0
+    kept = 0
+    for jury in drafts:
+        has_eval = Evaluation.objects.filter(jury_student__jury=jury).exists()
+        has_result = Result.objects.filter(jury_student__jury=jury).exists()
+        if has_eval or has_result:
+            kept += 1
+            continue
+        jury.delete()  # CASCADE : membres, JuryStudent, créneaux
+        deleted += 1
+
+    if deleted:
+        messages.success(request, f"{deleted} jury(s) brouillon supprimé(s).")
+    if kept:
+        messages.warning(
+            request,
+            f"{kept} brouillon(s) conservé(s) car des évaluations/résultats existent."
+        )
+    if not deleted and not kept:
+        messages.info(request, "Aucun jury brouillon à supprimer.")
     return redirect("admin_jury_list")
 
 

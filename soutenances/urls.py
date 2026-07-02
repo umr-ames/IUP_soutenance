@@ -15,6 +15,7 @@ urlpatterns = [
     path("admin/jurys/generate/", views.admin_generate_juries, name="admin_generate_juries"),
     path("admin/jurys/generate-targeted/", views.admin_generate_juries_targeted, name="admin_generate_juries_targeted"),
     path("admin/jurys/experts/", views.admin_expert_groups, name="admin_expert_groups"),
+    path("admin/jurys/delete-drafts/", views.admin_delete_draft_juries, name="admin_delete_draft_juries"),
     path("admin/jurys/create/", views.admin_jury_create, name="admin_jury_create"),
     path("admin/jurys/quick-create/", views.admin_jury_quick_create, name="admin_jury_quick_create"),
     path("admin/jurys/helper/slots/", views.admin_jury_helper_slots, name="admin_jury_helper_slots"),

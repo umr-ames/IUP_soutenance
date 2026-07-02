@@ -38,6 +38,14 @@
             <a href="{% url 'export_juries_pdf' %}" class="btn btn-light">
                 Export PDF
             </a>
+
+            <form method="post" action="{% url 'admin_delete_draft_juries' %}" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger"
+                        data-confirm="Supprimer tous les jurys brouillons ? (ceux avec des notes/résultats seront conservés)">
+                    Supprimer les brouillons
+                </button>
+            </form>
         </div>
     </div>
 
