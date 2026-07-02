@@ -67,8 +67,14 @@ def parse_week_start(raw_value):
 @login_required
 @role_required(["admin"])
 def admin_professor_availability(request):
+    today = timezone.localdate()
+
+    # On ne considère que les disponibilités à venir (les créneaux passés ne
+    # sont ni comptés ni affichés).
     availabilities = ProfessorAvailability.objects.select_related(
         "professor"
+    ).filter(
+        date__gte=today,
     ).order_by(
         "date",
         "start_time"
@@ -80,8 +86,6 @@ def admin_professor_availability(request):
     if professor_id:
         availabilities = availabilities.filter(professor_id=professor_id)
         filtered_professor = ProfessorProfile.objects.filter(id=professor_id).first()
-
-    today = timezone.localdate()
 
     # Regroupement par professeur : une seule ligne par professeur, avec ses
     # créneaux regroupés par date pour la section détails.
@@ -205,7 +209,8 @@ def _availability_context(professor, week_param):
         "next_week": (week_start + datetime.timedelta(days=7)).isoformat(),
         "session_end_date": SESSION_END_DATE,
         "availabilities": ProfessorAvailability.objects.filter(
-            professor=professor
+            professor=professor,
+            date__gte=today,
         ).order_by("date", "start_time"),
     }
 
