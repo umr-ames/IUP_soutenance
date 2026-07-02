@@ -68,23 +68,30 @@ def submit_pfe_request(request):
             form = PFERequestForm(request.POST, request.FILES, instance=existing_request, completing=True)
             if form.is_valid():
                 form.save()
-                # Si un redépôt était demandé et que la pièce est de nouveau
-                # présente, on efface la demande de redépôt.
-                reupload_field = {
+                # On recalcule les pièces dont le redépôt reste attendu : une pièce
+                # demandée puis de nouveau présente sort de la liste. Un redépôt
+                # partiel est autorisé (les autres pièces restent demandées).
+                reupload_fields = {
                     "authorization": "authorization_document",
                     "attestation": "attestation_stage",
                     "rapport": "rapport_stage",
-                }.get(existing_request.reupload_document or "")
-                if reupload_field and getattr(existing_request, reupload_field):
-                    existing_request.reupload_document = ""
+                }
+                still_pending = [
+                    code for code in existing_request.reupload_documents
+                    if not getattr(existing_request, reupload_fields[code])
+                ]
+                all_cleared = not still_pending
+                existing_request.reupload_document = ",".join(still_pending)
+                if all_cleared:
                     existing_request.reupload_comment = None
-                    existing_request.save(
-                        update_fields=["reupload_document", "reupload_comment"]
-                    )
+                existing_request.save(
+                    update_fields=["reupload_document", "reupload_comment"]
+                )
 
-                if is_refused:
-                    # La pièce demandée par le département a été redéposée alors que
-                    # la demande était refusée : elle repart en validation encadrant.
+                if is_refused and all_cleared:
+                    # Toutes les pièces demandées par le département ont été
+                    # redéposées alors que la demande était refusée : elle repart
+                    # en validation encadrant.
                     existing_request.status = PFERequest.STATUS_PENDING_PROFESSOR
                     existing_request.professor_comment = None
                     existing_request.admin_comment = None
@@ -99,14 +106,22 @@ def submit_pfe_request(request):
                     if encadrant and encadrant.user_id:
                         notify(
                             encadrant.user,
-                            "Document redéposé",
-                            f"{student.full_name} ({student.matricule}) a redéposé une pièce à revalider.",
+                            "Document(s) redéposé(s)",
+                            f"{student.full_name} ({student.matricule}) a redéposé les pièces à revalider.",
                             "/professors/requests/",
                             category=Notification.CATEGORY_REQUEST,
                         )
                     messages.success(
                         request,
-                        "Votre document a été redéposé. Votre demande repart en validation encadrant."
+                        "Vos documents ont été redéposés. Votre demande repart en validation encadrant."
+                    )
+                elif still_pending:
+                    reste = ", ".join(
+                        PFERequest.REUPLOAD_LABELS.get(c, c) for c in still_pending
+                    )
+                    messages.success(
+                        request,
+                        f"Document(s) enregistré(s). Il reste à redéposer : {reste}."
                     )
                 else:
                     messages.success(
@@ -167,20 +182,39 @@ def submit_pfe_request(request):
     ).order_by("-uploaded_at")
     official_template = document_templates.first()
 
-    # Pièce dont le département demande explicitement le redépôt (le cas échéant).
-    reupload_field = {
+    # Pièces (noms de champ du formulaire) dont le département demande le redépôt.
+    code_to_field = {
         "authorization": "authorization_document",
         "attestation": "attestation_stage",
         "rapport": "rapport_stage",
-    }.get(getattr(existing_request, "reupload_document", "") or "")
+    }
+    reupload_fields = []
+    visible_fields = []
+    if existing_request:
+        reupload_fields = [
+            code_to_field[c]
+            for c in existing_request.reupload_documents
+            if c in code_to_field
+        ]
+    if completing:
+        # En régularisation, on n'affiche que les pièces à traiter : celles qui
+        # manquent ou dont le redépôt est demandé. Les pièces déjà déposées et
+        # non concernées sont conservées automatiquement (non affichées).
+        for field_name in ("authorization_document", "attestation_stage", "rapport_stage"):
+            if not getattr(existing_request, field_name) or field_name in reupload_fields:
+                visible_fields.append(field_name)
+    else:
+        visible_fields = ["authorization_document", "attestation_stage", "rapport_stage"]
 
     return render(request, "students/submit_pfe_request.html", {
         "form": form,
         "deadline": deadline,
         "completing": completing,
         "existing_request": existing_request,
-        "reupload_field": reupload_field,
+        "reupload_fields": reupload_fields,
+        "visible_fields": visible_fields,
         "reupload_comment": getattr(existing_request, "reupload_comment", None),
+        "reupload_documents_display": existing_request.reupload_documents_display if existing_request else "",
         "document_templates": document_templates,
         "official_template": official_template,
     })

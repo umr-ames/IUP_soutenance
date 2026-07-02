@@ -232,7 +232,7 @@
                             Il manque : {% for d in dossier_missing %}{{ d }}{% if not forloop.last %}, {% endif %}{% endfor %}.
                         {% endif %}
                         {% if pfe_request.reupload_document %}
-                            Le Département de l'IUP demande un nouveau dépôt : <strong>{{ pfe_request.get_reupload_document_display }}</strong>.
+                            Le Département de l'IUP demande un nouveau dépôt : <strong>{{ pfe_request.reupload_documents_display }}</strong>.
                             {% if pfe_request.reupload_comment %} Remarque : « {{ pfe_request.reupload_comment }} ».{% endif %}
                         {% endif %}
                         Ouvrez votre dossier pour déposer uniquement la pièce concernée — les autres documents restent inchangés.

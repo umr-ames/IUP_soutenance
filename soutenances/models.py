@@ -178,17 +178,30 @@ class PFERequest(models.Model):
     professor_comment = models.TextField(blank=True, null=True)
     admin_comment = models.TextField(blank=True, null=True)
 
-    # Demande de redépôt d'une pièce par le département (vue par l'étudiant
-    # et son encadrant).
+    # Demande de redépôt d'une ou plusieurs pièces par le département (vue par
+    # l'étudiant et son encadrant). Plusieurs codes séparés par des virgules.
     REUPLOAD_CHOICES = [
         ("authorization", "Autorisation de soutenance"),
         ("attestation", "Attestation de stage"),
         ("rapport", "Rapport de stage"),
     ]
+    REUPLOAD_LABELS = dict(REUPLOAD_CHOICES)
     reupload_document = models.CharField(
-        max_length=20, blank=True, default="", choices=REUPLOAD_CHOICES
+        max_length=120, blank=True, default=""
     )
     reupload_comment = models.TextField(blank=True, null=True)
+
+    @property
+    def reupload_documents(self):
+        """Liste des codes de pièces dont le redépôt est demandé."""
+        return [c for c in (self.reupload_document or "").split(",") if c]
+
+    @property
+    def reupload_documents_display(self):
+        """Libellés lisibles des pièces à redéposer, séparés par des virgules."""
+        return ", ".join(
+            self.REUPLOAD_LABELS.get(c, c) for c in self.reupload_documents
+        )
 
     professor_reviewed_at = models.DateTimeField(blank=True, null=True)
     admin_reviewed_at = models.DateTimeField(blank=True, null=True)

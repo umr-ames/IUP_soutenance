@@ -374,22 +374,24 @@ def admin_pfe_request_detail(request, pk):
     }
 
     if request.method == "POST" and request.POST.get("action") == "request_reupload":
-        doc = (request.POST.get("reupload_document") or "").strip()
+        docs = [d for d in request.POST.getlist("reupload_document") if d in REUPLOAD_FIELDS]
         comment = (request.POST.get("reupload_comment") or "").strip()
-        if doc not in REUPLOAD_FIELDS:
-            messages.error(request, "Choisissez le document à faire redéposer.")
+        if not docs:
+            messages.error(request, "Choisissez au moins un document à faire redéposer.")
         else:
-            pfe_request.reupload_document = doc
+            pfe_request.reupload_document = ",".join(docs)
             pfe_request.reupload_comment = comment
-            # On vide la pièce concernée pour obliger l'étudiant à la redéposer.
-            setattr(pfe_request, REUPLOAD_FIELDS[doc], None)
-            pfe_request.save(update_fields=[
-                "reupload_document", "reupload_comment", REUPLOAD_FIELDS[doc],
-            ])
+            update_fields = ["reupload_document", "reupload_comment"]
+            # On vide chaque pièce concernée pour obliger l'étudiant à la redéposer.
+            for doc in docs:
+                field = REUPLOAD_FIELDS[doc]
+                setattr(pfe_request, field, None)
+                update_fields.append(field)
+            pfe_request.save(update_fields=update_fields)
             notify(
                 getattr(pfe_request.student, "user", None),
-                "Document à redéposer",
-                f"Le département demande le redépôt : {pfe_request.get_reupload_document_display}. {comment}".strip(),
+                "Document(s) à redéposer",
+                f"Le département demande le redépôt : {pfe_request.reupload_documents_display}. {comment}".strip(),
                 "/student-dashboard/",
                 category=Notification.CATEGORY_DOCUMENT,
             )
