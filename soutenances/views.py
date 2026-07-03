@@ -3619,12 +3619,65 @@ def admin_scheduling_diagnostic(request):
         if p.availabilities.filter(date__gte=today).exists():
             idle_profs.append(p)
 
+    # ── Recherche : matricule/nom d'étudiant OU nom de professeur ────────────
+    query = (request.GET.get("q") or "").strip()
+    student_results = []
+    prof_results = []
+    if query:
+        from django.db.models import Q
+        students_found = StudentProfile.objects.filter(
+            Q(matricule__icontains=query) | Q(full_name__icontains=query)
+        ).select_related("encadrant")[:15]
+        for s in students_found:
+            js = JuryStudent.objects.filter(student=s).select_related(
+                "jury", "president"
+            ).first()
+            schedule = (
+                DefenseSchedule.objects.filter(jury_student=js).first()
+                if js else None
+            )
+            demande = getattr(s, "pfe_request", None)
+            student_results.append({
+                "student": s,
+                "js": js,
+                "jury": js.jury if js else None,
+                "schedule": schedule,
+                "members": (
+                    [m.professor.full_name for m in js.jury.members.select_related("professor")]
+                    if js else []
+                ),
+                "demande_status": demande.get_status_display() if demande else "Aucune demande",
+            })
+
+        for p in ProfessorProfile.objects.filter(
+            full_name__icontains=query
+        ).order_by("full_name")[:10]:
+            memberships = []
+            for jm in JuryMember.objects.filter(professor=p).select_related(
+                "jury"
+            ).order_by("jury__defense_date"):
+                scheds = DefenseSchedule.objects.filter(
+                    jury_student__jury=jm.jury
+                ).order_by("start_time")
+                first = scheds.first()
+                last = scheds.last()
+                memberships.append({
+                    "jury": jm.jury,
+                    "students_count": jm.jury.students.count(),
+                    "start": first.start_time if first else None,
+                    "end": (last.end_time or last.start_time) if last else None,
+                })
+            prof_results.append({"professor": p, "memberships": memberships})
+
     return render(request, "soutenances/admin_scheduling_diagnostic.html", {
         "rows": rows,
         "unscheduled_count": len(unscheduled),
         "total_accepted": total_accepted,
         "scheduled_count": total_accepted - len(unscheduled),
         "idle_profs": idle_profs,
+        "query": query,
+        "student_results": student_results,
+        "prof_results": prof_results,
     })
 
 
