@@ -307,6 +307,19 @@ class Jury(models.Model):
         return f"{self.name} - {self.defense_date}"
 
 
+class GenerationReport(models.Model):
+    """Dernier(s) rapport(s) de génération automatique, consultables après
+    coup depuis la page Jurys (bouton « Dernier rapport »)."""
+    created_at = models.DateTimeField(auto_now_add=True)
+    data = models.JSONField()
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Rapport de génération du {self.created_at:%d/%m/%Y %H:%M}"
+
+
 class JuryMember(models.Model):
     jury = models.ForeignKey(
         Jury,

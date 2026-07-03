@@ -31,6 +31,10 @@
                 Profs prioritaires
             </a>
 
+            <a href="{% url 'admin_last_generation_report' %}" class="btn btn-light">
+                Dernier rapport
+            </a>
+
             <a href="{% url 'admin_jury_create' %}" class="btn btn-light">
                 Créer manuellement
             </a>
@@ -127,6 +131,11 @@
                         <span class="status-pill">
                             {{ jury.students.count }} étudiant(s)
                         </span>
+                        {% if jury.salle %}
+                            <span class="status-pill info">{{ jury.get_salle_display }}</span>
+                        {% else %}
+                            <span class="status-pill muted">Salle non définie</span>
+                        {% endif %}
                     </div>
                 </div>
 

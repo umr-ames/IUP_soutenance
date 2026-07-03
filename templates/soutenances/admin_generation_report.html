@@ -8,34 +8,38 @@
         <div>
             <p class="eyebrow">Département de l'IUP</p>
             <h1>Rapport de génération automatique</h1>
+            {% if report.generated_at %}
+                <p class="muted">Généré le {{ report.generated_at }}</p>
+            {% endif %}
         </div>
         <div class="hero-actions">
             <a href="{% url 'admin_jury_list' %}" class="btn btn-primary">Voir les jurys</a>
+            <a href="{% url 'admin_planning' %}" class="btn btn-light">Planning</a>
         </div>
     </div>
 
-    <!-- Summary cards -->
+    <!-- Cartes de synthèse -->
     <div class="soft-grid" style="margin-bottom: 2rem;">
         <article class="soft-card">
             <span class="label">Étudiants prêts</span>
-            <strong>{{ result.report.total_ready }}</strong>
+            <strong>{{ report.total_ready }}</strong>
         </article>
         <article class="soft-card">
             <span class="label">Jurys créés</span>
-            <strong>{{ result.created }}</strong>
+            <strong>{{ report.created }}</strong>
         </article>
         <article class="soft-card">
             <span class="label">Étudiants affectés</span>
-            <strong>{{ result.assigned }}</strong>
+            <strong>{{ report.assigned }}</strong>
         </article>
         <article class="soft-card">
             <span class="label">Non affectés</span>
-            <strong>{{ result.errors|length }}</strong>
+            <strong>{{ report.errors_count }}</strong>
         </article>
     </div>
 
-    <!-- Feasibility pre-flight -->
-    {% if result.report.feasibility.encadrants %}
+    <!-- Pré-vol de faisabilité -->
+    {% if report.feasibility.encadrants %}
     <div class="card mb-4">
         <div class="card-header fw-semibold">Pré-vol de faisabilité — offre vs besoin par encadrant</div>
         <div class="card-body p-0">
@@ -49,7 +53,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in result.report.feasibility.encadrants %}
+                    {% for row in report.feasibility.encadrants %}
                     <tr>
                         <td>{{ row.encadrant }}</td>
                         <td class="text-center">{{ row.students }}</td>
@@ -66,32 +70,104 @@
                 </tbody>
             </table>
         </div>
-        {% if not result.report.feasibility.global.ok %}
+        {% if not report.feasibility.global.ok %}
             <div class="card-body pt-2 pb-2" style="color:#b91c1c;">
-                Plafond global dépassé : {{ result.report.feasibility.global.students }} étudiants pour
-                {{ result.report.feasibility.global.capacity_slots }} passages possibles (salles × créneaux de la fenêtre).
+                Plafond global dépassé : {{ report.feasibility.global.students }} étudiants pour
+                {{ report.feasibility.global.capacity_slots }} passages possibles (salles × créneaux de la fenêtre).
             </div>
         {% endif %}
     </div>
     {% endif %}
 
-    <!-- Priority professors utilization -->
-    {% if result.report.priority_usage %}
+    <!-- Bilan par jour -->
+    {% if report.by_day %}
     <div class="card mb-4">
-        <div class="card-header fw-semibold">Utilisation des profs prioritaires (objectif : 100 %)</div>
+        <div class="card-header fw-semibold">Bilan par jour</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th class="text-center">Jurys</th>
+                        <th class="text-center">Étudiants qui passent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in report.by_day %}
+                    <tr>
+                        <td>{{ row.date }}</td>
+                        <td class="text-center">{{ row.juries }}</td>
+                        <td class="text-center">{{ row.students }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Bilan par encadrant -->
+    {% if report.by_encadrant %}
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">Bilan par encadrant — prêts / affectés / restants</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Encadrant</th>
+                        <th class="text-center">Étudiants prêts</th>
+                        <th class="text-center">Affectés à un jury</th>
+                        <th class="text-center">Restants (non passés)</th>
+                        <th class="text-center">% placé</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in report.by_encadrant %}
+                    <tr>
+                        <td>{{ row.encadrant }}</td>
+                        <td class="text-center">{{ row.ready }}</td>
+                        <td class="text-center">{{ row.placed }}</td>
+                        <td class="text-center">
+                            {% if row.remaining %}
+                                <span class="status-pill danger">{{ row.remaining }}</span>
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if row.pct == 100 %}
+                                <span class="status-pill success">100 %</span>
+                            {% elif row.pct >= 50 %}
+                                <span class="status-pill warning">{{ row.pct }} %</span>
+                            {% else %}
+                                <span class="status-pill danger">{{ row.pct }} %</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Utilisation des profs prioritaires (dispo FAISABLE) -->
+    {% if report.priority_usage %}
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">Utilisation des profs prioritaires — taux sur la disponibilité faisable (une demi-journée par jour)</div>
         <div class="card-body p-0">
             <table class="table table-sm mb-0">
                 <thead>
                     <tr>
                         <th>Professeur</th>
-                        <th class="text-center">Créneaux à venir</th>
+                        <th class="text-center">Créneaux faisables</th>
                         <th class="text-center">Utilisés</th>
                         <th class="text-center">Libres</th>
                         <th class="text-center">Taux</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in result.report.priority_usage %}
+                    {% for row in report.priority_usage %}
                     <tr>
                         <td>{{ row.name }}</td>
                         <td class="text-center">{{ row.total }}</td>
@@ -114,54 +190,21 @@
     </div>
     {% endif %}
 
-    <!-- Students per advisor before generation -->
-    {% if result.report.by_encadrant_before %}
-    <div class="card mb-4">
-        <div class="card-header fw-semibold">Répartition initiale par encadrant</div>
-        <div class="card-body p-0">
-            <table class="table table-sm mb-0">
-                <thead>
-                    <tr>
-                        <th>Encadrant</th>
-                        <th class="text-center">Étudiants prêts</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for enc_name, count in result.report.by_encadrant_before.items %}
-                    <tr>
-                        <td>{{ enc_name }}</td>
-                        <td class="text-center">{{ count }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Juries created -->
-    {% if result.report.juries %}
-    <h2 class="h5 mb-3">Jurys générés ({{ result.report.juries|length }})</h2>
-    {% for entry in result.report.juries %}
+    <!-- Jurys générés (ordre chronologique) -->
+    {% if report.juries %}
+    <h2 class="h5 mb-3">Jurys générés ({{ report.juries|length }}) — ordre chronologique</h2>
+    {% for entry in report.juries %}
     <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <span class="fw-semibold">{{ entry.jury_name }}</span>
-            <span class="text-muted small">{{ entry.defense_date }} — créneau {{ entry.slot_start|time:"H:i" }}{% if entry.salle %} — {{ entry.salle }}{% endif %} — capacité {{ entry.capacity }} étudiant(s)</span>
+            <span class="fw-semibold">{{ entry.name }}</span>
+            <span class="text-muted small">
+                {{ entry.date }} — créneau {{ entry.start }}{% if entry.salle %} — {{ entry.salle }}{% endif %} — capacité {{ entry.capacity }} étudiant(s)
+            </span>
+        </div>
+        <div class="card-body pt-2 pb-2">
+            <span class="text-muted small">Membres : {{ entry.members|join:", " }}</span>
         </div>
         <div class="card-body p-0">
-            <table class="table table-sm mb-0">
-                <thead>
-                    <tr>
-                        <th>Membre du jury</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for member_name in entry.members %}
-                    <tr><td>{{ member_name }}</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            <hr class="my-0">
             <table class="table table-sm mb-0">
                 <thead>
                     <tr>
@@ -171,11 +214,11 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for s in entry.students_scheduled %}
+                    {% for s in entry.students %}
                     <tr>
                         <td>{{ s.name }} <span class="text-muted">· {{ s.matricule }}</span></td>
                         <td>{{ s.encadrant }}</td>
-                        <td class="text-center">{{ s.start_time|time:"H:i" }} → {{ s.end_time|time:"H:i" }}</td>
+                        <td class="text-center">{{ s.time }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -187,10 +230,10 @@
     <div class="alert alert-info">Aucun jury n'a pu être généré.</div>
     {% endif %}
 
-    <!-- Unassigned students -->
-    {% if result.errors %}
-    <h2 class="h5 mb-3 mt-4">Étudiants non affectés ({{ result.errors|length }})</h2>
-    <div class="card">
+    <!-- Étudiants non placés -->
+    {% if report.errors %}
+    <div class="card mb-4">
+        <div class="card-header fw-semibold" style="color:#b91c1c;">Étudiants non placés ({{ report.errors_count }})</div>
         <div class="card-body p-0">
             <table class="table table-sm mb-0">
                 <thead>
@@ -201,11 +244,11 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for err in result.errors %}
+                    {% for err in report.errors %}
                     <tr>
-                        <td>{{ err.student.full_name|default:"(nom absent)" }} <span class="text-muted">· {{ err.student.matricule }}</span></td>
-                        <td>{{ err.student.encadrant.full_name|default:"—" }}</td>
-                        <td class="text-danger small">{{ err.message }}</td>
+                        <td>{{ err.student }} <span class="text-muted">· {{ err.matricule }}</span></td>
+                        <td>{{ err.encadrant }}</td>
+                        <td>{{ err.message }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -213,9 +256,5 @@
         </div>
     </div>
     {% endif %}
-
-    <div class="mt-4">
-        <a href="{% url 'admin_jury_list' %}" class="btn btn-secondary">Retour aux jurys</a>
-    </div>
 </section>
 {% endblock %}

@@ -40,6 +40,7 @@ from .models import (
     PFERequest,
     Result,
     FiliereExpert,
+    GenerationReport,
     mention_for_average,
 )
 
@@ -630,9 +631,18 @@ def admin_generate_juries(request):
             end_date=form.cleaned_data["end_date"],
             max_simultaneous=form.cleaned_data["max_simultaneous"],
         )
-        # Render the detailed generation report directly
+        # Rapport sérialisé : affiché maintenant ET sauvegardé pour pouvoir le
+        # reconsulter depuis la page Jurys (bouton « Dernier rapport »).
+        payload = build_generation_report_payload(result)
+        GenerationReport.objects.create(data=payload)
+        old_ids = list(
+            GenerationReport.objects.order_by("-created_at")
+            .values_list("id", flat=True)[10:]
+        )
+        if old_ids:
+            GenerationReport.objects.filter(id__in=old_ids).delete()
         return render(request, "soutenances/admin_generation_report.html", {
-            "result": result,
+            "report": payload,
         })
 
     # GET : afficher le formulaire de paramètres (dates + nombre max de jurys).
@@ -645,6 +655,93 @@ def admin_generate_juries(request):
         "form": form,
         "salles": DEFENSE_SALLES,
     })
+
+
+@login_required
+@role_required(["admin"])
+def admin_last_generation_report(request):
+    """Reconsulter le dernier rapport de génération automatique."""
+    entry = GenerationReport.objects.order_by("-created_at").first()
+    if not entry:
+        messages.info(
+            request,
+            "Aucun rapport de génération enregistré pour le moment. "
+            "Lancez une génération automatique pour en créer un."
+        )
+        return redirect("admin_jury_list")
+    return render(request, "soutenances/admin_generation_report.html", {
+        "report": entry.data,
+    })
+
+
+def build_generation_report_payload(result):
+    """Convertit le résultat de génération en dictionnaire sérialisable
+    (JSON) consommé par le template du rapport et stocké en base."""
+
+    def fmt_d(d):
+        return d.strftime("%d/%m/%Y") if hasattr(d, "strftime") else str(d)
+
+    def fmt_t(t):
+        return t.strftime("%H:%M") if hasattr(t, "strftime") else str(t)
+
+    report = result.get("report", {})
+
+    juries = []
+    for e in report.get("juries", []):
+        juries.append({
+            "name": e.get("jury_name", ""),
+            "salle": e.get("salle", ""),
+            "members": e.get("members", []),
+            "date": fmt_d(e.get("defense_date")),
+            "start": fmt_t(e.get("slot_start")),
+            "capacity": e.get("capacity", 0),
+            "students": [
+                {
+                    "name": s.get("name", ""),
+                    "matricule": s.get("matricule", ""),
+                    "encadrant": s.get("encadrant", ""),
+                    "time": f"{fmt_t(s.get('start_time'))} → {fmt_t(s.get('end_time'))}",
+                }
+                for s in e.get("students_scheduled", [])
+            ],
+        })
+
+    # Bilan par jour : nombre de jurys et d'étudiants par date.
+    day_map = {}
+    for e in juries:
+        entry = day_map.setdefault(
+            e["date"], {"date": e["date"], "juries": 0, "students": 0}
+        )
+        entry["juries"] += 1
+        entry["students"] += len(e["students"])
+    by_day = list(day_map.values())
+
+    errors = []
+    for err in result.get("errors", []):
+        student = err.get("student")
+        errors.append({
+            "student": (getattr(student, "full_name", "") or "(nom absent)"),
+            "matricule": getattr(student, "matricule", ""),
+            "encadrant": (
+                student.encadrant.full_name
+                if getattr(student, "encadrant", None) else "—"
+            ),
+            "message": err.get("message", ""),
+        })
+
+    return {
+        "generated_at": timezone.localtime().strftime("%d/%m/%Y %H:%M"),
+        "total_ready": report.get("total_ready", 0),
+        "created": result.get("created", 0),
+        "assigned": result.get("assigned", 0),
+        "errors_count": len(errors),
+        "feasibility": report.get("feasibility", {}),
+        "priority_usage": report.get("priority_usage", []),
+        "by_day": by_day,
+        "by_encadrant": report.get("by_encadrant", []),
+        "juries": juries,
+        "errors": errors,
+    }
 
 
 def _targeted_students_grouped():
@@ -1159,6 +1256,11 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             enc_name = students[0].encadrant.full_name
             result["report"]["by_encadrant_before"][enc_name] = len(students)
 
+    # Comptes initiaux par encadrant (pour le bilan prêts/affectés/restants).
+    initial_by_enc = {
+        eid: len(sts) for eid, sts in students_by_encadrant.items()
+    }
+
     # 3. Unités de planification : (date, demi-journée) de la fenêtre
     all_units = []
     d = window_start
@@ -1403,8 +1505,13 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                 pool = []
                 for m in members:
                     pool.extend(students_by_encadrant.get(m.id, []))
-                # Les étudiants de l'encadrant contraint d'abord, mono-filière.
+                # Priorité aux étudiants dont l'encadrant a le MOINS de marge
+                # (dispo faisable - étudiants restants) : on ne consomme pas la
+                # disponibilité d'un prof « serré » pour faire passer les
+                # étudiants d'un prof confortable. Puis mono-filière.
                 pool.sort(key=lambda s: (
+                    supply_slots_for(s.encadrant_id)
+                    - len(students_by_encadrant.get(s.encadrant_id, [])),
                     0 if s.encadrant_id == enc.id else 1,
                     0 if (s.filiere or "") == target_filiere else 1,
                     s.full_name.lower(),
@@ -1612,23 +1719,14 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                 "message": "Encadrant sans disponibilité et aucun expert disponible pour le remplacer.",
             })
 
-    # 8. Bilan d'utilisation des profs prioritaires (créneaux 20 min à venir).
+    # 8. Bilan d'utilisation des profs prioritaires — taux calculé sur la
+    #    disponibilité FAISABLE (au plus une demi-journée par jour, règle
+    #    stricte : déclarer matin + après-midi ne compte qu'une fois).
     priority_usage = []
     for prof in professors:
         if not getattr(prof, "is_priority", False):
             continue
-        avail_slots = set()
-        for availability in prof.availabilities.filter(date__gte=today):
-            for d2, t2 in build_slots_from_availability(availability):
-                avail_slots.add((d2, t2))
-        scheduled = set(
-            DefenseSchedule.objects.filter(
-                jury_student__jury__members__professor=prof,
-                jury_student__jury__defense_date__gte=today,
-            ).values_list("jury_student__jury__defense_date", "start_time")
-        )
-        used = len(avail_slots & scheduled)
-        total = len(avail_slots)
+        used, total, _free = feasible_priority_usage(prof, today)
         priority_usage.append({
             "name": prof.full_name,
             "used": used,
@@ -1637,6 +1735,38 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             "pct": round(100 * used / total) if total else 0,
         })
     result["report"]["priority_usage"] = priority_usage
+
+    # 9. Bilan par encadrant : prêts / affectés / restants / %.
+    remaining_by_enc = {
+        eid: len(sts) for eid, sts in students_by_encadrant.items()
+    }
+    for fil, studs in absent_by_fil.items():
+        for student in studs:
+            remaining_by_enc[student.encadrant_id] = (
+                remaining_by_enc.get(student.encadrant_id, 0) + 1
+            )
+    by_encadrant = []
+    for enc_id, ready in initial_by_enc.items():
+        left = remaining_by_enc.get(enc_id, 0)
+        placed = ready - left
+        enc = prof_by_id.get(enc_id)
+        by_encadrant.append({
+            "encadrant": enc.full_name if enc else "?",
+            "ready": ready,
+            "placed": placed,
+            "remaining": left,
+            "pct": round(100 * placed / ready) if ready else 0,
+        })
+    by_encadrant.sort(key=lambda r: (-r["remaining"], r["encadrant"].lower()))
+    result["report"]["by_encadrant"] = by_encadrant
+
+    # 10. Jurys du rapport en ordre chronologique (date puis heure).
+    result["report"]["juries"].sort(
+        key=lambda e: (e["defense_date"], e["slot_start"])
+    )
+
+    # 11. Numérotation par jour des jurys brouillons (Jury 1..n par date).
+    renumber_draft_juries()
 
     return result
 
@@ -1740,7 +1870,7 @@ def create_grouped_jury_from_plan(plan, jury_index):
     jury = Jury.objects.create(
         name=build_grouped_jury_name(
             students=plan["students"],
-            jury_index=jury_index,
+            defense_date=plan["defense_date"],
         ),
         defense_date=plan["defense_date"],
         salle=plan.get("salle", ""),
@@ -1805,11 +1935,43 @@ def create_grouped_jury_from_plan(plan, jury_index):
     return jury
 
 
-def build_grouped_jury_name(students, jury_index):
-    if len(students) == 1:
-        return f"Jury {jury_index}"
+def build_grouped_jury_name(students, defense_date):
+    """Numérotation PAR JOUR : Jury 1, 2, ... selon les jurys déjà créés à
+    cette date. La renumérotation finale (renumber_draft_juries) remet les
+    numéros dans l'ordre chronologique des passages."""
+    index = Jury.objects.filter(defense_date=defense_date).count() + 1
+    n = len(students)
+    return f"Jury {index} - {n} étudiant{'s' if n > 1 else ''}"
 
-    return f"Jury {jury_index} - {len(students)} étudiants"
+
+def renumber_draft_juries():
+    """Renomme les jurys BROUILLONS : numérotation PAR JOUR (Jury 1..n) dans
+    l'ordre chronologique des passages. Les jurys publiés ne sont pas touchés ;
+    la numérotation des brouillons démarre après eux."""
+    from collections import defaultdict
+    from datetime import time as _time
+
+    drafts_by_date = defaultdict(list)
+    for jury in Jury.objects.filter(is_validated=False).prefetch_related("students"):
+        starts = list(
+            DefenseSchedule.objects.filter(jury_student__jury=jury)
+            .values_list("start_time", flat=True)
+        )
+        first = min(starts) if starts else None
+        drafts_by_date[jury.defense_date].append(
+            (first is None, first or _time(23, 59), jury.salle or "", jury.pk, jury)
+        )
+
+    for defense_date, rows in drafts_by_date.items():
+        published = Jury.objects.filter(
+            defense_date=defense_date, is_validated=True
+        ).count()
+        rows.sort(key=lambda r: (r[0], r[1], r[2], r[3]))
+        for i, (_, _, _, _, jury) in enumerate(rows, start=published + 1):
+            n = jury.students.count()
+            new_name = f"Jury {i} - {n} étudiant{'s' if n > 1 else ''}"
+            if jury.name != new_name:
+                Jury.objects.filter(pk=jury.pk).update(name=new_name)
 
 
 def choose_president_for_student(student, members, defense_date):
@@ -2872,6 +3034,54 @@ def build_slots_from_availability(availability):
     return slots
 
 
+def feasible_priority_usage(prof, today=None):
+    """Utilisation d'un professeur sur sa disponibilité FAISABLE.
+
+    Règle stricte matin OU après-midi : si un prof déclare les deux
+    demi-journées d'un même jour, une seule est réellement utilisable. Par
+    jour, le dénominateur retient la demi-journée où il est programmé (s'il
+    l'est), sinon la plus grande déclarée.
+
+    Retourne (créneaux utilisés, créneaux faisables, créneaux libres triés).
+    """
+    from collections import defaultdict
+
+    if today is None:
+        today = timezone.localdate()
+
+    day_slots = defaultdict(lambda: defaultdict(set))
+    for availability in prof.availabilities.filter(date__gte=today):
+        for d, t in build_slots_from_availability(availability):
+            label = _slot_label_at(d, t)
+            if label:
+                day_slots[d][label].add(t)
+
+    sched_by_day = defaultdict(set)
+    rows = DefenseSchedule.objects.filter(
+        jury_student__jury__members__professor=prof,
+        jury_student__jury__defense_date__gte=today,
+    ).values_list("jury_student__jury__defense_date", "start_time")
+    for d, t in rows:
+        sched_by_day[d].add(t)
+
+    used = total = 0
+    free_slots = []
+    for d, slots_map in day_slots.items():
+        used_labels = {_slot_label_at(d, t) for t in sched_by_day.get(d, set())}
+        used_labels.discard(None)
+        if used_labels:
+            label = sorted(used_labels)[0]
+        else:
+            label = max(slots_map, key=lambda k: len(slots_map[k]))
+        avail = slots_map.get(label, set())
+        day_used = sched_by_day.get(d, set()) & avail
+        used += len(day_used)
+        total += len(avail)
+        free_slots.extend((d, t) for t in sorted(avail - day_used))
+    free_slots.sort()
+    return used, total, free_slots
+
+
 @login_required
 @role_required(["admin"])
 def admin_priority_professors_report(request):
@@ -2896,31 +3106,15 @@ def admin_priority_professors_report(request):
 
     rows = []
     for prof in priority_profs:
-        # Créneaux de 20 min issus des disponibilités à venir.
-        avail_slots = set()
-        for availability in prof.availabilities.filter(date__gte=today):
-            for d, t in build_slots_from_availability(availability):
-                avail_slots.add((d, t))
-
-        # Créneaux réellement programmés (le prof est membre du jury).
-        scheduled = set(
-            DefenseSchedule.objects.filter(
-                jury_student__jury__members__professor=prof,
-                jury_student__jury__defense_date__gte=today,
-            ).values_list("jury_student__jury__defense_date", "start_time")
-        )
-
-        used = len(avail_slots & scheduled)
-        total = len(avail_slots)
-        free_slots = sorted(avail_slots - scheduled)
-        pct = round(100 * used / total) if total else 0
-
+        # Taux calculé sur la disponibilité FAISABLE : au plus une demi-journée
+        # par jour (règle matin OU après-midi).
+        used, total, free_slots = feasible_priority_usage(prof, today)
         rows.append({
             "professor": prof,
             "total": total,
             "used": used,
             "free": total - used,
-            "pct": pct,
+            "pct": round(100 * used / total) if total else 0,
             "free_slots": free_slots,
             "president_count": JuryStudent.objects.filter(president=prof).count(),
         })
