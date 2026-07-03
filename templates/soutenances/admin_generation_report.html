@@ -34,6 +34,45 @@
         </article>
     </div>
 
+    <!-- Priority professors utilization -->
+    {% if result.report.priority_usage %}
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">Utilisation des profs prioritaires (objectif : 100 %)</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Professeur</th>
+                        <th class="text-center">Créneaux à venir</th>
+                        <th class="text-center">Utilisés</th>
+                        <th class="text-center">Libres</th>
+                        <th class="text-center">Taux</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in result.report.priority_usage %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td class="text-center">{{ row.total }}</td>
+                        <td class="text-center">{{ row.used }}</td>
+                        <td class="text-center">{{ row.free }}</td>
+                        <td class="text-center">
+                            {% if row.pct == 100 %}
+                                <span class="status-pill success">100 %</span>
+                            {% elif row.pct >= 50 %}
+                                <span class="status-pill warning">{{ row.pct }} %</span>
+                            {% else %}
+                                <span class="status-pill danger">{{ row.pct }} %</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Students per advisor before generation -->
     {% if result.report.by_encadrant_before %}
     <div class="card mb-4">
