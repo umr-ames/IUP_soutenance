@@ -272,6 +272,32 @@
                             </div>
                             <small class="text-muted">L'encadrant ne peut pas être président.</small>
                         </form>
+
+                        {% if move_target_juries %}
+                        <form method="post" class="mt-2" onsubmit="return confirm('Déplacer {{ js.student.full_name }} vers le jury sélectionné ? (avertissement si son encadrant n\'y est pas membre)');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="move_student">
+                            <input type="hidden" name="jury_student_id" value="{{ js.id }}">
+                            <label class="form-label" style="font-size:.78rem; margin-bottom:3px;">Déplacer vers un autre jury :</label>
+                            <div class="d-flex gap-1">
+                                <select name="target_jury_id" class="form-select form-select-sm" required>
+                                    <option value="">— Jury cible (n°, date) —</option>
+                                    {% for tj in move_target_juries %}
+                                        <option value="{{ tj.id }}">{{ tj.name }} — {{ tj.defense_date|date:"d/m/Y" }}{% if tj.salle %} · {{ tj.get_salle_display }}{% endif %}{% if tj.is_validated %} · publié{% endif %}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Déplacer</button>
+                            </div>
+                        </form>
+                        {% endif %}
+
+                        <form method="post" class="mt-2"
+                              onsubmit="return confirm('Retirer {{ js.student.full_name }} de ce jury ? Il redeviendra affectable à un autre jury.');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="remove_student">
+                            <input type="hidden" name="jury_student_id" value="{{ js.id }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Retirer du jury</button>
+                        </form>
                     </div>
                 </div>
             </div>

@@ -2099,7 +2099,12 @@ def calculate_next_defense_slot_for_jury(jury, members):
     ).order_by("-start_time").first()
 
     if last_schedule:
-        next_start = last_schedule.end_time
+        # end_time peut être vide (créneau créé sans save()) : recalculer.
+        next_start = last_schedule.end_time or slot_end_time(
+            jury.defense_date,
+            last_schedule.start_time,
+            last_schedule.duration_minutes or DEFENSE_DURATION_MINUTES,
+        )
     else:
         # No students yet: find earliest slot where all members are available
         avails = ProfessorAvailability.objects.filter(
@@ -2484,6 +2489,10 @@ def admin_jury_update(request, pk):
         "addable_count": addable_count,
         "replacement_candidates": replacement_candidates,
         "swap_candidates": swap_candidates,
+        # Jurys cibles pour déplacer un étudiant (tous sauf celui-ci).
+        "move_target_juries": Jury.objects.exclude(pk=jury.pk).order_by(
+            "defense_date", "name"
+        ),
     }
 
     # ── 4. POST : retirer un membre ────────────────────────────────────────
@@ -2776,6 +2785,156 @@ def admin_jury_update(request, pk):
                         "/professors/juries/",
                         category=Notification.CATEGORY_JURY,
                     )
+        return redirect("admin_jury_update", pk=jury.pk)
+
+    # ── 6ter. POST : RETIRER un étudiant du jury ─────────────────────────────
+    if request.method == "POST" and request.POST.get("action") == "remove_student":
+        try:
+            js_id = int(request.POST.get("jury_student_id", ""))
+        except (ValueError, TypeError):
+            messages.error(request, "Sélection invalide.")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        js = JuryStudent.objects.select_related("student").filter(
+            pk=js_id, jury=jury
+        ).first()
+        if not js:
+            messages.error(request, "Étudiant introuvable dans ce jury.")
+        elif js.evaluations.exists() or hasattr(js, "result"):
+            messages.error(
+                request,
+                f"Impossible de retirer {js.student.full_name} : des notes ou un "
+                f"résultat existent déjà pour cette soutenance."
+            )
+        else:
+            name = js.student.full_name
+            js.delete()
+            messages.success(
+                request,
+                f"{name} a été retiré du jury. Il redevient affectable à un "
+                f"autre jury (section « Ajouter un étudiant »)."
+            )
+        return redirect("admin_jury_update", pk=jury.pk)
+
+    # ── 6quater. POST : DÉPLACER un étudiant vers un AUTRE jury ─────────────
+    #     (avertissement si son encadrant n'est pas membre du jury cible).
+    if request.method == "POST" and request.POST.get("action") == "move_student":
+        try:
+            js_id = int(request.POST.get("jury_student_id", ""))
+            target_id = int(request.POST.get("target_jury_id", ""))
+        except (ValueError, TypeError):
+            messages.error(request, "Sélection invalide.")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        js = JuryStudent.objects.select_related(
+            "student", "student__encadrant"
+        ).filter(pk=js_id, jury=jury).first()
+        target = Jury.objects.filter(pk=target_id).first()
+
+        if not js or not target:
+            messages.error(request, "Étudiant ou jury cible introuvable.")
+        elif target.pk == jury.pk:
+            messages.error(request, "Choisissez un AUTRE jury.")
+        elif js.evaluations.exists() or hasattr(js, "result"):
+            messages.error(
+                request,
+                f"Impossible de déplacer {js.student.full_name} : des notes ou "
+                f"un résultat existent déjà pour cette soutenance."
+            )
+        elif target.members.count() < 3:
+            messages.error(
+                request,
+                f"Le jury cible « {target.name} » est incomplet "
+                f"({target.members.count()}/3 membres)."
+            )
+        else:
+            student = js.student
+            target_members = [
+                m.professor
+                for m in target.members.select_related("professor")
+            ]
+            encadrant_in = any(
+                m.id == student.encadrant_id for m in target_members
+            )
+            president = choose_president_for_student(
+                student=student,
+                members=target_members,
+                defense_date=target.defense_date,
+            )
+            next_start = calculate_next_defense_slot_for_jury(target, target_members)
+            schedule_warning = None
+            if next_start is None:
+                # Repli admin : après le dernier passage du jury cible (ou en
+                # début de matinée), même sans disponibilité déclarée.
+                last = DefenseSchedule.objects.filter(
+                    jury_student__jury=target
+                ).order_by("-start_time").first()
+                if last:
+                    next_start = last.end_time or slot_end_time(
+                        target.defense_date,
+                        last.start_time,
+                        last.duration_minutes or DEFENSE_DURATION_MINUTES,
+                    )
+                else:
+                    next_start = defense_slots.morning_slot(target.defense_date)[0]
+                schedule_warning = (
+                    "Horaire placé sans disponibilité déclarée des membres — "
+                    "à vérifier."
+                )
+
+            with transaction.atomic():
+                js.delete()
+                new_js = JuryStudent.objects.create(
+                    jury=target,
+                    student=student,
+                    president=president,
+                    encadrant_absent=not encadrant_in,
+                )
+                # bulk_create : ne bloque pas si les membres n'ont pas déclaré
+                # de disponibilité (décision de l'admin, avertissement).
+                # end_time est renseigné explicitement (bulk_create ne passe
+                # pas par save()).
+                DefenseSchedule.objects.bulk_create([
+                    DefenseSchedule(
+                        jury_student=new_js,
+                        start_time=next_start,
+                        end_time=slot_end_time(
+                            target.defense_date, next_start,
+                            DEFENSE_DURATION_MINUTES,
+                        ),
+                        duration_minutes=DEFENSE_DURATION_MINUTES,
+                    )
+                ])
+
+            messages.success(
+                request,
+                f"{student.full_name} a été déplacé vers « {target.name} » du "
+                f"{target.defense_date.strftime('%d/%m/%Y')} "
+                f"(passage à {next_start.strftime('%H:%M')})."
+            )
+            if not encadrant_in:
+                enc_name = (
+                    student.encadrant.full_name
+                    if student.encadrant else "(encadrant inconnu)"
+                )
+                messages.warning(
+                    request,
+                    f"Attention : l'encadrant de {student.full_name} — "
+                    f"{enc_name} — n'est PAS membre du jury « {target.name} ». "
+                    f"L'affectation est marquée « encadrant absent »."
+                )
+            if schedule_warning:
+                messages.warning(request, schedule_warning)
+            if target.is_validated:
+                notify(
+                    getattr(student, "user", None),
+                    "Soutenance déplacée",
+                    f"Votre soutenance est désormais prévue le "
+                    f"{target.defense_date.strftime('%d/%m/%Y')} à "
+                    f"{next_start.strftime('%H:%M')} (jury « {target.name} »).",
+                    "/student-dashboard/",
+                    category=Notification.CATEGORY_JURY,
+                )
         return redirect("admin_jury_update", pk=jury.pk)
 
     # ── 7. POST : désigner le président d'une soutenance (≠ encadrant) ────────
