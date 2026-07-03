@@ -298,7 +298,7 @@
             </a>
 
             <a href="{% url 'admin_jury_list' %}" class="btn btn-primary">
-                Jurys intelligents
+                Jurys
             </a>
 
             <form method="post" action="{% url 'admin_pfe_accept_all' %}" style="margin:0;">
@@ -308,6 +308,24 @@
                 </button>
             </form>
         </div>
+
+        {% if blocked_count %}
+        <div style="margin-top:14px; padding:12px 14px; border-radius:12px; border-left:5px solid #d97706; background:rgba(217,119,6,.08);">
+            <strong style="color:#92400e;">Bloquées chez l'encadrant : {{ blocked_count }} étudiant(s)</strong>
+            <p class="mb-2" style="color:#7c4a03; font-size:.9rem;">
+                Demandes jamais traitées par l'encadrant. En les acceptant, le département les considère
+                <strong>prêts</strong> : ils deviennent programmables par la génération automatique
+                (ex. fenêtre 08/07 → 10/07).
+            </p>
+            <form method="post" action="{% url 'admin_pfe_accept_blocked' %}" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning"
+                        data-confirm="Considérer PRÊTS les {{ blocked_count }} étudiant(s) bloqué(s) chez l'encadrant ? Leurs demandes seront acceptées sans validation encadrant.">
+                    Les considérer prêts ({{ blocked_count }})
+                </button>
+            </form>
+        </div>
+        {% endif %}
 
         <div class="requests-chip-row">
             <span class="requests-chip">Validation encadrant</span>

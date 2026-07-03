@@ -182,8 +182,15 @@ def admin_pfe_requests(request):
     for demande in requests:
         demande.has_defended = demande.student_id in defended_student_ids
 
+    # Demandes bloquées chez l'encadrant (jamais traitées), étudiant sans jury.
+    blocked_count = PFERequest.objects.filter(
+        status=PFERequest.STATUS_PENDING_PROFESSOR,
+        student__jury_assignment__isnull=True,
+    ).count()
+
     return render(request, "soutenances/admin_pfe_requests.html", {
         "requests": requests,
+        "blocked_count": blocked_count,
     })
 
 
@@ -348,6 +355,33 @@ def admin_pfe_accept_all(request):
             _notify_student_decision(pfe_request, True)
             count += 1
         messages.success(request, f"{count} demande(s) acceptée(s).")
+    return redirect("admin_pfe_requests")
+
+
+@login_required
+@role_required(["admin"])
+def admin_pfe_accept_blocked(request):
+    """Considère PRÊTS les étudiants dont la demande est restée bloquée chez
+    l'encadrant (jamais traitée) : le département court-circuite la validation
+    encadrant et accepte leurs demandes en masse. Ils deviennent programmables
+    par la génération automatique (ex. fenêtre 08/07 → 10/07)."""
+    if request.method == "POST":
+        blocked = PFERequest.objects.filter(
+            status=PFERequest.STATUS_PENDING_PROFESSOR,
+            student__jury_assignment__isnull=True,
+        ).select_related("student", "student__user")
+        count = 0
+        for pfe_request in blocked:
+            pfe_request.admin_accept(request.user)
+            _notify_student_decision(pfe_request, True)
+            count += 1
+        messages.success(
+            request,
+            f"{count} demande(s) bloquée(s) chez l'encadrant acceptée(s) — "
+            f"ces étudiants sont maintenant prêts. Lancez « Générer "
+            f"automatiquement » avec la fenêtre de dates souhaitée "
+            f"(ex. 08/07 → 10/07)."
+        )
     return redirect("admin_pfe_requests")
 
 
