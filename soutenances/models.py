@@ -434,26 +434,15 @@ class JuryStudent(models.Model):
         )
 
         if self.student.encadrant not in jury_professors:
-            # Exception : si l'encadrant n'a AUCUNE disponibilité future déclarée,
-            # le jury peut être formé sans lui, à condition de contenir un expert
-            # de la filière de l'étudiant.
-            from django.utils import timezone
-            encadrant = self.student.encadrant
-            has_avail = ProfessorAvailability.objects.filter(
-                professor=encadrant, date__gte=timezone.localdate()
-            ).exists()
-            if has_avail:
+            # L'absence de l'encadrant doit être explicitement assumée :
+            # - génération automatique : encadrant sans disponibilité, remplacé
+            #   par un expert de la filière (conditions vérifiées côté algo) ;
+            # - admin : ajout forcé depuis le détail du jury, avec avertissement.
+            if not self.encadrant_absent:
                 raise ValidationError(
-                    "L'encadrant de l'étudiant doit obligatoirement être membre de son jury."
-                )
-            expert_present = FiliereExpert.objects.filter(
-                filiere=self.student.filiere,
-                professor_id__in=jury_professor_ids,
-            ).exists()
-            if not expert_present:
-                raise ValidationError(
-                    "Encadrant sans disponibilité : le jury doit contenir un "
-                    "expert de la filière de l'étudiant."
+                    "L'encadrant de l'étudiant doit obligatoirement être membre "
+                    "de son jury (ou l'affectation doit être marquée "
+                    "« encadrant absent »)."
                 )
 
         if self.president_id:

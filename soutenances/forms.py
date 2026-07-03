@@ -454,21 +454,40 @@ class JuryStudentAssignForm(forms.Form):
         ).select_related(
             "encadrant",
             "user",
-        ).order_by(
-            "filiere",
-            "full_name"
         )
 
+        jury_prof_ids = set()
         if self.jury:
-            jury_professors = ProfessorProfile.objects.filter(
-                jury_memberships__jury=self.jury
+            jury_prof_ids = set(
+                ProfessorProfile.objects.filter(
+                    jury_memberships__jury=self.jury
+                ).values_list("id", flat=True)
             )
+            # Tous les étudiants sans jury sont sélectionnables : ceux dont
+            # l'encadrant est membre d'abord, puis les autres (ajout forcé par
+            # l'admin, avec avertissement « encadrant hors jury »).
+            from django.db.models import Case, When, IntegerField
+            queryset = queryset.annotate(
+                _enc_in_jury=Case(
+                    When(encadrant_id__in=jury_prof_ids, then=0),
+                    default=1,
+                    output_field=IntegerField(),
+                )
+            ).order_by("_enc_in_jury", "filiere", "full_name")
+        else:
+            queryset = queryset.order_by("filiere", "full_name")
 
-            queryset = queryset.filter(
-                encadrant__in=jury_professors
-            )
+        field = self.fields["student"]
+        field.queryset = queryset
 
-        self.fields["student"].queryset = queryset
+        def _label(obj):
+            base = f"{obj.full_name} ({obj.matricule})"
+            if jury_prof_ids and obj.encadrant_id not in jury_prof_ids:
+                enc = obj.encadrant.full_name if obj.encadrant else "?"
+                return f"{base} — ⚠ encadrant hors jury : {enc}"
+            return base
+
+        field.label_from_instance = _label
 
 
 class JuryMembersForSlotForm(forms.Form):

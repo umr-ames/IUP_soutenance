@@ -2438,6 +2438,24 @@ def admin_jury_update(request, pk):
             p for p in available_at_slot if p.id not in current_member_ids
         ]
 
+    # ── 3ter. Candidats à l'ÉCHANGE : membres des AUTRES jurys (numéro de
+    #     jury affiché ; possible même si les jurys sont publiés).
+    current_member_ids_all = {m.professor_id for m in current_members}
+    swap_candidates = []
+    for jm in JuryMember.objects.exclude(jury=jury).select_related(
+        "professor", "jury"
+    ).order_by("jury__defense_date", "jury__name", "professor__full_name"):
+        if jm.professor_id in current_member_ids_all:
+            continue
+        swap_candidates.append({
+            "value": f"{jm.jury_id}:{jm.professor_id}",
+            "label": (
+                f"{jm.professor.full_name} — {jm.jury.name} "
+                f"({jm.jury.defense_date.strftime('%d/%m/%Y')})"
+                f"{' · publié' if jm.jury.is_validated else ''}"
+            ),
+        })
+
     context = {
         "jury": jury,
         "jury_students": jury_students,
@@ -2450,6 +2468,7 @@ def admin_jury_update(request, pk):
         "add_member_form": add_member_form,
         "addable_count": addable_count,
         "replacement_candidates": replacement_candidates,
+        "swap_candidates": swap_candidates,
     }
 
     # ── 4. POST : retirer un membre ────────────────────────────────────────
@@ -2606,6 +2625,138 @@ def admin_jury_update(request, pk):
                 request,
                 f"{old_name} a été remplacé par {new_prof.full_name} dans ce jury."
             )
+        return redirect("admin_jury_update", pk=jury.pk)
+
+    # ── 6bis. POST : ÉCHANGER un membre avec un membre d'un AUTRE jury ──────
+    #     (possible même si les jurys sont déjà publiés).
+    if request.method == "POST" and request.POST.get("action") == "swap_member":
+        try:
+            old_id = int(request.POST.get("old_professor_id", ""))
+            target_jury_id, target_prof_id = (
+                request.POST.get("swap_target", "").split(":")
+            )
+            target_jury_id = int(target_jury_id)
+            target_prof_id = int(target_prof_id)
+        except (ValueError, TypeError):
+            messages.error(request, "Sélection d'échange invalide.")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        old_member = jury.members.select_related("professor").filter(
+            professor_id=old_id
+        ).first()
+        other_jury = Jury.objects.filter(pk=target_jury_id).first()
+        other_member = (
+            other_jury.members.select_related("professor").filter(
+                professor_id=target_prof_id
+            ).first() if other_jury else None
+        )
+
+        def _encadre_dans(prof_id, jury_obj):
+            return JuryStudent.objects.filter(
+                jury=jury_obj, student__encadrant_id=prof_id,
+                encadrant_absent=False,
+            ).exists()
+
+        if not old_member or not other_jury or not other_member:
+            messages.error(request, "Membre ou jury cible introuvable.")
+        elif other_jury.pk == jury.pk:
+            messages.error(request, "Choisissez un membre d'un AUTRE jury.")
+        elif jury.members.filter(professor_id=target_prof_id).exists():
+            messages.error(
+                request,
+                f"{other_member.professor.full_name} est déjà membre de ce jury."
+            )
+        elif other_jury.members.filter(professor_id=old_id).exists():
+            messages.error(
+                request,
+                f"{old_member.professor.full_name} est déjà membre du jury cible."
+            )
+        elif _encadre_dans(old_id, jury):
+            messages.error(
+                request,
+                f"Impossible : {old_member.professor.full_name} est l'encadrant "
+                f"d'étudiants de ce jury."
+            )
+        elif _encadre_dans(target_prof_id, other_jury):
+            messages.error(
+                request,
+                f"Impossible : {other_member.professor.full_name} est l'encadrant "
+                f"d'étudiants du jury « {other_jury.name} »."
+            )
+        else:
+            prof_a = old_member.professor      # part vers l'autre jury
+            prof_b = other_member.professor    # arrive dans ce jury
+            with transaction.atomic():
+                # Retirer les deux, puis recréer croisés (max 3 respecté).
+                old_member.delete()
+                other_member.delete()
+                JuryMember.objects.create(jury=jury, professor=prof_b)
+                JuryMember.objects.create(jury=other_jury, professor=prof_a)
+
+                # Reprendre les présidences : l'arrivant reprend celles du
+                # partant (sauf pour ses propres encadrés → autre membre).
+                def _reassign(jury_obj, leaving_id, incoming):
+                    members_now = [
+                        m.professor for m in
+                        jury_obj.members.select_related("professor").all()
+                    ]
+                    for js in JuryStudent.objects.filter(
+                        jury=jury_obj, president_id=leaving_id
+                    ).select_related("student"):
+                        if js.student.encadrant_id != incoming.id:
+                            new_president = incoming
+                        else:
+                            new_president = next(
+                                (m for m in members_now
+                                 if m.id != js.student.encadrant_id),
+                                None,
+                            )
+                        JuryStudent.objects.filter(pk=js.pk).update(
+                            president=new_president
+                        )
+
+                _reassign(jury, old_id, prof_b)
+                _reassign(other_jury, target_prof_id, prof_a)
+
+            messages.success(
+                request,
+                f"Échange effectué : {prof_b.full_name} rejoint ce jury ; "
+                f"{prof_a.full_name} rejoint « {other_jury.name} » du "
+                f"{other_jury.defense_date.strftime('%d/%m/%Y')}."
+            )
+            # Avertissements de disponibilité (l'échange reste possible).
+            if has_real_slot and not (
+                is_professor_available(prof_b, real_slot_date, real_slot_start)
+                and not professor_has_conflict(prof_b, real_slot_date, real_slot_start)
+            ):
+                messages.warning(
+                    request,
+                    f"Attention : {prof_b.full_name} n'a pas de disponibilité "
+                    f"déclarée au créneau de ce jury."
+                )
+            other_sched = DefenseSchedule.objects.filter(
+                jury_student__jury=other_jury
+            ).order_by("start_time").first()
+            if other_sched and not (
+                is_professor_available(prof_a, other_jury.defense_date, other_sched.start_time)
+                and not professor_has_conflict(prof_a, other_jury.defense_date, other_sched.start_time)
+            ):
+                messages.warning(
+                    request,
+                    f"Attention : {prof_a.full_name} n'a pas de disponibilité "
+                    f"déclarée au créneau du jury « {other_jury.name} »."
+                )
+            # Notifier les deux professeurs de leur nouveau jury.
+            for prof, jry in ((prof_b, jury), (prof_a, other_jury)):
+                if jry.is_validated:
+                    notify(
+                        getattr(prof, "user", None),
+                        "Changement de jury",
+                        f"Vous êtes désormais membre du jury « {jry.name} » du "
+                        f"{jry.defense_date.strftime('%d/%m/%Y')}.",
+                        "/professors/juries/",
+                        category=Notification.CATEGORY_JURY,
+                    )
         return redirect("admin_jury_update", pk=jury.pk)
 
     # ── 7. POST : désigner le président d'une soutenance (≠ encadrant) ────────
@@ -2794,6 +2945,11 @@ def admin_jury_add_student(request, pk):
                     for member in jury.members.select_related("professor")
                 ]
 
+                # L'encadrant de l'étudiant est-il membre de ce jury ?
+                encadrant_in_jury = any(
+                    m.id == student.encadrant_id for m in members
+                )
+
                 president = choose_president_for_student(
                     student=student,
                     members=members,
@@ -2815,6 +2971,9 @@ def admin_jury_add_student(request, pk):
                         jury=jury,
                         student=student,
                         president=president,
+                        # Ajout forcé par l'admin : l'encadrant n'est pas dans
+                        # le jury → marqué « encadrant absent ».
+                        encadrant_absent=not encadrant_in_jury,
                     )
                     DefenseSchedule.objects.create(
                         jury_student=assignment,
@@ -2826,6 +2985,17 @@ def admin_jury_add_student(request, pk):
                 messages.error(request, "; ".join(exc.messages))
             else:
                 messages.success(request, "L'étudiant a été ajouté au jury avec son horaire de passage.")
+                if not encadrant_in_jury:
+                    enc_name = (
+                        student.encadrant.full_name
+                        if student.encadrant else "(encadrant inconnu)"
+                    )
+                    messages.warning(
+                        request,
+                        f"Attention : l'encadrant de {student.full_name} — "
+                        f"{enc_name} — n'est PAS membre de ce jury. "
+                        f"L'affectation est marquée « encadrant absent »."
+                    )
 
             return redirect("admin_jury_detail", pk=jury.pk)
 

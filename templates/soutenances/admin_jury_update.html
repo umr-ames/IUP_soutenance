@@ -143,6 +143,24 @@
                             </div>
                         </form>
                     {% endif %}
+
+                    {% if swap_candidates %}
+                        <form method="post" class="mt-2" onsubmit="return confirm('Échanger {{ row.professor.full_name }} avec le membre sélectionné de l\'autre jury ? (fonctionne aussi sur les jurys publiés)');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="swap_member">
+                            <input type="hidden" name="old_professor_id" value="{{ row.professor.id }}">
+                            <label class="form-label" style="font-size:.78rem; margin-bottom:3px;">Échanger avec un membre d'un autre jury :</label>
+                            <div class="d-flex gap-1">
+                                <select name="swap_target" class="form-select form-select-sm" required>
+                                    <option value="">— Membre (n° de jury, date) —</option>
+                                    {% for cand in swap_candidates %}
+                                        <option value="{{ cand.value }}">{{ cand.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">Échanger</button>
+                            </div>
+                        </form>
+                    {% endif %}
                 </div>
             </div>
         {% empty %}

@@ -69,6 +69,8 @@
             <h2>Ajouter un étudiant</h2>
             <p class="muted">
                 Le président sera choisi automatiquement parmi les deux professeurs qui ne sont pas l'encadrant.
+                Les étudiants marqués « ⚠ encadrant hors jury » peuvent quand même être ajoutés :
+                l'affectation sera marquée « encadrant absent » avec un avertissement.
             </p>
 
             <form method="post" action="{% url 'admin_jury_add_student' jury.pk %}" class="form-stack">
