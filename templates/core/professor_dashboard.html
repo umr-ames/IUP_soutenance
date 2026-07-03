@@ -32,6 +32,33 @@
         line-height: 1;
     }
 
+    .status-counter-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .status-counter {
+        padding: 14px 12px;
+        border-radius: var(--radius-md);
+        background: var(--surface-soft);
+        border: 1px solid var(--line);
+        text-align: center;
+    }
+
+    .status-counter .sc-value {
+        font-size: 1.8rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .status-counter .sc-label {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
     .quick-actions-row {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -120,6 +147,10 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
+        .status-counter-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
         .professor-grid {
             grid-template-columns: 1fr;
         }
@@ -129,6 +160,10 @@
         .kpi-grid,
         .quick-actions-row {
             grid-template-columns: 1fr;
+        }
+
+        .status-counter-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
 </style>
@@ -153,6 +188,40 @@
             Voir mes évaluations
         </a>
     </div>
+
+    <section class="glass-card">
+        <div class="card-header-flex">
+            <div>
+                <span class="eyebrow">Mes étudiants</span>
+                <h3>Suivi de mes {{ students_official_total }} étudiant(s) (liste officielle)</h3>
+                <p class="text-muted mb-0" style="font-size:.85rem;">Répartition par statut d'avancement de la demande de soutenance.</p>
+            </div>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'professor_supervised_students' %}">Voir la liste</a>
+        </div>
+
+        <div class="status-counter-grid mt-3">
+            <div class="status-counter">
+                <div class="sc-value" style="color:#0f766e;">{{ students_inscrits_count }}</div>
+                <div class="sc-label">Inscrits</div>
+            </div>
+            <div class="status-counter">
+                <div class="sc-value" style="color:#b91c1c;">{{ students_non_inscrits_count }}</div>
+                <div class="sc-label">Non inscrits</div>
+            </div>
+            <div class="status-counter">
+                <div class="sc-value" style="color:#d97706;">{{ students_pending_prof_count }}</div>
+                <div class="sc-label">En attente de ma validation</div>
+            </div>
+            <div class="status-counter">
+                <div class="sc-value" style="color:#2563eb;">{{ students_accepted_dept_count }}</div>
+                <div class="sc-label">Acceptés par le département</div>
+            </div>
+            <div class="status-counter">
+                <div class="sc-value" style="color:#5b21b6;">{{ students_soutenu_count }}</div>
+                <div class="sc-label">Soutenus</div>
+            </div>
+        </div>
+    </section>
 
     <div class="kpi-grid">
         <div class="kpi-card glass-card">

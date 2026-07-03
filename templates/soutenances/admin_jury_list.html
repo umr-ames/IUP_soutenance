@@ -11,13 +11,9 @@
         </div>
 
         <div class="hero-actions">
-            <form method="post" action="{% url 'admin_generate_juries' %}">
-                {% csrf_token %}
-                {{ generation_form.auto_generation }}
-                <button type="submit" class="btn btn-primary">
-                    Générer automatiquement
-                </button>
-            </form>
+            <a href="{% url 'admin_generate_juries' %}" class="btn btn-primary">
+                Générer automatiquement
+            </a>
 
             <a href="{% url 'admin_jury_quick_create' %}" class="btn btn-secondary">
                 Préparer un jury

@@ -163,6 +163,37 @@ def professor_dashboard(request):
         jury__is_validated=True,
     ).count()
 
+    # ── Compteurs des étudiants encadrés (base : liste officielle, inclut les
+    #    non-inscrits ; le rattachement se fait par le nom de l'encadrant). ──
+    official_refs = StudentReference.objects.filter(
+        encadrant_name__iexact=professor.full_name
+    )
+    official_total = official_refs.count()
+    registered_mats = {
+        normalize_matricule(m)
+        for m in StudentProfile.objects.values_list("matricule", flat=True)
+    }
+    inscrits_count = sum(
+        1 for ref in official_refs
+        if normalize_matricule(ref.matricule) in registered_mats
+    )
+    non_inscrits_count = official_total - inscrits_count
+
+    # Statuts (sur les étudiants encadrés inscrits, via le lien encadrant).
+    accepted_dept_count = PFERequest.objects.filter(
+        student__encadrant=professor,
+        status=PFERequest.STATUS_ACCEPTED,
+    ).count()
+    soutenu_count = (
+        Result.objects.filter(
+            is_published=True,
+            jury_student__student__encadrant=professor,
+        )
+        .values_list("jury_student__student_id", flat=True)
+        .distinct()
+        .count()
+    )
+
     return render(request, "core/professor_dashboard.html", {
         "professor": professor,
         "supervised_students_count": supervised_students.count(),
@@ -174,6 +205,13 @@ def professor_dashboard(request):
         "availability_count": availability_count,
         "to_start_count": to_start_count,
         "supervised_students": supervised_students[:6],
+        # Compteurs par statut des étudiants encadrés
+        "students_official_total": official_total,
+        "students_inscrits_count": inscrits_count,
+        "students_non_inscrits_count": non_inscrits_count,
+        "students_pending_prof_count": pending_requests_count,
+        "students_accepted_dept_count": accepted_dept_count,
+        "students_soutenu_count": soutenu_count,
     })
 
 

@@ -366,6 +366,34 @@ class JuryGenerationForm(forms.Form):
         })
     )
 
+    start_date = forms.DateField(
+        label="Date de début des soutenances",
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+    )
+    end_date = forms.DateField(
+        label="Date de fin des soutenances",
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        help_text="Tous les jours de l'intervalle sont utilisés, week-ends compris.",
+    )
+    max_simultaneous = forms.IntegerField(
+        label="Nombre max de jurys en même temps",
+        min_value=1,
+        max_value=7,
+        initial=7,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+        help_text="Limité au nombre de salles disponibles (7).",
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        start = cleaned.get("start_date")
+        end = cleaned.get("end_date")
+        if start and end and end < start:
+            raise forms.ValidationError(
+                "La date de fin doit être postérieure ou égale à la date de début."
+            )
+        return cleaned
+
 
 class TargetedJuryGenerationForm(forms.Form):
     """Génération ciblée : l'admin choisit une date, un nombre de jurys, les

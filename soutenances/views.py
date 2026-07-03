@@ -50,7 +50,7 @@ DEFENSE_DURATION_MINUTES = 20
 
 # Salles de soutenance (7). Chaque jury occupe une salle ; deux jurys simultanés
 # ne peuvent pas partager la même salle → au plus 7 jurys en parallèle.
-DEFENSE_SALLES = ["Amphi", "Salle 1", "Salle 2", "Salle 3", "Salle 7", "Salle 8", "Salle 10"]
+DEFENSE_SALLES = ["Amphi", "Salle 1", "Salle 2", "Salle 3", "Salle 4", "Salle 7", "Salle 8"]
 MAX_SIMULTANEOUS_JURIES = len(DEFENSE_SALLES)
 
 # Fenêtre des soutenances : du 03/07/2026 au 10/07/2026 inclus (week-end compris).
@@ -617,20 +617,33 @@ def admin_jury_list(request):
 @login_required
 @role_required(["admin"])
 def admin_generate_juries(request):
-    if request.method != "POST":
-        return redirect("admin_jury_list")
+    if request.method == "POST":
+        form = JuryGenerationForm(request.POST)
+        if not form.is_valid():
+            return render(request, "soutenances/admin_generate_auto.html", {
+                "form": form,
+                "salles": DEFENSE_SALLES,
+            })
 
-    form = JuryGenerationForm(request.POST)
+        result = generate_smart_juries(
+            start_date=form.cleaned_data["start_date"],
+            end_date=form.cleaned_data["end_date"],
+            max_simultaneous=form.cleaned_data["max_simultaneous"],
+        )
+        # Render the detailed generation report directly
+        return render(request, "soutenances/admin_generation_report.html", {
+            "result": result,
+        })
 
-    if not form.is_valid():
-        messages.error(request, "Génération impossible. Veuillez réessayer.")
-        return redirect("admin_jury_list")
-
-    result = generate_smart_juries()
-
-    # Render the detailed generation report directly
-    return render(request, "soutenances/admin_generation_report.html", {
-        "result": result,
+    # GET : afficher le formulaire de paramètres (dates + nombre max de jurys).
+    form = JuryGenerationForm(initial={
+        "start_date": DEFENSE_START,
+        "end_date": DEFENSE_DEADLINE,
+        "max_simultaneous": len(DEFENSE_SALLES),
+    })
+    return render(request, "soutenances/admin_generate_auto.html", {
+        "form": form,
+        "salles": DEFENSE_SALLES,
     })
 
 
@@ -1053,13 +1066,27 @@ def _generate_juries_one_date(defense_date, students, professors, num_juries, sa
 
 
 @transaction.atomic
-def generate_smart_juries():
+def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None):
     """
     Génère les jurys en parcourant les créneaux chronologiquement.
     À chaque créneau, sélectionne les encadrants disponibles avec le plus d'étudiants prêts.
     La capacité du créneau (20 min/étudiant) détermine combien d'étudiants on peut affecter.
+
+    Paramètres (optionnels) :
+    - start_date / end_date : fenêtre des soutenances (tous les jours inclus,
+      week-ends compris). Par défaut DEFENSE_START..DEFENSE_DEADLINE.
+    - max_simultaneous : nombre max de jurys en parallèle sur un créneau
+      (plafonné au nombre de salles disponibles).
     """
     from collections import defaultdict
+
+    if start_date is None:
+        start_date = DEFENSE_START
+    if end_date is None:
+        end_date = DEFENSE_DEADLINE
+    # Chaque jury occupe une salle : on ne peut pas dépasser le nombre de salles.
+    cap = max_simultaneous or MAX_SIMULTANEOUS_JURIES
+    cap = max(1, min(cap, len(DEFENSE_SALLES)))
 
     # 1. Collect all ready students (accepted PFE, no jury, advisor known)
     all_ready = list(
@@ -1115,7 +1142,7 @@ def generate_smart_juries():
             result["report"]["by_encadrant_before"][enc_name] = len(students)
 
     # 3. Get all future slot starts in chronological order
-    candidate_slots = build_all_future_slot_starts()
+    candidate_slots = build_all_future_slot_starts(start_date, end_date)
 
     if not candidate_slots:
         for enc_id, students in students_by_encadrant.items():
@@ -1141,7 +1168,7 @@ def generate_smart_juries():
             break
 
         # Skip if global simultaneous-jury capacity is reached at this slot
-        if jury_slot_capacity_reached(defense_date, block_start):
+        if jury_slot_capacity_reached(defense_date, block_start, max_simultaneous=cap):
             continue
 
         current_slot = _slot_label_at(defense_date, block_start)
@@ -1206,6 +1233,7 @@ def generate_smart_juries():
             defense_date=defense_date,
             block_start=block_start,
             max_slots=20,
+            max_simultaneous=cap,
         )
 
         if not available_slots:
@@ -1431,17 +1459,22 @@ def generate_juries_for_date(defense_date=None):
     return generate_smart_juries()
 
 
-def build_all_future_slot_starts():
+def build_all_future_slot_starts(start_date=None, end_date=None):
+    if start_date is None:
+        start_date = DEFENSE_START
+    if end_date is None:
+        end_date = DEFENSE_DEADLINE
+
     today = timezone.localdate()
     now_time = timezone.localtime().time()
 
     starts = set()
 
-    # Fenêtre des soutenances : du DEFENSE_START au DEFENSE_DEADLINE inclus.
-    lower = max(today, DEFENSE_START)
+    # Fenêtre des soutenances : du start_date au end_date inclus (week-end compris).
+    lower = max(today, start_date)
     availabilities = ProfessorAvailability.objects.filter(
         date__gte=lower,
-        date__lte=DEFENSE_DEADLINE,
+        date__lte=end_date,
     ).order_by(
         "date",
         "start_time",
@@ -1459,8 +1492,8 @@ def build_all_future_slot_starts():
     )
 
 
-def build_consecutive_available_slots(members, defense_date, block_start, max_slots):
-    if jury_slot_capacity_reached(defense_date, block_start):
+def build_consecutive_available_slots(members, defense_date, block_start, max_slots, max_simultaneous=None):
+    if jury_slot_capacity_reached(defense_date, block_start, max_simultaneous=max_simultaneous):
         return []
 
     # Le jury reste dans le créneau (matin/après-midi) où il démarre : on borne
@@ -2642,8 +2675,9 @@ def juries_count_at_slot(defense_date, start_time, duration_minutes=DEFENSE_DURA
     ).values_list("jury_student__jury_id", flat=True).distinct().count()
 
 
-def jury_slot_capacity_reached(defense_date, start_time, duration_minutes=DEFENSE_DURATION_MINUTES):
-    return juries_count_at_slot(defense_date, start_time, duration_minutes) >= MAX_SIMULTANEOUS_JURIES
+def jury_slot_capacity_reached(defense_date, start_time, duration_minutes=DEFENSE_DURATION_MINUTES, max_simultaneous=None):
+    cap = max_simultaneous or MAX_SIMULTANEOUS_JURIES
+    return juries_count_at_slot(defense_date, start_time, duration_minutes) >= cap
 
 
 def professor_load_on_date(professor, defense_date):
