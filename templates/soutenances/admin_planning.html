@@ -294,7 +294,7 @@
                 </div>
 
                 <div class="student-block">
-                    <strong>{{ schedule.jury_student.student.full_name }}</strong>
+                    <strong>{{ schedule.jury_student.student.full_name|default:"(nom absent)" }}</strong>
                     <span>
                         {{ schedule.jury_student.student.matricule }}
                         {% if schedule.jury_student.student.filiere %}

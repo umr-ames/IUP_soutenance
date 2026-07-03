@@ -19,6 +19,7 @@
                     <th>Nom complet</th>
                     <th>Téléphone</th>
                     <th>Compte</th>
+                    <th>Prioritaire</th>
                     <th>Étudiants encadrés</th>
                     <th>Jurys</th>
                     <th>Disponibilités</th>
@@ -36,6 +37,16 @@
                             {% else %}
                                 <span class="status-pill warning">Compte non lié</span>
                             {% endif %}
+                        </td>
+                        <td>
+                            <form method="post" action="{% url 'admin_toggle_priority_professor' professor.id %}" style="display:inline; margin:0;">
+                                {% csrf_token %}
+                                {% if professor.is_priority %}
+                                    <button type="submit" class="status-pill" style="border:none; cursor:pointer; background:rgba(124,58,237,.14); color:#5b21b6;" title="Cliquer pour retirer le statut prioritaire">★ Prioritaire</button>
+                                {% else %}
+                                    <button type="submit" class="status-pill muted" style="border:none; cursor:pointer;" title="Cliquer pour marquer prioritaire">Non</button>
+                                {% endif %}
+                            </form>
                         </td>
                         <td><a href="{% url 'admin_professor_students' %}?name={{ professor.full_name|urlencode }}">{{ professor.supervised_count }}</a></td>
                         <td>{{ professor.jury_count }}</td>
@@ -67,7 +78,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="7"><div class="empty-state">Aucun professeur.</div></td></tr>
+                    <tr><td colspan="8"><div class="empty-state">Aucun professeur.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>

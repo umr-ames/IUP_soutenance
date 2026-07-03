@@ -96,7 +96,7 @@
                 {% for item in jury.students.all %}
                     <div class="student-detail-row">
                         <div>
-                            <strong>{{ item.student.full_name }}</strong>
+                            <strong>{{ item.student.full_name|default:"(nom absent)" }}</strong>
                             <p class="muted">
                                 {{ item.student.matricule }}
                                 {% if item.student.filiere %}

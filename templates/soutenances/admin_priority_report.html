@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Profs prioritaires — utilisation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Profs prioritaires — utilisation des disponibilités</h1>
+        <p class="text-muted" style="font-size:.9rem;">
+            Objectif : <strong>100 %</strong> des créneaux à venir utilisés. Un prof prioritaire est placé en priorité dans les jurys et devient président s'il n'en est pas l'encadrant. Marquez un prof comme prioritaire depuis la page <a href="{% url 'admin_professor_list' %}">Professeurs</a>.
+        </p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'admin_jury_list' %}">Retour aux jurys</a>
+</div>
+
+{% if not rows %}
+    <section class="content-panel">
+        <div class="empty-state">Aucun professeur prioritaire pour le moment. Marquez-en depuis la page Professeurs.</div>
+    </section>
+{% else %}
+    <section class="content-panel">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Professeur</th>
+                        <th>Créneaux à venir</th>
+                        <th>Utilisés</th>
+                        <th>Libres</th>
+                        <th>Taux</th>
+                        <th>Préside</th>
+                        <th>Créneaux libres restants</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td><strong>{{ row.professor.full_name }}</strong></td>
+                            <td>{{ row.total }}</td>
+                            <td>{{ row.used }}</td>
+                            <td>{{ row.free }}</td>
+                            <td>
+                                {% if row.pct == 100 %}
+                                    <span class="status-pill success">100 %</span>
+                                {% elif row.pct >= 50 %}
+                                    <span class="status-pill warning">{{ row.pct }} %</span>
+                                {% else %}
+                                    <span class="status-pill danger">{{ row.pct }} %</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ row.president_count }} étudiant(s)</td>
+                            <td>
+                                {% if row.free_slots %}
+                                    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                                        {% for d, t in row.free_slots %}
+                                            <span class="status-pill muted">{{ d|date:"d/m" }} {{ t|time:"H:i" }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">Aucun — 100 % utilisé</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endif %}
+{% endblock %}

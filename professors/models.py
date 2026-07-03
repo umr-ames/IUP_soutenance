@@ -15,6 +15,12 @@ class ProfessorProfile(models.Model):
     full_name = models.CharField(max_length=255)
     phone = models.CharField(max_length=30, blank=True, null=True)
 
+    # Prof prioritaire : ses disponibilités doivent être utilisées au maximum
+    # (placement en priorité) et il devient président de son jury s'il n'en est
+    # pas l'encadrant. Indépendant du statut d'expert (un prioritaire peut aussi
+    # être expert).
+    is_priority = models.BooleanField(default=False, verbose_name="Prof prioritaire")
+
     def __str__(self):
         return self.full_name
 

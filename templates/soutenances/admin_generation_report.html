@@ -93,7 +93,7 @@
                 <tbody>
                     {% for s in entry.students_scheduled %}
                     <tr>
-                        <td>{{ s.name }}</td>
+                        <td>{{ s.name }} <span class="text-muted">· {{ s.matricule }}</span></td>
                         <td>{{ s.encadrant }}</td>
                         <td class="text-center">{{ s.start_time|time:"H:i" }} → {{ s.end_time|time:"H:i" }}</td>
                     </tr>
@@ -123,7 +123,7 @@
                 <tbody>
                     {% for err in result.errors %}
                     <tr>
-                        <td>{{ err.student.full_name }}</td>
+                        <td>{{ err.student.full_name|default:"(nom absent)" }} <span class="text-muted">· {{ err.student.matricule }}</span></td>
                         <td>{{ err.student.encadrant.full_name|default:"—" }}</td>
                         <td class="text-danger small">{{ err.message }}</td>
                     </tr>

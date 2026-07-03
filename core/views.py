@@ -586,6 +586,25 @@ def admin_professor_list(request):
 
 @login_required
 @role_required(["admin"])
+def admin_toggle_priority_professor(request, pk):
+    """Active/désactive le statut « prof prioritaire » (dispos à utiliser au max
+    + président automatique)."""
+    professor = ProfessorProfile.objects.filter(pk=pk).first()
+    if not professor:
+        messages.error(request, "Professeur introuvable.")
+        return redirect("admin_professor_list")
+
+    if request.method == "POST":
+        professor.is_priority = not professor.is_priority
+        professor.save(update_fields=["is_priority"])
+        etat = "prioritaire" if professor.is_priority else "non prioritaire"
+        messages.success(request, f"{professor.full_name} est désormais {etat}.")
+
+    return redirect("admin_professor_list")
+
+
+@login_required
+@role_required(["admin"])
 def admin_reset_student_password(request, pk):
     """Réinitialise le mot de passe d'un étudiant : génère un mot de passe
     temporaire affiché à l'administration, à communiquer à l'étudiant."""

@@ -1213,8 +1213,14 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
         if top_students:
             target_filiere = top_students[0].filiere or ""
         experts_target = experts_by_filiere.get(target_filiere, set())
+        # Profs prioritaires d'abord (pour remplir leurs dispos au max), puis
+        # experts de la filière, puis les autres.
         profs_without_students.sort(
-            key=lambda p: (0 if p.id in experts_target else 1, p.full_name.lower())
+            key=lambda p: (
+                0 if getattr(p, "is_priority", False) else 1,
+                0 if p.id in experts_target else 1,
+                p.full_name.lower(),
+            )
         )
 
         # Form jury of 3: fill first with advisors-with-students, then with others
@@ -1270,13 +1276,13 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
         if salle is None:
             continue
 
-        # Président unique privilégié : un expert (de la filière dominante) parmi
-        # les membres, s'il y en a un.
+        # Experts de la filière dominante parmi les membres → privilégiés comme
+        # président (après les profs prioritaires).
         dom_fil = selected_students[0].filiere or ""
-        primary_president = next(
-            (m for m in jury_members if m.id in experts_by_filiere.get(dom_fil, set())),
-            None,
-        )
+        experts_here = {
+            m.id for m in jury_members
+            if m.id in experts_by_filiere.get(dom_fil, set())
+        }
 
         plan = {
             "members": jury_members,
@@ -1284,7 +1290,7 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             "defense_date": defense_date,
             "start_times": selected_slots,
             "salle": salle,
-            "primary_president": primary_president,
+            "experts": experts_here,
         }
 
         try:
@@ -1323,7 +1329,8 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                 + timedelta(minutes=DEFENSE_DURATION_MINUTES)
             ).time()
             report_entry["students_scheduled"].append({
-                "name": student.full_name,
+                "name": student.full_name or "(nom absent)",
+                "matricule": student.matricule,
                 "encadrant": student.encadrant.full_name if student.encadrant else "—",
                 "start_time": slot_start,
                 "end_time": slot_end,
@@ -1413,7 +1420,7 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                     "defense_date": defense_date,
                     "start_times": sel_slots,
                     "salle": salle,
-                    "primary_president": expert,
+                    "experts": {expert.id},
                     "encadrant_absent": True,
                 }
                 try:
@@ -1560,8 +1567,26 @@ def create_grouped_jury_from_plan(plan, jury_index):
         is_validated=False,
     )
 
-    primary = plan.get("primary_president")
     encadrant_absent = plan.get("encadrant_absent", False)
+
+    # Ordre des présidents pour ce jury (président fixe autant que possible).
+    # On classe les membres une seule fois : prof prioritaire d'abord, puis
+    # expert de la filière, puis le moins chargé. Chaque étudiant reçoit le
+    # 1er membre de cette liste qui n'est pas son encadrant. Le président
+    # préside donc le maximum d'étudiants ; on ne bascule vers le membre
+    # suivant que pour ses propres encadrés.
+    experts = plan.get("experts", set())
+    defense_date = plan["defense_date"]
+    president_order = sorted(
+        plan["members"],
+        key=lambda p: (
+            0 if getattr(p, "is_priority", False) else 1,
+            0 if p.id in experts else 1,
+            professor_load_on_date(p, defense_date),
+            professor_total_scheduled_load(p),
+            p.full_name.lower(),
+        ),
+    )
 
     try:
         for professor in plan["members"]:
@@ -1571,16 +1596,10 @@ def create_grouped_jury_from_plan(plan, jury_index):
             )
 
         for student, start_time in zip(plan["students"], plan["start_times"]):
-            # Président unique privilégié (l'expert) ; on ne change que si ce
-            # président est l'encadrant de cet étudiant.
-            if primary is not None and primary.id != student.encadrant_id:
-                president = primary
-            else:
-                president = choose_president_for_student(
-                    student=student,
-                    members=plan["members"],
-                    defense_date=plan["defense_date"],
-                )
+            president = next(
+                (p for p in president_order if p.id != student.encadrant_id),
+                None,
+            )
 
             assignment = JuryStudent.objects.create(
                 jury=jury,
@@ -1603,16 +1622,10 @@ def create_grouped_jury_from_plan(plan, jury_index):
 
 
 def build_grouped_jury_name(students, jury_index):
-    first_student = students[0]
-
     if len(students) == 1:
-        return f"Jury intelligent {jury_index} - {first_student.matricule}"
+        return f"Jury {jury_index}"
 
-    return (
-        f"Jury intelligent {jury_index} - "
-        f"{len(students)} étudiants - "
-        f"{first_student.matricule}"
-    )
+    return f"Jury {jury_index} - {len(students)} étudiants"
 
 
 def choose_president_for_student(student, members, defense_date):
@@ -1623,6 +1636,7 @@ def choose_president_for_student(student, members, defense_date):
 
     candidates.sort(
         key=lambda professor: (
+            0 if getattr(professor, "is_priority", False) else 1,
             professor_load_on_date(professor, defense_date),
             professor_total_scheduled_load(professor),
             supervised_students_count(professor),
@@ -2570,7 +2584,7 @@ def generate_planning_for_date(defense_date, overwrite_existing=False):
 
 
 def build_smart_jury_name(student, index):
-    return f"Jury intelligent {index} - {student.matricule}"
+    return f"Jury {index}"
 
 
 def build_future_slots_for_professor(professor):
@@ -2619,6 +2633,51 @@ def build_slots_from_availability(availability):
         cursor += timedelta(minutes=DEFENSE_DURATION_MINUTES)
 
     return slots
+
+
+@login_required
+@role_required(["admin"])
+def admin_priority_professors_report(request):
+    """Liste des profs prioritaires avec le taux d'utilisation de leurs
+    disponibilités (créneaux de 20 min à venir) : combien sont déjà occupés
+    par un jury, combien restent libres. Objectif : viser 100 %."""
+    today = timezone.localdate()
+    priority_profs = ProfessorProfile.objects.filter(is_priority=True).order_by("full_name")
+
+    rows = []
+    for prof in priority_profs:
+        # Créneaux de 20 min issus des disponibilités à venir.
+        avail_slots = set()
+        for availability in prof.availabilities.filter(date__gte=today):
+            for d, t in build_slots_from_availability(availability):
+                avail_slots.add((d, t))
+
+        # Créneaux réellement programmés (le prof est membre du jury).
+        scheduled = set(
+            DefenseSchedule.objects.filter(
+                jury_student__jury__members__professor=prof,
+                jury_student__jury__defense_date__gte=today,
+            ).values_list("jury_student__jury__defense_date", "start_time")
+        )
+
+        used = len(avail_slots & scheduled)
+        total = len(avail_slots)
+        free_slots = sorted(avail_slots - scheduled)
+        pct = round(100 * used / total) if total else 0
+
+        rows.append({
+            "professor": prof,
+            "total": total,
+            "used": used,
+            "free": total - used,
+            "pct": pct,
+            "free_slots": free_slots,
+            "president_count": JuryStudent.objects.filter(president=prof).count(),
+        })
+
+    return render(request, "soutenances/admin_priority_report.html", {
+        "rows": rows,
+    })
 
 
 def build_slots(defense_date):
