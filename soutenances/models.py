@@ -280,8 +280,8 @@ class Jury(models.Model):
         ("Salle 2", "Salle 2"),
         ("Salle 3", "Salle 3"),
         ("Salle 4", "Salle 4"),
-        ("Salle 7", "Salle 7"),
         ("Salle 8", "Salle 8"),
+        ("Salle 9", "Salle 9"),
     ]
 
     name = models.CharField(max_length=255)

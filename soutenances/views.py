@@ -50,7 +50,7 @@ DEFENSE_DURATION_MINUTES = 20
 
 # Salles de soutenance (7). Chaque jury occupe une salle ; deux jurys simultanés
 # ne peuvent pas partager la même salle → au plus 7 jurys en parallèle.
-DEFENSE_SALLES = ["Amphi", "Salle 1", "Salle 2", "Salle 3", "Salle 4", "Salle 7", "Salle 8"]
+DEFENSE_SALLES = ["Amphi", "Salle 1", "Salle 2", "Salle 3", "Salle 4", "Salle 8", "Salle 9"]
 MAX_SIMULTANEOUS_JURIES = len(DEFENSE_SALLES)
 
 # Fenêtre des soutenances : du 03/07/2026 au 10/07/2026 inclus (week-end compris).
