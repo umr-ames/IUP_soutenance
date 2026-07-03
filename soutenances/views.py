@@ -2429,14 +2429,29 @@ def admin_jury_update(request, pk):
             add_member_form = JuryAddMemberForm(selectable_queryset=addable_qs)
 
     # ── 3bis. Candidats au remplacement d'un membre (ex. encadrant indisponible) ──
-    # Professeurs disponibles au créneau réel et pas déjà membres du jury.
+    # TOUS les professeurs hors jury sont proposés ; la disponibilité au
+    # créneau réel est indiquée dans la liste. Le remplacement par un
+    # professeur sans disponibilité déclarée reste possible (avertissement).
+    current_member_ids = {m.professor_id for m in current_members}
     replacement_candidates = []
-    if has_real_slot:
-        available_at_slot = get_available_professors_at_slot(real_slot_date, real_slot_start)
-        current_member_ids = {m.professor_id for m in current_members}
-        replacement_candidates = [
-            p for p in available_at_slot if p.id not in current_member_ids
-        ]
+    for p in ProfessorProfile.objects.order_by("full_name"):
+        if p.id in current_member_ids:
+            continue
+        available = None
+        if has_real_slot:
+            available = (
+                is_professor_available(p, real_slot_date, real_slot_start)
+                and not professor_has_conflict(p, real_slot_date, real_slot_start)
+            )
+        replacement_candidates.append({
+            "id": p.id,
+            "full_name": p.full_name,
+            "available": available,
+        })
+    # Les disponibles d'abord.
+    replacement_candidates.sort(
+        key=lambda r: (0 if r["available"] else 1, r["full_name"].lower())
+    )
 
     # ── 3ter. Candidats à l'ÉCHANGE : membres des AUTRES jurys (numéro de
     #     jury affiché ; possible même si les jurys sont publiés).
@@ -2602,15 +2617,6 @@ def admin_jury_update(request, pk):
             messages.error(request, "Choisissez un professeur remplaçant.")
         elif jury.members.filter(professor_id=new_id).exists():
             messages.error(request, f"{new_prof.full_name} est déjà membre de ce jury.")
-        elif has_real_slot and not (
-            is_professor_available(new_prof, real_slot_date, real_slot_start)
-            and not professor_has_conflict(new_prof, real_slot_date, real_slot_start)
-        ):
-            messages.error(
-                request,
-                f"{new_prof.full_name} n'est pas disponible au créneau de ce jury "
-                f"({real_slot_date} à {real_slot_start})."
-            )
         else:
             old_name = old_member.professor.full_name
             with transaction.atomic():
@@ -2625,6 +2631,19 @@ def admin_jury_update(request, pk):
                 request,
                 f"{old_name} a été remplacé par {new_prof.full_name} dans ce jury."
             )
+            # Le remplacement par un professeur sans disponibilité déclarée
+            # reste possible : simple avertissement (décision de l'admin).
+            if has_real_slot and not (
+                is_professor_available(new_prof, real_slot_date, real_slot_start)
+                and not professor_has_conflict(new_prof, real_slot_date, real_slot_start)
+            ):
+                messages.warning(
+                    request,
+                    f"Attention : {new_prof.full_name} n'a pas de disponibilité "
+                    f"déclarée au créneau de ce jury "
+                    f"({real_slot_date.strftime('%d/%m/%Y')} à "
+                    f"{real_slot_start.strftime('%H:%M')})."
+                )
         return redirect("admin_jury_update", pk=jury.pk)
 
     # ── 6bis. POST : ÉCHANGER un membre avec un membre d'un AUTRE jury ──────
