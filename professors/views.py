@@ -9,8 +9,8 @@ from django.utils import timezone
 from accounts.decorators import role_required
 from core.models import Notification, notify, notify_admins
 from soutenances.models import (
-    Evaluation, Jury, JuryMember, JuryStudent, PFERequest, Result,
-    mention_for_average,
+    DefenseSchedule, Evaluation, Jury, JuryMember, JuryStudent, PFERequest,
+    Result, mention_for_average,
 )
 from students.models import StudentProfile, StudentReference
 
@@ -130,6 +130,48 @@ def admin_professor_availability(request):
         })
 
     professor_rows.sort(key=lambda row: row["professor"].full_name.lower())
+
+    # ── Programme des professeurs : soutenances déjà planifiées, affichées en
+    #    face des disponibilités (jury, salle, horaires, nb d'étudiants). ──
+    prof_ids = [row["professor"].id for row in professor_rows]
+    memberships = JuryMember.objects.filter(
+        professor_id__in=prof_ids,
+        jury__defense_date__gte=today,
+    ).select_related("jury")
+
+    jury_ids = {m.jury_id for m in memberships}
+    sched_by_jury = {}
+    for schedule in DefenseSchedule.objects.filter(
+        jury_student__jury_id__in=jury_ids
+    ).select_related("jury_student"):
+        sched_by_jury.setdefault(
+            schedule.jury_student.jury_id, []
+        ).append(schedule)
+
+    prog_by_prof = {}
+    for membership in memberships:
+        day_schedules = sched_by_jury.get(membership.jury_id, [])
+        starts = [s.start_time for s in day_schedules]
+        ends = [s.end_time for s in day_schedules]
+        prog_by_prof.setdefault(membership.professor_id, {}).setdefault(
+            membership.jury.defense_date, []
+        ).append({
+            "jury": membership.jury,
+            "students_count": len(day_schedules),
+            "start": min(starts) if starts else None,
+            "end": max(ends) if ends else None,
+        })
+
+    for row in professor_rows:
+        prof_prog = prog_by_prof.get(row["professor"].id, {})
+        total_students = 0
+        juries_count = 0
+        for day in row["days"]:
+            day["programme"] = prof_prog.get(day["date"], [])
+            juries_count += len(day["programme"])
+            total_students += sum(e["students_count"] for e in day["programme"])
+        row["scheduled_juries"] = juries_count
+        row["scheduled_students"] = total_students
 
     # Professeurs sans AUCUNE disponibilité future (à relancer).
     with_future = set(

@@ -312,7 +312,7 @@
 
                 <div class="jury-block">
                     <strong>{{ schedule.jury_student.jury.name }}</strong>
-                    <span>Jury de soutenance</span>
+                    <span>Jury de soutenance · {{ schedule.jury_student.jury.students.count }} étudiant(s) à passer{% if schedule.jury_student.jury.salle %} · {{ schedule.jury_student.jury.get_salle_display }}{% endif %}</span>
 
                     <div class="info-line">
                         <span class="info-pill neutral">

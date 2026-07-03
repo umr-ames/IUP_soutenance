@@ -51,6 +51,8 @@
                     <th>Professeur</th>
                     <th>Jours disponibles</th>
                     <th>Créneaux déclarés</th>
+                    <th>Jurys programmés</th>
+                    <th>Étudiants à faire passer</th>
                     <th>Prochaine disponibilité</th>
                     <th></th>
                 </tr>
@@ -62,6 +64,20 @@
                         <td><strong>{{ row.professor.full_name }}</strong></td>
                         <td>{{ row.days_count }}</td>
                         <td>{{ row.slots_count }}</td>
+                        <td>
+                            {% if row.scheduled_juries %}
+                                <span class="status-pill info">{{ row.scheduled_juries }}</span>
+                            {% else %}
+                                <span class="text-muted">0</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.scheduled_students %}
+                                <span class="status-pill" style="background:rgba(13,148,136,.15); color:#0f5e59;">{{ row.scheduled_students }}</span>
+                            {% else %}
+                                <span class="text-muted">0</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if row.next_date %}
                                 {{ row.next_date|date:"d/m/Y" }}
@@ -81,16 +97,29 @@
                         </td>
                     </tr>
                     <tr class="collapse" id="details-{{ row.professor.id }}">
-                        <td colspan="5">
+                        <td colspan="7">
                             <div class="p-2">
                                 {% for day in row.days %}
-                                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                                        <span class="status-pill info">{{ day.date|date:"d/m/Y" }}</span>
-                                        {% for slot in day.slots %}
-                                            <span class="status-pill">
-                                                {{ slot.start_time|time:"H:i" }}–{{ slot.end_time|time:"H:i" }}
-                                            </span>
-                                        {% endfor %}
+                                    <div class="mb-2" style="padding:8px; border:1px solid var(--line); border-radius:8px;">
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+                                            <span class="status-pill info">{{ day.date|date:"d/m/Y" }}</span>
+                                            <span class="text-muted" style="font-size:.8rem;">Disponible :</span>
+                                            {% for slot in day.slots %}
+                                                <span class="status-pill">
+                                                    {{ slot.start_time|time:"H:i" }}–{{ slot.end_time|time:"H:i" }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                        <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+                                            <span class="text-muted" style="font-size:.8rem;">Programme :</span>
+                                            {% for entry in day.programme %}
+                                                <span class="status-pill" style="background:rgba(13,148,136,.12); color:#0f5e59;">
+                                                    {{ entry.jury.name }}{% if entry.jury.salle %} · {{ entry.jury.get_salle_display }}{% endif %}{% if entry.start %} · {{ entry.start|time:"H:i" }}–{{ entry.end|time:"H:i" }}{% endif %} · {{ entry.students_count }} étudiant(s)
+                                                </span>
+                                            {% empty %}
+                                                <span class="text-muted" style="font-size:.8rem;">Aucune soutenance programmée ce jour.</span>
+                                            {% endfor %}
+                                        </div>
                                     </div>
                                 {% empty %}
                                     <div class="empty-state">Aucun créneau.</div>
@@ -100,7 +129,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="5">
+                        <td colspan="7">
                             <div class="empty-state">
                                 Aucune disponibilité déclarée pour le moment.
                             </div>

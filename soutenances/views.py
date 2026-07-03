@@ -1156,25 +1156,16 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
 
     jury_index = 1
 
-    # Suivi des membres déjà engagés par (date, créneau) : un membre programmé le
-    # matin ne doit pas être réaffecté l'après-midi (et inversement).
-    from collections import defaultdict as _dd
-    slot_used = _dd(set)
-
     # 4. Walk through slots chronologically. À chaque créneau de départ, on crée
     #    AUTANT de jurys en parallèle que possible (limités par la capacité
     #    globale, les salles libres et les professeurs disponibles), afin
-    #    d'affecter 100 % des étudiants prêts.
+    #    d'affecter le maximum d'étudiants prêts.
     for defense_date, block_start in candidate_slots:
         # Stop early if no students remain
         if not any(students_by_encadrant.values()):
             break
 
         current_slot = _slot_label_at(defense_date, block_start)
-        other_slot = (
-            defense_slots.AFTERNOON if current_slot == defense_slots.MORNING
-            else defense_slots.MORNING
-        )
 
         # Plusieurs jurys peuvent démarrer au même créneau (une salle chacun) :
         # on itère tant qu'un jury supplémentaire peut se former.
@@ -1183,29 +1174,18 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             if jury_slot_capacity_reached(defense_date, block_start, max_simultaneous=cap):
                 break
 
-            blocked_ids = slot_used.get((defense_date, other_slot), set())
             remaining_enc_ids = {
                 enc_id for enc_id, stds in students_by_encadrant.items() if stds
             }
 
-            # Professeurs réellement libres à ce créneau (disponibles + sans conflit).
-            free_now = [
+            # Règle STRICTE : un membre de jury siège soit le matin, soit
+            # l'après-midi d'une même journée — jamais les deux. Elle s'applique
+            # à TOUS (profs prioritaires et encadrants compris).
+            available_profs = [
                 p for p in professors
                 if is_professor_available(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
                 and not professor_has_conflict(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
-            ]
-
-            # Règle matin↔après-midi (préférence) : un membre programmé le matin
-            # n'est pas réaffecté l'après-midi. Deux exemptions nécessaires aux
-            # objectifs 100 % : les profs PRIORITAIRES (leurs disponibilités
-            # doivent être entièrement consommées) et les ENCADRANTS ayant encore
-            # des étudiants à faire passer (sans eux, leurs étudiants resteraient
-            # non affectés).
-            available_profs = [
-                p for p in free_now
-                if getattr(p, "is_priority", False)
-                or p.id in remaining_enc_ids
-                or p.id not in blocked_ids
+                and not professor_busy_other_slot(p, defense_date, current_slot)
             ]
 
             if len(available_profs) < 3:
@@ -1283,11 +1263,11 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                     break
                 jury_members.append(p)
 
-            # En dernier recours, compléter avec tout professeur réellement libre
-            # (y compris un 2e prioritaire ou un membre déjà engagé dans l'autre
-            # créneau) pour atteindre 3 membres.
+            # En dernier recours, compléter avec ce qui reste (y compris un 2e
+            # prioritaire) pour atteindre 3 membres — toujours dans le respect
+            # de la règle matin/après-midi.
             if len(jury_members) < 3:
-                for p in free_now:
+                for p in available_profs:
                     if len(jury_members) >= 3:
                         break
                     if p not in jury_members:
@@ -1378,14 +1358,8 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             result["scheduled"] += len(selected_students)
             jury_index += 1
 
-            # Membres NON prioritaires engagés dans ce créneau : indisponibles
-            # pour l'autre créneau de la journée. Les prioritaires restent
-            # mobilisables partout (objectif : 100 % de leurs disponibilités).
-            if current_slot:
-                slot_used[(defense_date, current_slot)].update(
-                    m.id for m in jury_members
-                    if not getattr(m, "is_priority", False)
-                )
+            # (La règle matin/après-midi est garantie par professor_busy_other_slot,
+            # qui consulte les soutenances réellement programmées en base.)
 
             # Build report entry for this jury
             report_entry = {
@@ -1443,10 +1417,6 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             if not any(absent_by_fil.values()):
                 break
             current_slot = _slot_label_at(defense_date, block_start)
-            other_slot = (
-                defense_slots.AFTERNOON if current_slot == defense_slots.MORNING
-                else defense_slots.MORNING
-            )
 
             # Comme en 1re passe : plusieurs jurys possibles au même créneau.
             progress = True
@@ -1454,20 +1424,13 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                 progress = False
                 if jury_slot_capacity_reached(defense_date, block_start, max_simultaneous=cap):
                     break
-                blocked_ids = slot_used.get((defense_date, other_slot), set())
-                free_now = [
+                # Règle STRICTE matin/après-midi, appliquée à tous.
+                available_profs = [
                     p for p in professors
                     if is_professor_available(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
                     and not professor_has_conflict(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
+                    and not professor_busy_other_slot(p, defense_date, current_slot)
                 ]
-                available_profs = [
-                    p for p in free_now
-                    if getattr(p, "is_priority", False) or p.id not in blocked_ids
-                ]
-                # Repli : si la règle matin↔après-midi empêche de former un jury
-                # alors que des étudiants restent, on la relâche.
-                if len(available_profs) < 3:
-                    available_profs = free_now
                 if len(available_profs) < 3:
                     break
 
@@ -1537,10 +1500,6 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                     result["assigned"] += len(sel)
                     result["scheduled"] += len(sel)
                     jury_index += 1
-                    slot_used[(defense_date, current_slot)].update(
-                        m.id for m in members
-                        if not getattr(m, "is_priority", False)
-                    )
                     for s in sel:
                         if s in absent_by_fil[fil]:
                             absent_by_fil[fil].remove(s)
@@ -2924,6 +2883,27 @@ def professor_has_conflict(professor, defense_date, start_time, duration_minutes
         end_time__gt=start_time,
         jury_student__jury__members__professor=professor,
     ).distinct().exists()
+
+
+def professor_busy_other_slot(professor, defense_date, current_slot):
+    """Règle STRICTE : un membre de jury siège SOIT le matin SOIT l'après-midi
+    d'une même journée, jamais les deux. Vrai si le professeur a déjà une
+    soutenance programmée ce jour-là dans l'AUTRE créneau (vérifié en base,
+    donc valable aussi pour les jurys créés lors de générations précédentes)."""
+    if not current_slot:
+        return False
+    other = (
+        defense_slots.MORNING
+        if current_slot == defense_slots.AFTERNOON
+        else defense_slots.AFTERNOON
+    )
+    o_start, o_end = defense_slots.slot_bounds(defense_date, other)
+    return DefenseSchedule.objects.filter(
+        jury_student__jury__defense_date=defense_date,
+        jury_student__jury__members__professor=professor,
+        start_time__lt=o_end,
+        end_time__gt=o_start,
+    ).exists()
 
 
 def juries_count_at_slot(defense_date, start_time, duration_minutes=DEFENSE_DURATION_MINUTES):
