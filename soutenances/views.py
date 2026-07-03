@@ -1575,6 +1575,17 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                     + timedelta(minutes=DEFENSE_DURATION_MINUTES)
                 ).time()
                 salle = _choisir_salle_libre(date, t, block_end)
+                # Aucune salle libre sur TOUT le bloc : réduire le bloc plutôt
+                # que d'abandonner le créneau (une salle peut être libre sur un
+                # bloc plus court ; les étudiants restants passeront plus tard).
+                while salle is None and len(sel) > 1:
+                    sel = sel[:-1]
+                    sel_slots = sel_slots[:len(sel)]
+                    block_end = (
+                        datetime.combine(date, sel_slots[-1])
+                        + timedelta(minutes=DEFENSE_DURATION_MINUTES)
+                    ).time()
+                    salle = _choisir_salle_libre(date, t, block_end)
                 if salle is None:
                     continue
                 experts_here = {
@@ -3475,6 +3486,146 @@ def build_slots_from_availability(availability):
         cursor += timedelta(minutes=DEFENSE_DURATION_MINUTES)
 
     return slots
+
+
+@login_required
+@role_required(["admin"])
+def admin_scheduling_diagnostic(request):
+    """Diagnostic de programmation : étudiants ACCEPTÉS non programmés,
+    groupés par encadrant avec la cause précise (pas de dispo / dispo
+    consommée / salles saturées / créneaux encore utilisables), et
+    professeurs disponibles jamais mobilisés."""
+    from collections import defaultdict
+
+    today = timezone.localdate()
+
+    accepted = StudentProfile.objects.filter(
+        pfe_request__status=PFERequest.STATUS_ACCEPTED,
+    )
+    total_accepted = accepted.count()
+    unscheduled = list(
+        accepted.filter(jury_assignment__isnull=True)
+        .select_related("encadrant", "user")
+        .order_by("encadrant__full_name", "full_name")
+    )
+
+    groups = {}
+    for s in unscheduled:
+        groups.setdefault(s.encadrant_id, []).append(s)
+
+    rows = []
+    for enc_id, students in groups.items():
+        enc = students[0].encadrant
+        filieres = sorted({s.filiere or "?" for s in students})
+
+        if enc is None:
+            rows.append({
+                "encadrant": None,
+                "students": students,
+                "count": len(students),
+                "used": 0, "total": 0, "free": 0, "usable": [],
+                "diagnosis": "Encadrant inconnu.",
+                "action": "Corriger l'encadrant de ces étudiants.",
+                "experts": [],
+            })
+            continue
+
+        used, total, free_slots = feasible_priority_usage(enc, today)
+        # Créneaux réellement libres : sans conflit avec un jury où il siège
+        # (couvre aussi les horaires non alignés sur la grille de 20 min).
+        free_slots = [
+            (d, t) for (d, t) in free_slots
+            if not professor_has_conflict(enc, d, t)
+        ]
+        used = total - len(free_slots)
+
+        # Créneaux libres de l'encadrant réellement UTILISABLES
+        # (capacité de jurys simultanés non atteinte + une salle libre).
+        usable = []
+        for (d, t) in free_slots:
+            if jury_slot_capacity_reached(d, t):
+                continue
+            end = slot_end_time(d, t)
+            if _choisir_salle_libre(d, t, end) is None:
+                continue
+            usable.append((d, t))
+
+        # Experts définis pour les filières de ces étudiants (2e passe).
+        experts = list(
+            FiliereExpert.objects.filter(filiere__in=filieres)
+            .select_related("professor")
+            .values_list("professor__full_name", flat=True)
+        )
+
+        if total == 0:
+            diagnosis = "Aucune disponibilité déclarée par l'encadrant."
+            action = (
+                "Demander des disponibilités à l'encadrant, OU laisser la "
+                "génération former un jury avec un expert de la filière "
+                f"({', '.join(experts) if experts else 'AUCUN EXPERT DÉFINI — à cocher dans Experts par filière'}), "
+                "OU affecter manuellement (marqué « encadrant absent »)."
+            )
+        elif not free_slots:
+            diagnosis = (
+                f"Disponibilité entièrement consommée : {used}/{total} créneaux "
+                f"déjà occupés par les jurys où il siège."
+            )
+            action = (
+                "Demander des disponibilités supplémentaires, retirer/échanger "
+                "l'encadrant d'un jury, ou déplacer les étudiants vers un autre "
+                "jury (marqués « encadrant absent »)."
+            )
+        elif not usable:
+            diagnosis = (
+                f"{len(free_slots)} créneau(x) libres chez l'encadrant, mais "
+                f"salles ou capacité saturées sur ces créneaux."
+            )
+            action = "Libérer une salle ou déplacer un jury sur ces créneaux."
+        else:
+            diagnosis = (
+                f"{len(usable)} créneau(x) encore utilisables chez l'encadrant."
+            )
+            action = (
+                "Relancer « Générer automatiquement » avec une fenêtre couvrant "
+                "ces créneaux : ces étudiants seront placés."
+            )
+
+        rows.append({
+            "encadrant": enc,
+            "students": students,
+            "count": len(students),
+            "used": used, "total": total,
+            "free": len(free_slots),
+            "usable": usable[:8],
+            "usable_count": len(usable),
+            "diagnosis": diagnosis,
+            "action": action,
+            "experts": experts,
+            "filieres": filieres,
+        })
+
+    rows.sort(key=lambda r: -r["count"])
+
+    # Professeurs disponibles mais jamais mobilisés dans un jury à venir.
+    idle_profs = []
+    busy_ids = set(
+        JuryMember.objects.filter(
+            jury__defense_date__gte=today
+        ).values_list("professor_id", flat=True)
+    )
+    for p in ProfessorProfile.objects.order_by("full_name"):
+        if p.id in busy_ids:
+            continue
+        if p.availabilities.filter(date__gte=today).exists():
+            idle_profs.append(p)
+
+    return render(request, "soutenances/admin_scheduling_diagnostic.html", {
+        "rows": rows,
+        "unscheduled_count": len(unscheduled),
+        "total_accepted": total_accepted,
+        "scheduled_count": total_accepted - len(unscheduled),
+        "idle_profs": idle_profs,
+    })
 
 
 def feasible_priority_usage(prof, today=None):

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Diagnostic de programmation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Diagnostic de programmation</h1>
+        <p class="text-muted" style="font-size:.9rem;">
+            Étudiants <strong>acceptés</strong> non programmés dans un jury, groupés par encadrant,
+            avec la cause précise et l'action recommandée.
+        </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'admin_generate_juries' %}" class="btn btn-primary">Générer automatiquement</a>
+        <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">Retour aux jurys</a>
+    </div>
+</div>
+
+<!-- Synthèse -->
+<div class="soft-grid" style="margin-bottom: 1.5rem;">
+    <article class="soft-card">
+        <span class="label">Étudiants acceptés</span>
+        <strong>{{ total_accepted }}</strong>
+    </article>
+    <article class="soft-card">
+        <span class="label">Programmés dans un jury</span>
+        <strong>{{ scheduled_count }}</strong>
+    </article>
+    <article class="soft-card">
+        <span class="label">Non programmés</span>
+        <strong style="{% if unscheduled_count %}color:#b91c1c;{% endif %}">{{ unscheduled_count }}</strong>
+    </article>
+</div>
+
+{% if not rows %}
+    <section class="content-panel">
+        <div class="empty-state">✅ Tous les étudiants acceptés sont programmés dans un jury.</div>
+    </section>
+{% else %}
+    {% for row in rows %}
+    <section class="content-panel" style="border-left:5px solid #dc2626; margin-bottom:14px;">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+                <h3 style="margin:0;">
+                    {{ row.encadrant.full_name|default:"(encadrant inconnu)" }}
+                    <span class="status-pill danger">{{ row.count }} étudiant(s) non programmé(s)</span>
+                </h3>
+                {% if row.total or row.free %}
+                    <p class="text-muted mb-1" style="font-size:.85rem;">
+                        Disponibilité faisable : {{ row.total }} créneau(x) · utilisés : {{ row.used }} ·
+                        libres : {{ row.free }} · utilisables (salle + capacité) : {{ row.usable_count|default:0 }}
+                    </p>
+                {% endif %}
+            </div>
+            {% if row.encadrant %}
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{% url 'admin_professor_availability' %}?professor={{ row.encadrant.id }}">
+                    Dispos + programme
+                </a>
+            {% endif %}
+        </div>
+
+        <div class="comment-box mb-2" style="border-color:rgba(220,38,38,.3); background:rgba(220,38,38,.05);">
+            <strong>Cause :</strong> {{ row.diagnosis }}<br>
+            <strong>Action :</strong> {{ row.action }}
+        </div>
+
+        {% if row.usable %}
+            <div class="d-flex flex-wrap gap-1 mb-2">
+                <span class="text-muted" style="font-size:.82rem;">Créneaux utilisables :</span>
+                {% for d, t in row.usable %}
+                    <span class="status-pill success">{{ d|date:"d/m" }} {{ t|time:"H:i" }}</span>
+                {% endfor %}
+                {% if row.usable_count > row.usable|length %}
+                    <span class="status-pill muted">+{{ row.usable_count|add:"-8" }} autres</span>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <div class="d-flex flex-wrap gap-1">
+            {% for s in row.students %}
+                <span class="status-pill muted">{{ s.full_name|default:"(nom absent)" }} · {{ s.matricule }}{% if s.filiere %} · {{ s.filiere }}{% endif %}</span>
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+{% endif %}
+
+<!-- Professeurs disponibles jamais mobilisés -->
+<section class="content-panel" style="margin-top:18px;">
+    <h3>Professeurs disponibles mais présents dans aucun jury à venir ({{ idle_profs|length }})</h3>
+    {% if idle_profs %}
+        <p class="text-muted" style="font-size:.85rem;">
+            Ces professeurs ont déclaré des disponibilités mais ne siègent dans aucun jury à venir —
+            candidats naturels pour un remplacement, un échange ou un nouveau jury.
+        </p>
+        <div class="d-flex flex-wrap gap-1">
+            {% for p in idle_profs %}
+                <span class="status-pill info">{{ p.full_name }}</span>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">Tous les professeurs disponibles sont mobilisés.</div>
+    {% endif %}
+</section>
+{% endblock %}
