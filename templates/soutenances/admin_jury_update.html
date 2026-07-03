@@ -83,6 +83,9 @@
                         {% if row.is_president %}
                             <span class="status-pill" style="background:rgba(13,148,136,.15); color:#0f5e59;">Président</span>
                         {% endif %}
+                        {% if row.is_priority %}
+                            <span class="status-pill" style="background:rgba(217,119,6,.16); color:#92400e;">★ Prioritaire</span>
+                        {% endif %}
                         {% if row.is_expert %}
                             <span class="status-pill" style="background:rgba(124,58,237,.14); color:#5b21b6;">Expert</span>
                         {% endif %}
@@ -91,7 +94,7 @@
                                 Encadrant de {{ row.supervised_here|length }} étudiant(s)
                             </span>
                         {% endif %}
-                        {% if not row.is_president and not row.is_expert and not row.is_encadrant %}
+                        {% if not row.is_president and not row.is_priority and not row.is_expert and not row.is_encadrant %}
                             <span class="status-pill muted">Membre</span>
                         {% endif %}
 

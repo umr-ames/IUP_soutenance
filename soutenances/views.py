@@ -1213,42 +1213,65 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
         if top_students:
             target_filiere = top_students[0].filiere or ""
         experts_target = experts_by_filiere.get(target_filiere, set())
-        # Profs prioritaires d'abord (pour remplir leurs dispos au max), puis
-        # experts de la filière, puis les autres.
-        profs_without_students.sort(
-            key=lambda p: (
-                0 if getattr(p, "is_priority", False) else 1,
-                0 if p.id in experts_target else 1,
-                p.full_name.lower(),
+
+        # Préférence forte : chaque jury a UN prof prioritaire (un seul), de
+        # préférence non-encadrant du jury pour pouvoir le présider. On réserve
+        # donc une place pour un prioritaire disponible s'il en existe un.
+        priority_available = [
+            p for p in available_profs if getattr(p, "is_priority", False)
+        ]
+        chosen_priority = None
+        non_adv_priority = [
+            p for p in priority_available if p.id not in remaining_enc_ids
+        ]
+        if non_adv_priority:
+            non_adv_priority.sort(
+                key=lambda p: (0 if p.id in experts_target else 1, p.full_name.lower())
             )
+            chosen_priority = non_adv_priority[0]
+        elif priority_available:
+            chosen_priority = priority_available[0]
+
+        jury_members = []
+        if chosen_priority is not None:
+            jury_members.append(chosen_priority)
+
+        # Puis les encadrants avec étudiants (hors prioritaire déjà choisi).
+        for p in profs_with_students:
+            if len(jury_members) >= 3:
+                break
+            if chosen_priority is not None and p.id == chosen_priority.id:
+                continue
+            jury_members.append(p)
+
+        # Compléter avec des remplisseurs NON prioritaires (experts d'abord) :
+        # on évite de mettre deux prioritaires dans le même jury.
+        fillers = [
+            p for p in profs_without_students
+            if not getattr(p, "is_priority", False)
+            and (chosen_priority is None or p.id != chosen_priority.id)
+        ]
+        fillers.sort(
+            key=lambda p: (0 if p.id in experts_target else 1, p.full_name.lower())
         )
+        for p in fillers:
+            if len(jury_members) >= 3:
+                break
+            jury_members.append(p)
 
-        # Form jury of 3: fill first with advisors-with-students, then with others
-        if len(profs_with_students) >= 3:
-            jury_members = profs_with_students[:3]
-        else:
-            jury_members = list(profs_with_students)
-            has_priority = any(getattr(m, "is_priority", False) for m in jury_members)
-            # Préférence : au plus UN prof prioritaire par jury (pour les répartir
-            # sur des jurys différents). On n'ajoute un prioritaire en complément
-            # que si le jury n'en a pas déjà un.
-            skipped_priority = []
-            for filler in profs_without_students:
+        # En dernier recours, compléter avec ce qui reste (y compris un 2e
+        # prioritaire) pour atteindre 3 membres.
+        if len(jury_members) < 3:
+            for p in available_profs:
                 if len(jury_members) >= 3:
                     break
-                if getattr(filler, "is_priority", False):
-                    if has_priority:
-                        skipped_priority.append(filler)
-                        continue
-                    has_priority = True
-                jury_members.append(filler)
-            # Si le jury reste incomplet, on complète quand même avec les
-            # prioritaires écartés (un jury complet prime sur la répartition).
-            for filler in skipped_priority:
-                if len(jury_members) >= 3:
-                    break
-                jury_members.append(filler)
+                if p not in jury_members:
+                    jury_members.append(p)
 
+        # Il faut au moins un encadrant avec étudiants (sinon aucun étudiant à
+        # programmer dans ce jury), et un jury complet de 3.
+        if not any(p.id in remaining_enc_ids for p in jury_members):
+            continue
         if len(jury_members) < 3:
             continue
 
@@ -1271,9 +1294,11 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
         for prof in jury_members:
             students_pool.extend(students_by_encadrant.get(prof.id, []))
 
-        # Advisor with most remaining students first, then student name
+        # Préférence forte mono-filière : les étudiants de la filière dominante
+        # d'abord, puis l'encadrant avec le plus d'étudiants, puis le nom.
         students_pool.sort(
             key=lambda s: (
+                0 if (s.filiere or "") == target_filiere else 1,
                 -len(students_by_encadrant.get(s.encadrant_id, [])),
                 s.full_name.lower(),
             )
@@ -1986,6 +2011,7 @@ def admin_jury_update(request, pk):
             "is_encadrant": len(supervised_here) > 0,
             "is_expert": professor.id in expert_ids,
             "is_president": professor.id in president_ids,
+            "is_priority": professor.is_priority,
         })
 
     # ── 3. Formulaire d'ajout filtré sur le créneau réel ──────────────────
@@ -2319,9 +2345,35 @@ def admin_jury_detail(request, pk):
 
     form = JuryStudentAssignForm(jury=jury)
 
+    # Rôles des membres pour l'affichage coloré : encadrant / expert /
+    # prioritaire / président (au sein de ce jury).
+    from collections import defaultdict
+    experts_by_filiere = defaultdict(set)
+    for entry in FiliereExpert.objects.all():
+        experts_by_filiere[entry.filiere].add(entry.professor_id)
+
+    jury_students = list(jury.students.all())
+    encadrant_ids = {js.student.encadrant_id for js in jury_students}
+    president_ids = {js.president_id for js in jury_students if js.president_id}
+    jury_expert_ids = set()
+    for js in jury_students:
+        jury_expert_ids |= experts_by_filiere.get(js.student.filiere or "", set())
+
+    member_roles = []
+    for member in jury.members.all():
+        prof = member.professor
+        member_roles.append({
+            "professor": prof,
+            "is_president": prof.id in president_ids,
+            "is_encadrant": prof.id in encadrant_ids,
+            "is_expert": prof.id in jury_expert_ids,
+            "is_priority": prof.is_priority,
+        })
+
     return render(request, "soutenances/admin_jury_detail.html", {
         "jury": jury,
         "form": form,
+        "member_roles": member_roles,
     })
 
 
@@ -2475,6 +2527,8 @@ def admin_planning(request):
         "jury_student__student__encadrant",
         "jury_student__president",
         "jury_student__jury",
+    ).prefetch_related(
+        "jury_student__jury__members__professor",
     ).filter(
         jury_student__jury__defense_date__gte=timezone.localdate(),
     ).order_by(
@@ -2483,8 +2537,32 @@ def admin_planning(request):
         "jury_student__jury__name",
     )
 
+    # Experts par filière (pour étiqueter le rôle des membres par étudiant).
+    from collections import defaultdict
+    experts_by_filiere = defaultdict(set)
+    for entry in FiliereExpert.objects.all():
+        experts_by_filiere[entry.filiere].add(entry.professor_id)
+
+    rows = []
+    for schedule in schedules:
+        js = schedule.jury_student
+        student = js.student
+        student_experts = experts_by_filiere.get(student.filiere or "", set())
+        members = []
+        for m in js.jury.members.all():
+            prof = m.professor
+            members.append({
+                "professor": prof,
+                "is_president": prof.id == js.president_id,
+                "is_encadrant": prof.id == student.encadrant_id,
+                "is_expert": prof.id in student_experts,
+                "is_priority": prof.is_priority,
+            })
+        rows.append({"schedule": schedule, "members": members})
+
     return render(request, "soutenances/admin_planning.html", {
         "schedules": schedules,
+        "planning_rows": rows,
         "generation_form": PlanningGenerationForm(),
         "duration_minutes": DEFENSE_DURATION_MINUTES,
     })

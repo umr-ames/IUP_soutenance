@@ -43,14 +43,20 @@
             </p>
 
             <div class="member-list">
-                {% for member in jury.members.all %}
+                {% for m in member_roles %}
                     <div class="member-row">
                         <span class="avatar-dot">
-                            {{ member.professor.full_name|slice:":1" }}
+                            {{ m.professor.full_name|slice:":1" }}
                         </span>
                         <div>
-                            <strong>{{ member.professor.full_name }}</strong>
-                            <p class="muted">Membre du jury</p>
+                            <strong>{{ m.professor.full_name }}</strong>
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                {% if m.is_president %}<span class="status-pill" style="background:rgba(13,148,136,.15); color:#0f5e59;">Président</span>{% endif %}
+                                {% if m.is_priority %}<span class="status-pill" style="background:rgba(217,119,6,.16); color:#92400e;">★ Prioritaire</span>{% endif %}
+                                {% if m.is_expert %}<span class="status-pill" style="background:rgba(124,58,237,.14); color:#5b21b6;">Expert</span>{% endif %}
+                                {% if m.is_encadrant %}<span class="status-pill info">Encadrant</span>{% endif %}
+                                {% if not m.is_president and not m.is_priority and not m.is_expert and not m.is_encadrant %}<span class="status-pill muted">Membre</span>{% endif %}
+                            </div>
                         </div>
                     </div>
                 {% empty %}

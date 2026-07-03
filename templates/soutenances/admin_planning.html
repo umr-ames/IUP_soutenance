@@ -281,7 +281,8 @@
 </section>
 
 <section class="planning-board" id="planningBoard">
-    {% for schedule in schedules %}
+    {% for row in planning_rows %}
+        {% with schedule=row.schedule %}
         <article class="planning-card">
             <div class="planning-card-inner">
                 <div class="time-box">
@@ -324,6 +325,18 @@
                             </span>
                         {% endif %}
                     </div>
+
+                    <div class="jury-members-roles" style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+                        {% for m in row.members %}
+                            <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center;">
+                                <span style="font-size:.82rem; font-weight:700;">{{ m.professor.full_name }}</span>
+                                {% if m.is_president %}<span class="status-pill" style="background:rgba(13,148,136,.15); color:#0f5e59;">Président</span>{% endif %}
+                                {% if m.is_priority %}<span class="status-pill" style="background:rgba(217,119,6,.16); color:#92400e;">★ Prioritaire</span>{% endif %}
+                                {% if m.is_expert %}<span class="status-pill" style="background:rgba(124,58,237,.14); color:#5b21b6;">Expert</span>{% endif %}
+                                {% if m.is_encadrant %}<span class="status-pill info">Encadrant</span>{% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
                 </div>
 
                 <div class="card-actions">
@@ -337,6 +350,7 @@
                 </div>
             </div>
         </article>
+        {% endwith %}
     {% empty %}
         <div class="empty-state">
             Aucun planning généré pour le moment. Créez les jurys puis lancez la génération du planning.
