@@ -1068,15 +1068,29 @@ def _generate_juries_one_date(defense_date, students, professors, num_juries, sa
 @transaction.atomic
 def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None):
     """
-    Génère les jurys en parcourant les créneaux chronologiquement.
-    À chaque créneau, sélectionne les encadrants disponibles avec le plus d'étudiants prêts.
-    La capacité du créneau (20 min/étudiant) détermine combien d'étudiants on peut affecter.
+    Planificateur des jurys de soutenance.
 
-    Paramètres (optionnels) :
-    - start_date / end_date : fenêtre des soutenances (tous les jours inclus,
-      week-ends compris). Par défaut DEFENSE_START..DEFENSE_DEADLINE.
-    - max_simultaneous : nombre max de jurys en parallèle sur un créneau
-      (plafonné au nombre de salles disponibles).
+    Hiérarchie d'objectifs :
+      1. (Dur)   Placer TOUS les étudiants prêts dans la fenêtre de soutenances.
+      2. (Dur)   Un membre siège soit le matin, soit l'après-midi d'une même
+                 journée — jamais les deux.
+      3. (Dur)   Encadrant présent (sauf aucune dispo → jury avec expert de la
+                 filière), 3 membres, président ≠ encadrant, une salle par jury,
+                 20 minutes par étudiant, capacité max de jurys simultanés.
+      4. (Max)   Un prof prioritaire par jury (un seul), qui préside ; rotation
+                 entre prioritaires pour consommer leurs disponibilités.
+      5. (Bonus) Expert de la filière présent ; jury mono-filière ; président
+                 stable le plus longtemps possible.
+
+    Stratégie :
+      - PRÉ-VOL de faisabilité : offre (demi-journées déclarées, règle 2
+        comprise) vs besoin (étudiants x 20 min) par encadrant + plafond global.
+      - Placement « LE PLUS CONTRAINT D'ABORD » : les encadrants avec le moins
+        de marge sont placés en premier, sur leurs demi-journées rares.
+      - CO-PLACEMENT : le 3e siège va de préférence à un autre encadrant ayant
+        des étudiants restants (ils passent dans le même jury).
+      - Boucle jusqu'à point fixe, puis 2e essai en relâchant les préférences
+        (jamais les règles dures), puis passe « encadrant absent ».
     """
     from collections import defaultdict
 
@@ -1084,11 +1098,13 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
         start_date = DEFENSE_START
     if end_date is None:
         end_date = DEFENSE_DEADLINE
-    # Chaque jury occupe une salle : on ne peut pas dépasser le nombre de salles.
     cap = max_simultaneous or MAX_SIMULTANEOUS_JURIES
     cap = max(1, min(cap, len(DEFENSE_SALLES)))
 
-    # 1. Collect all ready students (accepted PFE, no jury, advisor known)
+    today = timezone.localdate()
+    window_start = max(today, start_date)
+
+    # 1. Étudiants prêts (PFE accepté, sans jury, encadrant connu)
     all_ready = list(
         StudentProfile.objects.filter(
             pfe_request__status=PFERequest.STATUS_ACCEPTED,
@@ -1098,8 +1114,8 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
     )
 
     professors = list(ProfessorProfile.objects.order_by("full_name"))
+    prof_by_id = {p.id: p for p in professors}
 
-    # Experts par filière (pour privilégier un expert ≠ encadrant dans le jury).
     experts_by_filiere = defaultdict(set)
     for entry in FiliereExpert.objects.all():
         experts_by_filiere[entry.filiere].add(entry.professor_id)
@@ -1113,6 +1129,9 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             "total_ready": len(all_ready),
             "by_encadrant_before": {},
             "juries": [],
+            "feasibility": {"encadrants": [], "global": {}},
+            "coverage": {"with_priority": 0, "with_expert": 0},
+            "priority_usage": [],
         },
     }
 
@@ -1128,274 +1147,334 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             })
         return result
 
-    # 2. Group students by encadrant (mutable for tracking remaining students)
+    # 2. Étudiants groupés par encadrant
     students_by_encadrant = defaultdict(list)
     for student in all_ready:
         students_by_encadrant[student.encadrant_id].append(student)
     for key in students_by_encadrant:
         students_by_encadrant[key].sort(key=lambda s: s.full_name.lower())
 
-    # Fill report: student counts per advisor before generation
     for enc_id, students in students_by_encadrant.items():
         if students:
             enc_name = students[0].encadrant.full_name
             result["report"]["by_encadrant_before"][enc_name] = len(students)
 
-    # 3. Get all future slot starts in chronological order
-    candidate_slots = build_all_future_slot_starts(start_date, end_date)
+    # 3. Unités de planification : (date, demi-journée) de la fenêtre
+    all_units = []
+    d = window_start
+    while d <= end_date:
+        all_units.append((d, defense_slots.MORNING))
+        all_units.append((d, defense_slots.AFTERNOON))
+        d += timedelta(days=1)
 
-    if not candidate_slots:
-        for enc_id, students in students_by_encadrant.items():
-            for student in students:
-                result["errors"].append({
-                    "student": student,
-                    "reason": "no_slots",
-                    "message": "Aucune disponibilité future déclarée par les professeurs.",
-                })
-        return result
+    def unit_len_slots(date, slot):
+        s, e = defense_slots.slot_bounds(date, slot)
+        minutes = int(
+            (datetime.combine(date, e) - datetime.combine(date, s)).total_seconds() // 60
+        )
+        return minutes // DEFENSE_DURATION_MINUTES
+
+    # Disponibilités par (prof, unité), en minutes utiles.
+    prof_unit_minutes = defaultdict(int)
+    for row in ProfessorAvailability.objects.filter(
+        date__gte=window_start, date__lte=end_date
+    ):
+        for slot in defense_slots.slots_touched(row.date, row.start_time, row.end_time):
+            s, e = defense_slots.slot_bounds(row.date, slot)
+            start = max(row.start_time, s)
+            end = min(row.end_time, e)
+            minutes = int(
+                (datetime.combine(row.date, end) - datetime.combine(row.date, start)).total_seconds() // 60
+            )
+            if minutes >= DEFENSE_DURATION_MINUTES:
+                prof_unit_minutes[(row.professor_id, row.date, slot)] += minutes
+
+    def prof_units(pid):
+        return [
+            (dte, slot) for (dte, slot) in all_units
+            if prof_unit_minutes.get((pid, dte, slot), 0) >= DEFENSE_DURATION_MINUTES
+        ]
+
+    def supply_slots_for(pid):
+        """Offre sous la règle stricte : au plus UNE demi-journée par jour."""
+        per_day = {}
+        for (dte, slot) in prof_units(pid):
+            mins = prof_unit_minutes[(pid, dte, slot)]
+            per_day[dte] = max(per_day.get(dte, 0), mins)
+        return sum(m // DEFENSE_DURATION_MINUTES for m in per_day.values())
+
+    # 4. PRÉ-VOL : faisabilité par encadrant + plafond global (rapport)
+    for enc_id, studs in students_by_encadrant.items():
+        supply = supply_slots_for(enc_id)
+        need = len(studs)
+        enc = prof_by_id.get(enc_id)
+        result["report"]["feasibility"]["encadrants"].append({
+            "encadrant": enc.full_name if enc else "?",
+            "students": need,
+            "supply_slots": supply,
+            "missing_slots": max(0, need - supply),
+            "ok": supply >= need,
+        })
+    result["report"]["feasibility"]["encadrants"].sort(
+        key=lambda r: (r["ok"], -r["missing_slots"])
+    )
+    global_capacity = sum(unit_len_slots(dte, slot) for (dte, slot) in all_units) * cap
+    result["report"]["feasibility"]["global"] = {
+        "students": len(all_ready),
+        "capacity_slots": global_capacity,
+        "ok": len(all_ready) <= global_capacity,
+    }
 
     jury_index = 1
 
-    # 4. Walk through slots chronologically. À chaque créneau de départ, on crée
-    #    AUTANT de jurys en parallèle que possible (limités par la capacité
-    #    globale, les salles libres et les professeurs disponibles), afin
-    #    d'affecter le maximum d'étudiants prêts.
-    for defense_date, block_start in candidate_slots:
-        # Stop early if no students remain
-        if not any(students_by_encadrant.values()):
-            break
+    def unit_start_times(date, slot):
+        s, e = defense_slots.slot_bounds(date, slot)
+        cur = datetime.combine(date, s)
+        limit = datetime.combine(date, e)
+        out = []
+        while cur + timedelta(minutes=DEFENSE_DURATION_MINUTES) <= limit:
+            out.append(cur.time())
+            cur += timedelta(minutes=DEFENSE_DURATION_MINUTES)
+        return out
 
-        current_slot = _slot_label_at(defense_date, block_start)
+    def free_at(p, date, t, slot):
+        return (
+            is_professor_available(p, date, t, DEFENSE_DURATION_MINUTES)
+            and not professor_has_conflict(p, date, t, DEFENSE_DURATION_MINUTES)
+            and not professor_busy_other_slot(p, date, slot)
+        )
 
-        # Plusieurs jurys peuvent démarrer au même créneau (une salle chacun) :
-        # on itère tant qu'un jury supplémentaire peut se former.
-        while any(students_by_encadrant.values()):
-            # Capacité globale : nombre max de jurys en même temps.
-            if jury_slot_capacity_reached(defense_date, block_start, max_simultaneous=cap):
-                break
-
-            remaining_enc_ids = {
-                enc_id for enc_id, stds in students_by_encadrant.items() if stds
-            }
-
-            # Règle STRICTE : un membre de jury siège soit le matin, soit
-            # l'après-midi d'une même journée — jamais les deux. Elle s'applique
-            # à TOUS (profs prioritaires et encadrants compris).
-            available_profs = [
-                p for p in professors
-                if is_professor_available(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
-                and not professor_has_conflict(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
-                and not professor_busy_other_slot(p, defense_date, current_slot)
-            ]
-
-            if len(available_profs) < 3:
-                break
-            profs_with_students = [p for p in available_profs if p.id in remaining_enc_ids]
-            profs_without_students = [p for p in available_profs if p.id not in remaining_enc_ids]
-
-            # At least one advisor with students must be available
-            if not profs_with_students:
-                break
-
-            # Prioritize advisors with the most remaining students
-            profs_with_students.sort(
-                key=lambda p: (-len(students_by_encadrant.get(p.id, [])), p.full_name.lower())
-            )
-
-            # Filière dominante du jury (celle de l'encadrant ayant le plus
-            # d'étudiants) → on privilégie un expert de cette filière en complément.
-            target_filiere = ""
-            top_students = students_by_encadrant.get(profs_with_students[0].id, [])
-            if top_students:
-                target_filiere = top_students[0].filiere or ""
-            experts_target = experts_by_filiere.get(target_filiere, set())
-
-            # Préférence forte : chaque jury a UN prof prioritaire (un seul), de
-            # préférence non-encadrant du jury pour pouvoir le présider. Pour que
-            # TOUS les prioritaires soient consommés à 100 %, on choisit à chaque
-            # fois le moins chargé (rotation naturelle entre eux).
-            priority_available = [
-                p for p in available_profs if getattr(p, "is_priority", False)
-            ]
-            chosen_priority = None
-            non_adv_priority = [
-                p for p in priority_available if p.id not in remaining_enc_ids
-            ]
-            if non_adv_priority:
-                non_adv_priority.sort(
-                    key=lambda p: (
-                        professor_total_scheduled_load(p),
-                        0 if p.id in experts_target else 1,
-                        p.full_name.lower(),
-                    )
-                )
-                chosen_priority = non_adv_priority[0]
-            elif priority_available:
-                priority_available.sort(
-                    key=lambda p: (professor_total_scheduled_load(p), p.full_name.lower())
-                )
-                chosen_priority = priority_available[0]
-
-            jury_members = []
-            if chosen_priority is not None:
-                jury_members.append(chosen_priority)
-
-            # Puis les encadrants avec étudiants (hors prioritaire déjà choisi).
-            for p in profs_with_students:
-                if len(jury_members) >= 3:
-                    break
-                if chosen_priority is not None and p.id == chosen_priority.id:
-                    continue
-                jury_members.append(p)
-
-            # Compléter avec des remplisseurs NON prioritaires (experts d'abord) :
-            # on évite de mettre deux prioritaires dans le même jury.
-            fillers = [
-                p for p in profs_without_students
-                if not getattr(p, "is_priority", False)
-                and (chosen_priority is None or p.id != chosen_priority.id)
-            ]
-            fillers.sort(
-                key=lambda p: (0 if p.id in experts_target else 1, p.full_name.lower())
-            )
-            for p in fillers:
-                if len(jury_members) >= 3:
-                    break
-                jury_members.append(p)
-
-            # En dernier recours, compléter avec ce qui reste (y compris un 2e
-            # prioritaire) pour atteindre 3 membres — toujours dans le respect
-            # de la règle matin/après-midi.
-            if len(jury_members) < 3:
-                for p in available_profs:
-                    if len(jury_members) >= 3:
-                        break
-                    if p not in jury_members:
-                        jury_members.append(p)
-
-            # Il faut au moins un encadrant avec étudiants (sinon aucun étudiant à
-            # programmer dans ce jury), et un jury complet de 3.
-            if not any(p.id in remaining_enc_ids for p in jury_members):
-                break
-            if len(jury_members) < 3:
-                break
-
-            # 6. Build consecutive 30-min slots to determine real capacity
-            available_slots = build_consecutive_available_slots(
-                members=jury_members,
-                defense_date=defense_date,
-                block_start=block_start,
-                max_slots=20,
-                max_simultaneous=cap,
-            )
-
-            if not available_slots:
-                break
-
-            capacity = len(available_slots)
-
-            # 7. Collect and rank students from jury-member advisors
-            students_pool = []
-            for prof in jury_members:
-                students_pool.extend(students_by_encadrant.get(prof.id, []))
-
-            # Préférence forte mono-filière : les étudiants de la filière dominante
-            # d'abord, puis l'encadrant avec le plus d'étudiants, puis le nom.
-            students_pool.sort(
-                key=lambda s: (
-                    0 if (s.filiere or "") == target_filiere else 1,
-                    -len(students_by_encadrant.get(s.encadrant_id, [])),
-                    s.full_name.lower(),
-                )
-            )
-
-            selected_students = students_pool[:capacity]
-            selected_slots = available_slots[:len(selected_students)]
-
-            if not selected_students:
-                break
-
-            # Salle libre pour tout le bloc du jury (deux jurys simultanés ne
-            # partagent pas de salle). Sans salle libre → on passe ce créneau.
-            block_end = (
-                datetime.combine(defense_date, selected_slots[-1])
+    def register_jury(jury, members, sel, sel_slots, date, t, experts_here):
+        nonlocal jury_index
+        result["created"] += 1
+        result["assigned"] += len(sel)
+        result["scheduled"] += len(sel)
+        jury_index += 1
+        if any(getattr(m, "is_priority", False) for m in members):
+            result["report"]["coverage"]["with_priority"] += 1
+        if experts_here:
+            result["report"]["coverage"]["with_expert"] += 1
+        report_entry = {
+            "jury_name": jury.name,
+            "salle": jury.get_salle_display() if jury.salle else "",
+            "members": [p.full_name for p in members],
+            "defense_date": date,
+            "slot_start": t,
+            "capacity": len(sel_slots),
+            "students_scheduled": [],
+        }
+        for student, slot_start in zip(sel, sel_slots):
+            slot_end = (
+                datetime.combine(date, slot_start)
                 + timedelta(minutes=DEFENSE_DURATION_MINUTES)
             ).time()
-            salle = _choisir_salle_libre(defense_date, block_start, block_end)
-            if salle is None:
+            report_entry["students_scheduled"].append({
+                "name": student.full_name or "(nom absent)",
+                "matricule": student.matricule,
+                "encadrant": student.encadrant.full_name if student.encadrant else "—",
+                "start_time": slot_start,
+                "end_time": slot_end,
+            })
+        result["report"]["juries"].append(report_entry)
+        for student in sel:
+            pool = students_by_encadrant.get(student.encadrant_id, [])
+            if student in pool:
+                pool.remove(student)
+
+    def try_place(enc, relaxed=False):
+        """Tente de créer UN jury pour l'encadrant `enc` (et co-encadrants).
+
+        Chaque créneau candidat est noté : prioritaire libre = +2, expert de
+        la filière libre = +1. On choisit le meilleur créneau (à score égal,
+        le plus tôt) au lieu du premier faisable — c'est ce qui maximise la
+        présence des prioritaires et des experts sans sacrifier le placement.
+        """
+        remaining = students_by_encadrant.get(enc.id, [])
+        if not remaining:
+            return False
+        target_filiere = remaining[0].filiere or ""
+        experts_target = experts_by_filiere.get(target_filiere, set())
+
+        candidates = {}  # score -> premier candidat validé à ce score
+        best_score = -1
+
+        for (date, slot) in prof_units(enc.id):
+            if best_score >= 3:
                 break
+            # Règle stricte : l'encadrant ne siège pas dans les deux
+            # demi-journées d'une même date.
+            if professor_busy_other_slot(enc, date, slot):
+                continue
+            starts_here = unit_start_times(date, slot)
+            for t in starts_here:
+                if best_score >= 3:
+                    break
+                if jury_slot_capacity_reached(date, t, max_simultaneous=cap):
+                    continue
+                if not (
+                    is_professor_available(enc, date, t, DEFENSE_DURATION_MINUTES)
+                    and not professor_has_conflict(enc, date, t, DEFENSE_DURATION_MINUTES)
+                ):
+                    continue
+                others = [
+                    p for p in professors
+                    if p.id != enc.id and free_at(p, date, t, slot)
+                ]
+                if len(others) < 2:
+                    continue
+                # Prioritaire : un seul par jury, le moins chargé (rotation
+                # → tous les prioritaires sont consommés).
+                prios = sorted(
+                    [p for p in others if getattr(p, "is_priority", False)],
+                    key=lambda p: (professor_total_scheduled_load(p), p.full_name.lower()),
+                )
+                chosen_p = prios[0] if prios else None
+                expert_free = any(
+                    p.id in experts_target
+                    and (chosen_p is None or p.id != chosen_p.id)
+                    for p in others
+                )
+                score = (2 if chosen_p is not None else 0) + (1 if expert_free else 0)
+                if score <= best_score or score in candidates:
+                    continue  # pas mieux qu'un candidat déjà validé
 
-            # Experts de la filière dominante parmi les membres → privilégiés comme
-            # président (après les profs prioritaires).
-            dom_fil = selected_students[0].filiere or ""
-            experts_here = {
-                m.id for m in jury_members
-                if m.id in experts_by_filiere.get(dom_fil, set())
-            }
-
-            plan = {
-                "members": jury_members,
-                "students": selected_students,
-                "defense_date": defense_date,
-                "start_times": selected_slots,
-                "salle": salle,
-                "experts": experts_here,
-            }
-
-            try:
-                jury = create_grouped_jury_from_plan(plan, jury_index)
-            except ValidationError as exc:
-                for student in selected_students:
-                    result["errors"].append({
-                        "student": student,
-                        "reason": "validation_error",
-                        "message": "; ".join(exc.messages),
-                    })
-                break
-
-            result["created"] += 1
-            result["assigned"] += len(selected_students)
-            result["scheduled"] += len(selected_students)
-            jury_index += 1
-
-            # (La règle matin/après-midi est garantie par professor_busy_other_slot,
-            # qui consulte les soutenances réellement programmées en base.)
-
-            # Build report entry for this jury
-            report_entry = {
-                "jury_name": jury.name,
-                "salle": jury.get_salle_display() if jury.salle else "",
-                "members": [p.full_name for p in jury_members],
-                "defense_date": defense_date,
-                "slot_start": block_start,
-                "capacity": capacity,
-                "students_scheduled": [],
-            }
-            for student, slot_start in zip(selected_students, selected_slots):
-                slot_end = (
-                    datetime.combine(defense_date, slot_start)
+                # ── Validation complète du candidat ──────────────────────
+                remaining_enc_ids = {
+                    eid for eid, sts in students_by_encadrant.items()
+                    if sts and eid != enc.id
+                }
+                seats = [enc] + ([chosen_p] if chosen_p is not None else [])
+                pool_others = [p for p in others if all(p.id != s.id for s in seats)]
+                if not relaxed:
+                    # Strict : pas de 2e prioritaire dans le même jury.
+                    pool_others = [
+                        p for p in pool_others if not getattr(p, "is_priority", False)
+                    ]
+                expert_cands = [p for p in pool_others if p.id in experts_target]
+                co_cands = sorted(
+                    [p for p in pool_others if p.id in remaining_enc_ids],
+                    key=lambda p: (
+                        0 if (students_by_encadrant[p.id][0].filiere or "") == target_filiere else 1,
+                        -len(students_by_encadrant[p.id]),
+                        p.full_name.lower(),
+                    ),
+                )
+                filler_cands = sorted(
+                    [p for p in pool_others if p.id not in remaining_enc_ids],
+                    key=lambda p: (
+                        0 if p.id in experts_target else 1,
+                        p.full_name.lower(),
+                    ),
+                )
+                # 3e siège : expert d'abord (objectif « expert si possible »),
+                # SAUF si un co-encadrant « serré » (peu de marge) a besoin du
+                # co-placement pour que ses étudiants passent.
+                tight_co = [
+                    p for p in co_cands
+                    if supply_slots_for(p.id) - len(students_by_encadrant[p.id]) <= 2
+                ]
+                if tight_co:
+                    third_pref = tight_co + expert_cands + co_cands + filler_cands
+                elif expert_cands:
+                    third_pref = expert_cands + co_cands + filler_cands
+                else:
+                    third_pref = co_cands + filler_cands
+                for cand in third_pref:
+                    if len(seats) >= 3:
+                        break
+                    if all(cand.id != s.id for s in seats):
+                        seats.append(cand)
+                if len(seats) < 3:
+                    # Dernier recours : tout prof libre (règles dures respectées).
+                    for cand in others:
+                        if len(seats) >= 3:
+                            break
+                        if all(cand.id != s.id for s in seats):
+                            seats.append(cand)
+                if len(seats) < 3:
+                    continue
+                members = seats[:3]
+                block = build_consecutive_available_slots(
+                    members=members, defense_date=date, block_start=t,
+                    max_slots=40, max_simultaneous=cap,
+                )
+                if not block:
+                    continue
+                pool = []
+                for m in members:
+                    pool.extend(students_by_encadrant.get(m.id, []))
+                # Les étudiants de l'encadrant contraint d'abord, mono-filière.
+                pool.sort(key=lambda s: (
+                    0 if s.encadrant_id == enc.id else 1,
+                    0 if (s.filiere or "") == target_filiere else 1,
+                    s.full_name.lower(),
+                ))
+                sel = pool[:len(block)]
+                if not sel:
+                    continue
+                sel_slots = block[:len(sel)]
+                block_end = (
+                    datetime.combine(date, sel_slots[-1])
                     + timedelta(minutes=DEFENSE_DURATION_MINUTES)
                 ).time()
-                report_entry["students_scheduled"].append({
-                    "name": student.full_name or "(nom absent)",
-                    "matricule": student.matricule,
-                    "encadrant": student.encadrant.full_name if student.encadrant else "—",
-                    "start_time": slot_start,
-                    "end_time": slot_end,
-                })
-            result["report"]["juries"].append(report_entry)
+                salle = _choisir_salle_libre(date, t, block_end)
+                if salle is None:
+                    continue
+                experts_here = {
+                    m.id for m in members
+                    if m.id in experts_by_filiere.get((sel[0].filiere or ""), set())
+                }
+                candidates[score] = {
+                    "members": members, "sel": sel, "sel_slots": sel_slots,
+                    "date": date, "t": t, "salle": salle,
+                    "experts_here": experts_here,
+                }
+                best_score = score
 
-            # 8. Remove assigned students from the pool, puis on retente un jury
-            #    supplémentaire en parallèle sur ce même créneau (salle suivante).
-            for student in selected_students:
-                pool = students_by_encadrant.get(student.encadrant_id, [])
-                if student in pool:
-                    pool.remove(student)
+        # Créer le meilleur candidat (score décroissant) ; en cas d'échec de
+        # validation, essayer le suivant.
+        for score in sorted(candidates.keys(), reverse=True):
+            c = candidates[score]
+            plan = {
+                "members": c["members"],
+                "students": c["sel"],
+                "defense_date": c["date"],
+                "start_times": c["sel_slots"],
+                "salle": c["salle"],
+                "experts": c["experts_here"],
+            }
+            try:
+                jury = create_grouped_jury_from_plan(plan, jury_index)
+            except ValidationError:
+                continue
+            register_jury(
+                jury, c["members"], c["sel"], c["sel_slots"],
+                c["date"], c["t"], c["experts_here"],
+            )
+            return True
+        return False
 
-    # 8bis. Deuxième passe : étudiants dont l'encadrant n'a AUCUNE disponibilité
-    #       future. On forme pour eux un jury SANS l'encadrant, mais avec un
-    #       expert de la filière (marqué « encadrant absent »).
-    today = timezone.localdate()
+    # 5. PLACEMENT : le plus contraint d'abord, jusqu'à point fixe.
+    #    1er tour strict (préférences respectées), 2e tour relâché
+    #    (expert / un-seul-prioritaire sacrifiés — jamais les règles dures).
+    for relaxed in (False, True):
+        progress = True
+        while progress and any(students_by_encadrant.values()):
+            progress = False
+            enc_ids = [eid for eid, sts in students_by_encadrant.items() if sts]
+            enc_ids.sort(key=lambda eid: (
+                supply_slots_for(eid) - len(students_by_encadrant[eid]),
+                -len(students_by_encadrant[eid]),
+            ))
+            for eid in enc_ids:
+                enc = prof_by_id.get(eid)
+                if enc is not None and try_place(enc, relaxed=relaxed):
+                    progress = True
+                    break
+
+    # 6. 2e passe : étudiants dont l'encadrant n'a AUCUNE disponibilité future.
+    #    Jury SANS l'encadrant mais avec un expert de la filière (« encadrant
+    #    absent »).
     encadrant_has_avail = {}
 
     def _enc_absent(enc_id):
@@ -1413,23 +1492,20 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             students_by_encadrant[enc_id] = []
 
     if any(absent_by_fil.values()):
+        candidate_slots = build_all_future_slot_starts(start_date, end_date)
         for defense_date, block_start in candidate_slots:
             if not any(absent_by_fil.values()):
                 break
             current_slot = _slot_label_at(defense_date, block_start)
 
-            # Comme en 1re passe : plusieurs jurys possibles au même créneau.
             progress = True
             while progress and any(absent_by_fil.values()):
                 progress = False
                 if jury_slot_capacity_reached(defense_date, block_start, max_simultaneous=cap):
                     break
-                # Règle STRICTE matin/après-midi, appliquée à tous.
                 available_profs = [
                     p for p in professors
-                    if is_professor_available(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
-                    and not professor_has_conflict(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
-                    and not professor_busy_other_slot(p, defense_date, current_slot)
+                    if free_at(p, defense_date, block_start, current_slot)
                 ]
                 if len(available_profs) < 3:
                     break
@@ -1442,10 +1518,8 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                         if p.id in experts_by_filiere.get(fil, set())
                     ]
                     if not experts_here:
-                        continue  # pas d'expert dispo → on ne peut pas remplacer l'encadrant
+                        continue  # pas d'expert dispo → remplacement impossible
                     expert = experts_here[0]
-                    # Un prof prioritaire (un seul, le moins chargé) parmi les
-                    # autres membres : il présidera et consomme ses dispos.
                     others_pool = [p for p in available_profs if p.id != expert.id]
                     prio_others = sorted(
                         [p for p in others_pool if getattr(p, "is_priority", False)],
@@ -1462,7 +1536,7 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                     members = [expert] + others
                     slots_avail = build_consecutive_available_slots(
                         members=members, defense_date=defense_date,
-                        block_start=block_start, max_slots=20,
+                        block_start=block_start, max_slots=40,
                         max_simultaneous=cap,
                     )
                     if not slots_avail:
@@ -1487,7 +1561,7 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                         "encadrant_absent": True,
                     }
                     try:
-                        create_grouped_jury_from_plan(plan, jury_index)
+                        jury = create_grouped_jury_from_plan(plan, jury_index)
                     except ValidationError as exc:
                         for student in sel:
                             result["errors"].append({
@@ -1496,25 +1570,39 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                             })
                         continue
 
-                    result["created"] += 1
-                    result["assigned"] += len(sel)
-                    result["scheduled"] += len(sel)
-                    jury_index += 1
+                    register_jury(
+                        jury, members, sel, sel_slots, defense_date, block_start,
+                        {expert.id},
+                    )
                     for s in sel:
                         if s in absent_by_fil[fil]:
                             absent_by_fil[fil].remove(s)
-                    # Jury créé : on réévalue les professeurs encore libres
-                    # avant d'en tenter un autre sur ce même créneau.
                     progress = True
                     break
 
-    # 9. Report remaining unassigned students with reason
+    # 7. Non placés : raisons précises et chiffrées (issues du pré-vol).
+    feas_by_name = {
+        r["encadrant"]: r for r in result["report"]["feasibility"]["encadrants"]
+    }
     for enc_id, students in students_by_encadrant.items():
+        if not students:
+            continue
+        enc = prof_by_id.get(enc_id)
+        row = feas_by_name.get(enc.full_name if enc else "", {})
+        if row and not row.get("ok", True):
+            reason = "insufficient_availability"
+            message = (
+                f"Disponibilités insuffisantes de l'encadrant : {row['students']} étudiant(s) "
+                f"pour {row['supply_slots']} créneau(x) de 20 min (règle matin OU après-midi "
+                f"comprise). Il manque environ {row['missing_slots']} créneau(x) — demander "
+                f"plus de disponibilités."
+            )
+        else:
+            reason = "no_slot_found"
+            message = "Aucun créneau compatible trouvé (conflits, salles ou capacité)."
         for student in students:
             result["errors"].append({
-                "student": student,
-                "reason": "no_slot_found",
-                "message": "Aucun créneau commun trouvé pour l'encadrant de cet étudiant.",
+                "student": student, "reason": reason, "message": message,
             })
     for fil, studs in absent_by_fil.items():
         for student in studs:
@@ -1524,16 +1612,15 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                 "message": "Encadrant sans disponibilité et aucun expert disponible pour le remplacer.",
             })
 
-    # 10. Bilan d'utilisation des profs prioritaires (objectif : 100 % de leurs
-    #     créneaux de 20 min à venir consommés par des jurys).
+    # 8. Bilan d'utilisation des profs prioritaires (créneaux 20 min à venir).
     priority_usage = []
     for prof in professors:
         if not getattr(prof, "is_priority", False):
             continue
         avail_slots = set()
         for availability in prof.availabilities.filter(date__gte=today):
-            for d, t in build_slots_from_availability(availability):
-                avail_slots.add((d, t))
+            for d2, t2 in build_slots_from_availability(availability):
+                avail_slots.add((d2, t2))
         scheduled = set(
             DefenseSchedule.objects.filter(
                 jury_student__jury__members__professor=prof,
@@ -1675,6 +1762,10 @@ def create_grouped_jury_from_plan(plan, jury_index):
         key=lambda p: (
             0 if getattr(p, "is_priority", False) else 1,
             0 if p.id in experts else 1,
+            # Continuité : celui qui préside déjà des étudiants continue en
+            # tant que président le plus longtemps possible avant qu'un autre
+            # membre prenne le relais.
+            -JuryStudent.objects.filter(president=p).count(),
             professor_load_on_date(p, defense_date),
             professor_total_scheduled_load(p),
             p.full_name.lower(),

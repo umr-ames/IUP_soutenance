@@ -34,6 +34,47 @@
         </article>
     </div>
 
+    <!-- Feasibility pre-flight -->
+    {% if result.report.feasibility.encadrants %}
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">Pré-vol de faisabilité — offre vs besoin par encadrant</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Encadrant</th>
+                        <th class="text-center">Étudiants à placer</th>
+                        <th class="text-center">Créneaux offerts (20 min)</th>
+                        <th class="text-center">Verdict</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in result.report.feasibility.encadrants %}
+                    <tr>
+                        <td>{{ row.encadrant }}</td>
+                        <td class="text-center">{{ row.students }}</td>
+                        <td class="text-center">{{ row.supply_slots }}</td>
+                        <td class="text-center">
+                            {% if row.ok %}
+                                <span class="status-pill success">OK</span>
+                            {% else %}
+                                <span class="status-pill danger">Il manque {{ row.missing_slots }} créneau(x) — demander plus de disponibilités</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not result.report.feasibility.global.ok %}
+            <div class="card-body pt-2 pb-2" style="color:#b91c1c;">
+                Plafond global dépassé : {{ result.report.feasibility.global.students }} étudiants pour
+                {{ result.report.feasibility.global.capacity_slots }} passages possibles (salles × créneaux de la fenêtre).
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Priority professors utilization -->
     {% if result.report.priority_usage %}
     <div class="card mb-4">
