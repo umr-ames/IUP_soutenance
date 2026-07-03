@@ -2146,6 +2146,196 @@ def calculate_next_defense_slot_for_jury(jury, members):
     return next_start
 
 
+def _professors_free_for_halfday(defense_date, slot_label, exclude_ids=None):
+    """Professeurs proposables pour un NOUVEAU jury sur (date, demi-journée) :
+    disponibilité déclarée couvrant ce créneau ET pas déjà membre d'un jury
+    qui chevauche cette demi-journée (ni l'autre demi-journée du jour, règle
+    matin OU après-midi)."""
+    exclude_ids = exclude_ids or set()
+    start, end = defense_slots.slot_bounds(defense_date, slot_label)
+
+    busy_ids = set(
+        DefenseSchedule.objects.filter(
+            jury_student__jury__defense_date=defense_date,
+            start_time__lt=end,
+            end_time__gt=start,
+        ).values_list(
+            "jury_student__jury__members__professor_id", flat=True
+        )
+    )
+    result = []
+    for p in ProfessorProfile.objects.order_by("full_name"):
+        if p.id in busy_ids or p.id in exclude_ids:
+            continue
+        if not is_professor_available(p, defense_date, start):
+            continue
+        if professor_busy_other_slot(p, defense_date, slot_label):
+            continue
+        result.append(p)
+    return result
+
+
+def _free_rooms_for_halfday(defense_date, slot_label):
+    """Salles libres sur toute la demi-journée (aucun jury n'y chevauche)."""
+    start, end = defense_slots.slot_bounds(defense_date, slot_label)
+    return [
+        s for s in DEFENSE_SALLES
+        if not _salle_occupee(defense_date, start, end, s)
+    ]
+
+
+@login_required
+@role_required(["admin"])
+def admin_jury_add_manual(request):
+    """Après la génération automatique : ajouter un (ou deux) jury(s) à la main.
+    L'admin choisit une date + une demi-journée, la plateforme propose les
+    étudiants sans jury, les professeurs disponibles et non déjà affectés sur
+    ce créneau, et les salles libres."""
+    today = timezone.localdate()
+
+    # Étape 1 : date + demi-journée.
+    date_raw = (request.POST.get("defense_date") or request.GET.get("defense_date") or "").strip()
+    slot_label = (request.POST.get("slot") or request.GET.get("slot") or "").strip()
+
+    defense_date = None
+    if date_raw:
+        try:
+            defense_date = date_cls.fromisoformat(date_raw)
+        except ValueError:
+            defense_date = None
+    if slot_label not in (defense_slots.MORNING, defense_slots.AFTERNOON):
+        slot_label = ""
+
+    context = {
+        "today": today.isoformat(),
+        "defense_date": date_raw,
+        "slot": slot_label,
+        "slot_choices": [
+            (defense_slots.MORNING, "Matin"),
+            (defense_slots.AFTERNOON, "Après-midi"),
+        ],
+        "step2": False,
+    }
+
+    if defense_date and slot_label:
+        start, end = defense_slots.slot_bounds(defense_date, slot_label)
+        context.update({
+            "step2": True,
+            "slot_start": start,
+            "slot_end": end,
+            "students": StudentProfile.objects.filter(
+                pfe_request__status=PFERequest.STATUS_ACCEPTED,
+                jury_assignment__isnull=True,
+            ).select_related("encadrant").order_by("encadrant__full_name", "full_name"),
+            "professors": _professors_free_for_halfday(defense_date, slot_label),
+            "free_rooms": _free_rooms_for_halfday(defense_date, slot_label),
+            "slot_display": "Matin" if slot_label == defense_slots.MORNING else "Après-midi",
+        })
+
+    if request.method == "POST" and request.POST.get("action") == "create":
+        if not (defense_date and slot_label):
+            messages.error(request, "Choisissez une date et une demi-journée.")
+            return render(request, "soutenances/admin_jury_add_manual.html", context)
+
+        start, end = defense_slots.slot_bounds(defense_date, slot_label)
+
+        student_ids = [int(x) for x in request.POST.getlist("students") if x.isdigit()]
+        prof_ids = [int(x) for x in request.POST.getlist("professors") if x.isdigit()]
+        salle = request.POST.get("salle") or ""
+
+        students = list(
+            StudentProfile.objects.filter(
+                id__in=student_ids,
+                pfe_request__status=PFERequest.STATUS_ACCEPTED,
+                jury_assignment__isnull=True,
+            ).select_related("encadrant")
+        )
+        members = list(ProfessorProfile.objects.filter(id__in=prof_ids))
+
+        # Revérification serveur (les listes ont pu changer entre-temps).
+        free_now_ids = {p.id for p in _professors_free_for_halfday(defense_date, slot_label)}
+        invalid = [p for p in members if p.id not in free_now_ids]
+
+        if len(members) != 3:
+            messages.error(request, "Sélectionnez exactement 3 professeurs.")
+        elif invalid:
+            messages.error(
+                request,
+                "Ces professeurs ne sont plus disponibles/libres sur ce créneau : "
+                + ", ".join(p.full_name for p in invalid)
+            )
+        elif not students:
+            messages.error(request, "Sélectionnez au moins un étudiant.")
+        elif not salle or _salle_occupee(defense_date, start, end, salle):
+            messages.error(request, "Choisissez une salle libre sur ce créneau.")
+        else:
+            # Créneaux de 20 min de la demi-journée.
+            cap_slots = []
+            cur = datetime.combine(defense_date, start)
+            limit = datetime.combine(defense_date, end)
+            while cur + timedelta(minutes=DEFENSE_DURATION_MINUTES) <= limit:
+                cap_slots.append(cur.time())
+                cur += timedelta(minutes=DEFENSE_DURATION_MINUTES)
+
+            placed = students[:len(cap_slots)]
+            overflow = students[len(cap_slots):]
+            start_times = cap_slots[:len(placed)]
+
+            president_pool = members
+            warnings = []
+            with transaction.atomic():
+                jury = Jury.objects.create(
+                    name=build_grouped_jury_name(placed, defense_date),
+                    defense_date=defense_date,
+                    salle=salle,
+                    is_validated=False,
+                )
+                for p in members:
+                    JuryMember.objects.create(jury=jury, professor=p)
+                for student, t in zip(placed, start_times):
+                    enc_in = any(m.id == student.encadrant_id for m in members)
+                    president = choose_president_for_student(
+                        student=student, members=president_pool,
+                        defense_date=defense_date,
+                    )
+                    js = JuryStudent.objects.create(
+                        jury=jury, student=student, president=president,
+                        encadrant_absent=not enc_in,
+                    )
+                    DefenseSchedule.objects.create(
+                        jury_student=js, start_time=t,
+                        duration_minutes=DEFENSE_DURATION_MINUTES,
+                    )
+                    if not enc_in:
+                        enc = student.encadrant.full_name if student.encadrant else "?"
+                        warnings.append(f"{student.full_name} (encadrant {enc})")
+                renumber_draft_juries()
+                jury.refresh_from_db()
+
+            messages.success(
+                request,
+                f"Jury créé : {jury.name} — {defense_date.strftime('%d/%m/%Y')} "
+                f"({context.get('slot_display', slot_label)}) en {salle}, "
+                f"{len(placed)} étudiant(s)."
+            )
+            if warnings:
+                messages.warning(
+                    request,
+                    "Encadrant hors jury (marqué « encadrant absent ») pour : "
+                    + "; ".join(warnings)
+                )
+            if overflow:
+                messages.warning(
+                    request,
+                    f"{len(overflow)} étudiant(s) non placé(s) (demi-journée pleine) : "
+                    + ", ".join(s.full_name for s in overflow)
+                    + ". Créez un second jury sur un autre créneau."
+                )
+            return redirect("admin_jury_detail", pk=jury.pk)
+
+    return render(request, "soutenances/admin_jury_add_manual.html", context)
+
+
 @login_required
 @role_required(["admin"])
 def admin_jury_create(request):

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Ajouter un jury manuellement{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Ajouter un jury (après génération)</h1>
+        <p class="text-muted" style="font-size:.9rem;">
+            Choisissez une date et une demi-journée : la plateforme propose les étudiants sans jury,
+            les professeurs disponibles et non encore affectés sur ce créneau, et les salles libres.
+        </p>
+    </div>
+    <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">Retour aux jurys</a>
+</div>
+
+<!-- Étape 1 : date + demi-journée -->
+<section class="content-panel">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-5">
+            <label class="form-label">Date de soutenance</label>
+            <input type="date" name="defense_date" value="{{ defense_date }}" min="{{ today }}" class="form-control" required>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Demi-journée</label>
+            <select name="slot" class="form-select" required>
+                <option value="">— Choisir —</option>
+                {% for value, label in slot_choices %}
+                    <option value="{{ value }}" {% if slot == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <button type="submit" class="btn btn-primary w-100">Proposer</button>
+        </div>
+    </form>
+</section>
+
+{% if step2 %}
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create">
+    <input type="hidden" name="defense_date" value="{{ defense_date }}">
+    <input type="hidden" name="slot" value="{{ slot }}">
+
+    <section class="content-panel">
+        <h2 style="margin-top:0;">
+            {{ slot_display }} du {{ defense_date }} · {{ slot_start|time:"H:i" }}–{{ slot_end|time:"H:i" }}
+        </h2>
+
+        <!-- Étudiants sans jury -->
+        <h3>Étudiants sans jury</h3>
+        {% if students %}
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:6px;">
+                {% for s in students %}
+                    <label style="display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--line); border-radius:8px;">
+                        <input type="checkbox" name="students" value="{{ s.id }}">
+                        <span style="font-size:.85rem;">
+                            {{ s.full_name|default:"(nom absent)" }} · {{ s.matricule }}{% if s.filiere %} · {{ s.filiere }}{% endif %}
+                            <br><span class="text-muted">Encadrant : {{ s.encadrant.full_name|default:"?" }}</span>
+                        </span>
+                    </label>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">Aucun étudiant sans jury.</div>
+        {% endif %}
+    </section>
+
+    <section class="content-panel">
+        <h3>Professeurs disponibles et libres sur ce créneau (choisir 3)</h3>
+        <p class="text-muted" style="font-size:.84rem;">
+            Ces professeurs ont déclaré une disponibilité sur cette demi-journée et ne siègent
+            dans aucun autre jury sur ce créneau (ni sur l'autre demi-journée du jour).
+        </p>
+        {% if professors %}
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:6px;">
+                {% for p in professors %}
+                    <label style="display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--line); border-radius:8px;">
+                        <input type="checkbox" name="professors" value="{{ p.id }}">
+                        <span style="font-size:.86rem;">{{ p.full_name }}{% if p.is_priority %} · ★ prioritaire{% endif %}</span>
+                    </label>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">Aucun professeur disponible et libre sur ce créneau.</div>
+        {% endif %}
+    </section>
+
+    <section class="content-panel">
+        <h3>Salle</h3>
+        {% if free_rooms %}
+            <select name="salle" class="form-select" style="max-width:320px;" required>
+                <option value="">— Salle libre —</option>
+                {% for r in free_rooms %}
+                    <option value="{{ r }}">{{ r }}</option>
+                {% endfor %}
+            </select>
+        {% else %}
+            <div class="empty-state">Aucune salle libre sur ce créneau.</div>
+        {% endif %}
+
+        <div class="mt-3">
+            <button type="submit" class="btn btn-primary"
+                    {% if not professors or not free_rooms %}disabled{% endif %}>
+                Créer le jury
+            </button>
+            <small class="text-muted d-block mt-1">
+                Sélectionnez 3 professeurs, au moins 1 étudiant et une salle. Les étudiants dont
+                l'encadrant n'est pas parmi les 3 professeurs seront marqués « encadrant absent ».
+            </small>
+        </div>
+    </section>
+</form>
+{% endif %}
+{% endblock %}
