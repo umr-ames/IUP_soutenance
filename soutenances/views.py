@@ -1382,23 +1382,38 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
 
     def register_jury(jury, members, sel, sel_slots, date, t, experts_here):
         nonlocal jury_index
-        result["created"] += 1
+        created_new = getattr(jury, "_created_new", True)
+        if created_new:
+            result["created"] += 1
+            jury_index += 1
+            if any(getattr(m, "is_priority", False) for m in members):
+                result["report"]["coverage"]["with_priority"] += 1
+            if experts_here:
+                result["report"]["coverage"]["with_expert"] += 1
         result["assigned"] += len(sel)
         result["scheduled"] += len(sel)
-        jury_index += 1
-        if any(getattr(m, "is_priority", False) for m in members):
-            result["report"]["coverage"]["with_priority"] += 1
-        if experts_here:
-            result["report"]["coverage"]["with_expert"] += 1
-        report_entry = {
-            "jury_name": jury.name,
-            "salle": jury.get_salle_display() if jury.salle else "",
-            "members": [p.full_name for p in members],
-            "defense_date": date,
-            "slot_start": t,
-            "capacity": len(sel_slots),
-            "students_scheduled": [],
-        }
+
+        # Entrée de rapport : fusionnée si le jury a été PROLONGÉ (mêmes
+        # membres, même jour, même demi-journée → un seul jury).
+        report_entry = None
+        for e in result["report"]["juries"]:
+            if e.get("jury_pk") == jury.pk:
+                report_entry = e
+                break
+        if report_entry is None:
+            report_entry = {
+                "jury_pk": jury.pk,
+                "jury_name": jury.name,
+                "salle": jury.get_salle_display() if jury.salle else "",
+                "members": [p.full_name for p in members],
+                "defense_date": date,
+                "slot_start": t,
+                "capacity": 0,
+                "students_scheduled": [],
+            }
+            result["report"]["juries"].append(report_entry)
+        else:
+            report_entry["slot_start"] = min(report_entry["slot_start"], t)
         for student, slot_start in zip(sel, sel_slots):
             slot_end = (
                 datetime.combine(date, slot_start)
@@ -1411,7 +1426,8 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                 "start_time": slot_start,
                 "end_time": slot_end,
             })
-        result["report"]["juries"].append(report_entry)
+        report_entry["capacity"] = len(report_entry["students_scheduled"])
+        report_entry["students_scheduled"].sort(key=lambda s: s["start_time"])
         for student in sel:
             pool = students_by_encadrant.get(student.encadrant_id, [])
             if student in pool:
@@ -1799,8 +1815,18 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
         key=lambda e: (e["defense_date"], e["slot_start"])
     )
 
-    # 11. Numérotation par jour des jurys brouillons (Jury 1..n par date).
+    # 11. Numérotation par jour des jurys brouillons (Jury 1..n par date),
+    #     puis rafraîchissement des noms dans le rapport.
     renumber_draft_juries()
+    pk_list = [
+        e.get("jury_pk") for e in result["report"]["juries"] if e.get("jury_pk")
+    ]
+    fresh_names = dict(
+        Jury.objects.filter(pk__in=pk_list).values_list("pk", "name")
+    )
+    for e in result["report"]["juries"]:
+        if e.get("jury_pk") in fresh_names:
+            e["jury_name"] = fresh_names[e["jury_pk"]]
 
     return result
 
@@ -1901,15 +1927,42 @@ def build_consecutive_available_slots(members, defense_date, block_start, max_sl
 
 
 def create_grouped_jury_from_plan(plan, jury_index):
-    jury = Jury.objects.create(
-        name=build_grouped_jury_name(
-            students=plan["students"],
-            defense_date=plan["defense_date"],
-        ),
-        defense_date=plan["defense_date"],
-        salle=plan.get("salle", ""),
-        is_validated=False,
-    )
+    defense_date = plan["defense_date"]
+    start_times = plan["start_times"]
+    member_ids = sorted(p.id for p in plan["members"])
+    slot_label = _slot_label_at(defense_date, start_times[0]) if start_times else None
+    block_end = (
+        datetime.combine(defense_date, start_times[-1])
+        + timedelta(minutes=DEFENSE_DURATION_MINUTES)
+    ).time() if start_times else None
+
+    # ── FUSION : mêmes 3 membres + même date + même demi-journée = UN SEUL
+    #    jury. Si un jury brouillon identique existe déjà, on le PROLONGE
+    #    (les nouveaux étudiants s'ajoutent à sa suite) au lieu d'en créer
+    #    un deuxième avec un autre numéro.
+    existing = None
+    for candidate in Jury.objects.filter(
+        defense_date=defense_date, is_validated=False
+    ).prefetch_related("members"):
+        ids = sorted(m.professor_id for m in candidate.members.all())
+        if ids != member_ids:
+            continue
+        first_sched = DefenseSchedule.objects.filter(
+            jury_student__jury=candidate
+        ).order_by("start_time").first()
+        if first_sched and _slot_label_at(
+            defense_date, first_sched.start_time
+        ) != slot_label:
+            continue
+        # Un jury = une salle : sa salle doit être libre sur le nouveau bloc.
+        if candidate.salle and block_end and _salle_occupee(
+            defense_date, start_times[0], block_end, candidate.salle
+        ):
+            continue
+        existing = candidate
+        break
+
+    created_new = existing is None
 
     encadrant_absent = plan.get("encadrant_absent", False)
 
@@ -1920,7 +1973,6 @@ def create_grouped_jury_from_plan(plan, jury_index):
     # préside donc le maximum d'étudiants ; on ne bascule vers le membre
     # suivant que pour ses propres encadrés.
     experts = plan.get("experts", set())
-    defense_date = plan["defense_date"]
     president_order = sorted(
         plan["members"],
         key=lambda p: (
@@ -1936,14 +1988,26 @@ def create_grouped_jury_from_plan(plan, jury_index):
         ),
     )
 
-    try:
-        for professor in plan["members"]:
-            JuryMember.objects.create(
-                jury=jury,
-                professor=professor,
+    with transaction.atomic():
+        if created_new:
+            jury = Jury.objects.create(
+                name=build_grouped_jury_name(
+                    students=plan["students"],
+                    defense_date=defense_date,
+                ),
+                defense_date=defense_date,
+                salle=plan.get("salle", ""),
+                is_validated=False,
             )
+            for professor in plan["members"]:
+                JuryMember.objects.create(
+                    jury=jury,
+                    professor=professor,
+                )
+        else:
+            jury = existing
 
-        for student, start_time in zip(plan["students"], plan["start_times"]):
+        for student, start_time in zip(plan["students"], start_times):
             president = next(
                 (p for p in president_order if p.id != student.encadrant_id),
                 None,
@@ -1962,10 +2026,7 @@ def create_grouped_jury_from_plan(plan, jury_index):
                 duration_minutes=DEFENSE_DURATION_MINUTES,
             )
 
-    except ValidationError:
-        jury.delete()
-        raise
-
+    jury._created_new = created_new
     return jury
 
 
