@@ -3147,13 +3147,72 @@ def admin_jury_add_student(request, pk):
 
                 # Calculate the next available 30-min slot for this student
                 next_start = calculate_next_defense_slot_for_jury(jury, members)
+                schedule_warning = None
 
                 if next_start is None:
-                    messages.error(
-                        request,
-                        "Impossible d'ajouter cet étudiant : aucun horaire de passage disponible pour ce jury."
+                    # Repli admin : placer à la suite du dernier passage du
+                    # jury, même sans disponibilité déclarée de tous les
+                    # membres (avertissement). On reste dans la demi-journée
+                    # du jury et on saute les conflits/salle occupée.
+                    last = DefenseSchedule.objects.filter(
+                        jury_student__jury=jury
+                    ).order_by("-start_time").first()
+                    if last:
+                        candidate = last.end_time or slot_end_time(
+                            jury.defense_date, last.start_time,
+                            last.duration_minutes or DEFENSE_DURATION_MINUTES,
+                        )
+                    else:
+                        candidate = defense_slots.morning_slot(jury.defense_date)[0]
+
+                    jury_label = _slot_label_at(
+                        jury.defense_date,
+                        last.start_time if last else candidate,
                     )
-                    return redirect("admin_jury_detail", pk=jury.pk)
+
+                    def _fits(t):
+                        if t is None:
+                            return False
+                        label = _slot_label_at(jury.defense_date, t)
+                        if label is None or label != jury_label:
+                            return False
+                        _, slot_end = defense_slots.slot_bounds(
+                            jury.defense_date, label
+                        )
+                        return slot_end_time(jury.defense_date, t) <= slot_end
+
+                    while _fits(candidate) and (
+                        any(
+                            professor_has_conflict(m, jury.defense_date, candidate)
+                            for m in members
+                        )
+                        or (
+                            jury.salle and _salle_occupee(
+                                jury.defense_date, candidate,
+                                slot_end_time(jury.defense_date, candidate),
+                                jury.salle,
+                            )
+                        )
+                    ):
+                        candidate = slot_end_time(jury.defense_date, candidate)
+
+                    if not _fits(candidate):
+                        fin = defense_slots.slot_bounds(
+                            jury.defense_date, jury_label
+                        )[1] if jury_label else None
+                        messages.error(
+                            request,
+                            "Impossible d'ajouter cet étudiant : la demi-journée "
+                            "du jury est complète"
+                            + (f" (fin à {fin.strftime('%H:%M')})." if fin else ".")
+                        )
+                        return redirect("admin_jury_detail", pk=jury.pk)
+
+                    next_start = candidate
+                    schedule_warning = (
+                        "Horaire placé sans disponibilité déclarée de tous les "
+                        "membres — à vérifier."
+                    )
 
                 with transaction.atomic():
                     assignment = JuryStudent.objects.create(
@@ -3164,16 +3223,37 @@ def admin_jury_add_student(request, pk):
                         # le jury → marqué « encadrant absent ».
                         encadrant_absent=not encadrant_in_jury,
                     )
-                    DefenseSchedule.objects.create(
-                        jury_student=assignment,
-                        start_time=next_start,
-                        duration_minutes=DEFENSE_DURATION_MINUTES,
-                    )
+                    if schedule_warning:
+                        # bulk_create : ne bloque pas sur la validation de
+                        # disponibilité des membres (décision de l'admin).
+                        DefenseSchedule.objects.bulk_create([
+                            DefenseSchedule(
+                                jury_student=assignment,
+                                start_time=next_start,
+                                end_time=slot_end_time(
+                                    jury.defense_date, next_start,
+                                    DEFENSE_DURATION_MINUTES,
+                                ),
+                                duration_minutes=DEFENSE_DURATION_MINUTES,
+                            )
+                        ])
+                    else:
+                        DefenseSchedule.objects.create(
+                            jury_student=assignment,
+                            start_time=next_start,
+                            duration_minutes=DEFENSE_DURATION_MINUTES,
+                        )
 
             except ValidationError as exc:
                 messages.error(request, "; ".join(exc.messages))
             else:
-                messages.success(request, "L'étudiant a été ajouté au jury avec son horaire de passage.")
+                messages.success(
+                    request,
+                    f"L'étudiant a été ajouté au jury — passage à "
+                    f"{next_start.strftime('%H:%M')}."
+                )
+                if schedule_warning:
+                    messages.warning(request, schedule_warning)
                 if not encadrant_in_jury:
                     enc_name = (
                         student.encadrant.full_name
