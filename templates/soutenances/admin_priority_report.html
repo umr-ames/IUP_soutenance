@@ -6,17 +6,41 @@
 <div class="page-header">
     <div>
         <span class="eyebrow">Département de l'IUP</span>
-        <h1>Profs prioritaires — utilisation des disponibilités</h1>
+        <h1>Profs prioritaires</h1>
         <p class="text-muted" style="font-size:.9rem;">
-            Objectif : <strong>100 %</strong> des créneaux à venir utilisés. Un prof prioritaire est placé en priorité dans les jurys et devient président s'il n'en est pas l'encadrant. Marquez un prof comme prioritaire depuis la page <a href="{% url 'admin_professor_list' %}">Professeurs</a>.
+            Objectif : <strong>100 %</strong> des créneaux à venir utilisés. Un prof prioritaire est placé en priorité dans les jurys et devient président s'il n'en est pas l'encadrant. Sélectionnez-les ci-dessous.
         </p>
     </div>
     <a class="btn btn-outline-secondary" href="{% url 'admin_jury_list' %}">Retour aux jurys</a>
 </div>
 
+<!-- ── Sélection des profs prioritaires (cases à cocher) ─────────────────── -->
+<form method="post">
+    {% csrf_token %}
+    <section class="content-panel">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 style="margin:0;">Choisir les profs prioritaires</h2>
+            <span class="status-pill info">{{ priority_count }} prioritaire(s)</span>
+        </div>
+        <p class="text-muted" style="font-size:.86rem;">Cochez les professeurs prioritaires parmi la liste. En préférence, un seul prof prioritaire est placé par jury (pour bien les répartir).</p>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:6px;">
+            {% for prof in professors %}
+                <label style="display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--line); border-radius:8px;">
+                    <input type="checkbox" name="priority" value="{{ prof.id }}" {% if prof.is_priority %}checked{% endif %}>
+                    <span style="font-size:0.86rem;">{{ prof.full_name }}</span>
+                </label>
+            {% endfor %}
+        </div>
+        <div class="mt-3">
+            <button type="submit" class="btn btn-primary">Enregistrer les profs prioritaires</button>
+        </div>
+    </section>
+</form>
+
+<h2 style="margin:18px 0 10px;">Utilisation des disponibilités</h2>
 {% if not rows %}
     <section class="content-panel">
-        <div class="empty-state">Aucun professeur prioritaire pour le moment. Marquez-en depuis la page Professeurs.</div>
+        <div class="empty-state">Aucun professeur prioritaire pour le moment. Cochez-en ci-dessus.</div>
     </section>
 {% else %}
     <section class="content-panel">

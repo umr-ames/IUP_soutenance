@@ -1228,7 +1228,26 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             jury_members = profs_with_students[:3]
         else:
             jury_members = list(profs_with_students)
-            jury_members.extend(profs_without_students[:3 - len(jury_members)])
+            has_priority = any(getattr(m, "is_priority", False) for m in jury_members)
+            # Préférence : au plus UN prof prioritaire par jury (pour les répartir
+            # sur des jurys différents). On n'ajoute un prioritaire en complément
+            # que si le jury n'en a pas déjà un.
+            skipped_priority = []
+            for filler in profs_without_students:
+                if len(jury_members) >= 3:
+                    break
+                if getattr(filler, "is_priority", False):
+                    if has_priority:
+                        skipped_priority.append(filler)
+                        continue
+                    has_priority = True
+                jury_members.append(filler)
+            # Si le jury reste incomplet, on complète quand même avec les
+            # prioritaires écartés (un jury complet prime sur la répartition).
+            for filler in skipped_priority:
+                if len(jury_members) >= 3:
+                    break
+                jury_members.append(filler)
 
         if len(jury_members) < 3:
             continue
@@ -2638,11 +2657,24 @@ def build_slots_from_availability(availability):
 @login_required
 @role_required(["admin"])
 def admin_priority_professors_report(request):
-    """Liste des profs prioritaires avec le taux d'utilisation de leurs
-    disponibilités (créneaux de 20 min à venir) : combien sont déjà occupés
-    par un jury, combien restent libres. Objectif : viser 100 %."""
+    """Sélection des profs prioritaires (cases à cocher, comme les experts) et
+    rapport du taux d'utilisation de leurs disponibilités (créneaux de 20 min à
+    venir) : combien sont déjà occupés par un jury, combien restent libres."""
+    professors = list(ProfessorProfile.objects.order_by("full_name"))
+
+    if request.method == "POST":
+        posted_ids = {
+            int(pid) for pid in request.POST.getlist("priority") if pid.isdigit()
+        }
+        ProfessorProfile.objects.filter(is_priority=True).exclude(
+            id__in=posted_ids
+        ).update(is_priority=False)
+        ProfessorProfile.objects.filter(id__in=posted_ids).update(is_priority=True)
+        messages.success(request, "Liste des profs prioritaires mise à jour.")
+        return redirect("admin_priority_professors_report")
+
     today = timezone.localdate()
-    priority_profs = ProfessorProfile.objects.filter(is_priority=True).order_by("full_name")
+    priority_profs = [p for p in professors if p.is_priority]
 
     rows = []
     for prof in priority_profs:
@@ -2677,6 +2709,8 @@ def admin_priority_professors_report(request):
 
     return render(request, "soutenances/admin_priority_report.html", {
         "rows": rows,
+        "professors": professors,
+        "priority_count": len(priority_profs),
     })
 
 
