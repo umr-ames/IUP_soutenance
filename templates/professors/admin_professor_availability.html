@@ -31,6 +31,70 @@
     </div>
 </div>
 
+<!-- Menu déroulant : voir le programme d'un professeur -->
+<section class="glass-card" style="margin-bottom:16px;">
+    <form method="get" class="d-flex gap-2 align-items-end flex-wrap">
+        <div style="flex:1; min-width:280px;">
+            <label class="form-label">Voir le programme d'un professeur</label>
+            <select name="professor" class="form-select" onchange="this.form.submit()">
+                <option value="">— Choisir un professeur —</option>
+                {% for p in all_professors %}
+                    <option value="{{ p.id }}" {% if filtered_professor and filtered_professor.id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
+                {% endfor %}
+            </select>
+            <small class="form-help">Affiche ses disponibilités déclarées et les horaires de ses jurys, jour par jour.</small>
+        </div>
+        <button type="submit" class="btn btn-outline-primary">Afficher</button>
+        {% if filtered_professor %}
+            <a href="{% url 'admin_professor_availability' %}" class="btn btn-outline-secondary">Effacer</a>
+        {% endif %}
+    </form>
+</section>
+
+{% if filtered_professor %}
+    {% with row=professor_rows.0 %}
+    <section class="glass-card" style="margin-bottom:16px;">
+        <div class="card-header-flex">
+            <div>
+                <span class="eyebrow">Programme</span>
+                <h3>{{ filtered_professor.full_name }}</h3>
+            </div>
+            <div class="d-flex gap-2">
+                <span class="status-pill info">{{ row.scheduled_juries|default:0 }} jury(s) programmé(s)</span>
+                <span class="status-pill" style="background:rgba(13,148,136,.15); color:#0f5e59;">{{ row.scheduled_students|default:0 }} étudiant(s) à faire passer</span>
+            </div>
+        </div>
+        {% if row.days %}
+            {% for day in row.days %}
+                <div class="mb-2" style="padding:10px; border:1px solid var(--line); border-radius:8px;">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span class="status-pill info">{{ day.date|date:"D d/m/Y" }}</span>
+                        <span class="text-muted" style="font-size:.8rem;">Disponible :</span>
+                        {% for slot in day.slots %}
+                            <span class="status-pill">{{ slot.start_time|time:"H:i" }}–{{ slot.end_time|time:"H:i" }}</span>
+                        {% empty %}
+                            <span class="text-muted" style="font-size:.8rem;">Aucune disponibilité déclarée ce jour.</span>
+                        {% endfor %}
+                    </div>
+                    <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+                        <span class="text-muted" style="font-size:.8rem;">Jurys :</span>
+                        {% for entry in day.programme %}
+                            <span class="status-pill" style="background:rgba(13,148,136,.12); color:#0f5e59;">
+                                {{ entry.jury.name }}{% if entry.jury.salle %} · {{ entry.jury.get_salle_display }}{% endif %}{% if entry.start %} · {{ entry.start|time:"H:i" }}–{{ entry.end|time:"H:i" }}{% endif %} · {{ entry.students_count }} étudiant(s){% if entry.jury.is_validated %} · publié{% else %} · brouillon{% endif %}
+                            </span>
+                        {% empty %}
+                            <span class="text-muted" style="font-size:.8rem;">Aucun jury programmé ce jour.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">Ce professeur n'a ni disponibilité à venir ni jury programmé.</div>
+        {% endif %}
+    </section>
+    {% endwith %}
+{% endif %}
+
 {% if not filtered_professor and profs_sans_dispo_count %}
 <div class="glass-card" style="margin-bottom:16px; border-left:5px solid #dc2626;">
     <strong style="color:#b91c1c;">Professeurs sans disponibilité ({{ profs_sans_dispo_count }})</strong>

@@ -134,6 +134,10 @@ def admin_professor_availability(request):
     # ── Programme des professeurs : soutenances déjà planifiées, affichées en
     #    face des disponibilités (jury, salle, horaires, nb d'étudiants). ──
     prof_ids = [row["professor"].id for row in professor_rows]
+    # Un prof filtré sans aucune disponibilité peut quand même avoir des jurys :
+    # on inclut son id pour afficher son programme.
+    if filtered_professor and filtered_professor.id not in prof_ids:
+        prof_ids.append(filtered_professor.id)
     memberships = JuryMember.objects.filter(
         professor_id__in=prof_ids,
         jury__defense_date__gte=today,
@@ -166,12 +170,47 @@ def admin_professor_availability(request):
         prof_prog = prog_by_prof.get(row["professor"].id, {})
         total_students = 0
         juries_count = 0
-        for day in row["days"]:
-            day["programme"] = prof_prog.get(day["date"], [])
-            juries_count += len(day["programme"])
-            total_students += sum(e["students_count"] for e in day["programme"])
+        # Union des dates : jours où il est disponible + jours où il a un jury
+        # (même sans disponibilité déclarée ce jour-là).
+        avail_by_date = {day["date"]: day["slots"] for day in row["days"]}
+        all_dates = sorted(set(avail_by_date) | set(prof_prog))
+        merged_days = []
+        for d in all_dates:
+            programme = prof_prog.get(d, [])
+            merged_days.append({
+                "date": d,
+                "slots": avail_by_date.get(d, []),
+                "programme": programme,
+            })
+            juries_count += len(programme)
+            total_students += sum(e["students_count"] for e in programme)
+        row["days"] = merged_days
         row["scheduled_juries"] = juries_count
         row["scheduled_students"] = total_students
+
+    # Prof filtré sans AUCUNE disponibilité mais avec des jurys : créer sa ligne.
+    if filtered_professor and not any(
+        r["professor"].id == filtered_professor.id for r in professor_rows
+    ):
+        prof_prog = prog_by_prof.get(filtered_professor.id, {})
+        if prof_prog:
+            all_dates = sorted(prof_prog.keys())
+            juries_count = sum(len(prof_prog[d]) for d in all_dates)
+            total_students = sum(
+                e["students_count"] for d in all_dates for e in prof_prog[d]
+            )
+            professor_rows.append({
+                "professor": filtered_professor,
+                "slots_count": 0,
+                "days_count": 0,
+                "next_date": None,
+                "days": [
+                    {"date": d, "slots": [], "programme": prof_prog[d]}
+                    for d in all_dates
+                ],
+                "scheduled_juries": juries_count,
+                "scheduled_students": total_students,
+            })
 
     # Professeurs sans AUCUNE disponibilité future (à relancer).
     with_future = set(
@@ -185,6 +224,7 @@ def admin_professor_availability(request):
     return render(request, "professors/admin_professor_availability.html", {
         "professor_rows": professor_rows,
         "filtered_professor": filtered_professor,
+        "all_professors": ProfessorProfile.objects.order_by("full_name"),
         "profs_sans_dispo": profs_sans_dispo,
         "profs_sans_dispo_count": profs_sans_dispo.count(),
     })
