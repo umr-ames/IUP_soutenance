@@ -768,6 +768,7 @@ def build_generation_report_payload(result):
         "total_ready": report.get("total_ready", 0),
         "created": result.get("created", 0),
         "assigned": result.get("assigned", 0),
+        "filled_existing": report.get("filled_existing", 0),
         "errors_count": len(errors),
         "feasibility": report.get("feasibility", {}),
         "priority_usage": report.get("priority_usage", []),
@@ -1294,6 +1295,65 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
     initial_by_enc = {
         eid: len(sts) for eid, sts in students_by_encadrant.items()
     }
+
+    # 2bis. PHASE DE REMPLISSAGE : avant de créer de NOUVEAUX jurys, on place
+    #       d'abord les étudiants sans jury dans les jurys EXISTANTS (brouillons
+    #       ET publiés) où leur encadrant est membre et où il reste un créneau
+    #       libre. On ne retire/déplace JAMAIS un étudiant déjà présent.
+    today = timezone.localdate()
+    filled = 0
+    for enc_id in list(students_by_encadrant.keys()):
+        students = students_by_encadrant[enc_id]
+        while students:
+            placed = False
+            candidate_juries = (
+                Jury.objects.filter(
+                    members__professor_id=enc_id,
+                    defense_date__gte=today,
+                ).order_by("defense_date", "id").distinct()
+            )
+            for jury in candidate_juries:
+                jmembers = [m.professor for m in jury.members.select_related("professor")]
+                slot = find_free_slot_in_jury(jury, jmembers)
+                if slot is None:
+                    continue
+                student = students[0]
+                president = choose_president_for_student(
+                    student=student, members=jmembers, defense_date=jury.defense_date,
+                )
+                try:
+                    with transaction.atomic():
+                        js = JuryStudent.objects.create(
+                            jury=jury, student=student, president=president,
+                            encadrant_absent=False,
+                        )
+                        DefenseSchedule.objects.create(
+                            jury_student=js, start_time=slot,
+                            duration_minutes=DEFENSE_DURATION_MINUTES,
+                        )
+                        refresh_jury_name_count(jury)
+                except ValidationError:
+                    continue
+                if jury.is_validated:
+                    notify(
+                        getattr(student, "user", None),
+                        "Soutenance planifiée",
+                        f"Votre soutenance est prévue le "
+                        f"{jury.defense_date.strftime('%d/%m/%Y')} à "
+                        f"{slot.strftime('%H:%M')} (jury « {jury.name} », salle "
+                        f"{jury.get_salle_display() or '—'}).",
+                        "/student-dashboard/",
+                        category=Notification.CATEGORY_JURY,
+                    )
+                students.pop(0)
+                filled += 1
+                result["assigned"] += 1
+                result["scheduled"] += 1
+                placed = True
+                break
+            if not placed:
+                break
+    result["report"]["filled_existing"] = filled
 
     # 3. Unités de planification : (date, demi-journée) de la fenêtre
     all_units = []
@@ -2102,6 +2162,45 @@ def find_common_block(members, new_date, n, preferred_salle=""):
         if salle:
             return times, salle
     return None, None
+
+
+def find_free_slot_in_jury(jury, members=None):
+    """Trouve le PREMIER créneau de 20 min libre dans la demi-journée du jury
+    (trou dans le programme OU place à la fin), SANS déplacer les étudiants
+    déjà présents. Conditions : les 3 membres disponibles + salle libre à ce
+    créneau. Renvoie le start_time ou None."""
+    if members is None:
+        members = [m.professor for m in jury.members.select_related("professor")]
+    if len(members) < 3:
+        return None
+    scheds = list(
+        DefenseSchedule.objects.filter(jury_student__jury=jury).order_by("start_time")
+    )
+    if not scheds:
+        return None
+    label = _slot_label_at(jury.defense_date, scheds[0].start_time)
+    if not label:
+        return None
+    hd_start, hd_end = defense_slots.slot_bounds(jury.defense_date, label)
+    occupied = {s.start_time for s in scheds}
+    cursor = datetime.combine(jury.defense_date, hd_start)
+    limit = datetime.combine(jury.defense_date, hd_end)
+    while cursor + timedelta(minutes=DEFENSE_DURATION_MINUTES) <= limit:
+        t = cursor.time()
+        if t not in occupied:
+            end = slot_end_time(jury.defense_date, t)
+            members_ok = all(
+                is_professor_available(m, jury.defense_date, t)
+                and not professor_has_conflict(m, jury.defense_date, t)
+                for m in members
+            )
+            room_ok = not (
+                jury.salle and _salle_occupee(jury.defense_date, t, end, jury.salle)
+            )
+            if members_ok and room_ok:
+                return t
+        cursor = cursor + timedelta(minutes=DEFENSE_DURATION_MINUTES)
+    return None
 
 
 def free_slot_at_end_of_jury(jury, members=None):
@@ -4233,7 +4332,7 @@ def admin_fill_unassigned_into_juries(request):
         )
         for jury in candidate_juries:
             members = [m.professor for m in jury.members.select_related("professor")]
-            start = free_slot_at_end_of_jury(jury, members)
+            start = find_free_slot_in_jury(jury, members)
             if start is None:
                 continue
             president = choose_president_for_student(
@@ -4249,10 +4348,19 @@ def admin_fill_unassigned_into_juries(request):
                         jury_student=js, start_time=start,
                         duration_minutes=DEFENSE_DURATION_MINUTES,
                     )
-                    recompact_jury_schedule(jury)
                     refresh_jury_name_count(jury)
             except ValidationError:
                 continue
+            if jury.is_validated:
+                notify(
+                    getattr(student, "user", None),
+                    "Soutenance planifiée",
+                    f"Votre soutenance est prévue le "
+                    f"{jury.defense_date.strftime('%d/%m/%Y')} à "
+                    f"{start.strftime('%H:%M')} (jury « {jury.name} »).",
+                    "/student-dashboard/",
+                    category=Notification.CATEGORY_JURY,
+                )
             placed += 1
             break
 
