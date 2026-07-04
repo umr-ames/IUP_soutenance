@@ -50,9 +50,10 @@
         <span class="eyebrow">Report</span>
         <h3>Reprogrammer ce jury à une autre date</h3>
         <p class="text-muted mb-2" style="font-size:.88rem;">
-            En cas de coupure d'électricité ou d'imprévu : déplace <strong>tout le jury</strong>
-            (mêmes membres, mêmes étudiants) vers un créneau où <strong>les 3 membres sont disponibles simultanément</strong>.
-            {% if jury.is_validated %}Le jury étant publié, étudiants et professeurs seront prévenus du report.{% endif %}
+            En cas de coupure d'électricité ou d'imprévu : déplace les étudiants <strong>non notés</strong>
+            vers un créneau où <strong>les 3 membres sont disponibles simultanément</strong>.
+            {% if graded_count %}<br><strong style="color:#0f5e59;">{{ graded_count }} étudiant(s) déjà noté(s)</strong> resteront sur leur date d'origine (soutenance terminée) — ils ne sont pas reprogrammés.{% endif %}
+            {% if jury.is_validated %} Le jury étant publié, les étudiants déplacés et les professeurs seront prévenus.{% endif %}
         </p>
         {% if reschedule_options %}
             <form method="post" class="row g-2 align-items-end" style="max-width:640px;"
@@ -285,6 +286,9 @@
             <div class="col-md-4">
                 <div class="timeline-item h-100">
                     <strong>{{ js.student.full_name }}</strong>
+                    {% if js.evaluations.exists or js.result %}
+                        <span class="status-pill" style="background:rgba(13,148,136,.15); color:#0f5e59; margin-left:4px;">✓ Déjà noté</span>
+                    {% endif %}
                     <span class="d-block text-muted">
                         {{ js.student.matricule }}
                         {% if js.student.filiere %} · {{ js.student.filiere }}{% endif %}

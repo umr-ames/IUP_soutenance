@@ -2916,12 +2916,20 @@ def admin_jury_update(request, pk):
         "move_target_juries": Jury.objects.exclude(pk=jury.pk).order_by(
             "defense_date", "name"
         ),
-        # Créneaux proposés pour reprogrammer (dispo commune des 3 membres).
+        # Créneaux proposés pour reprogrammer (dispo commune des 3 membres),
+        # dimensionnés sur les étudiants NON notés (les notés ne bougent pas).
         "reschedule_options": reschedule_options_for_jury(
             jury,
             [m.professor for m in current_members],
-            len(jury_students),
+            sum(
+                1 for js in jury_students
+                if not (js.evaluations.exists() or hasattr(js, "result"))
+            ),
         ) if len(current_members) >= 3 else [],
+        "graded_count": sum(
+            1 for js in jury_students
+            if js.evaluations.exists() or hasattr(js, "result")
+        ),
     }
 
     # ── 4. POST : retirer un membre ────────────────────────────────────────
@@ -3395,7 +3403,22 @@ def admin_jury_update(request, pk):
             JuryStudent.objects.filter(jury=jury)
             .select_related("student__user").order_by("schedule__start_time", "id")
         )
-        n = len(js_list)
+        # Les étudiants DÉJÀ NOTÉS (évaluation ou résultat) restent sur leur
+        # date d'origine : on ne reprogramme QUE les non notés.
+        graded = [
+            js for js in js_list
+            if js.evaluations.exists() or hasattr(js, "result")
+        ]
+        to_move = [js for js in js_list if js not in graded]
+        n = len(to_move)
+
+        if n == 0:
+            messages.info(
+                request,
+                "Aucun étudiant à reprogrammer : tous les étudiants de ce jury "
+                "sont déjà notés."
+            )
+            return redirect("admin_jury_update", pk=jury.pk)
 
         # L'admin choisit un CRÉNEAU PROPOSÉ (date|HH:MM) où les 3 membres sont
         # disponibles simultanément — pas une date au hasard.
@@ -3417,39 +3440,62 @@ def admin_jury_update(request, pk):
         start_times, salle = build_block_from_start(
             members, new_date, chosen_start, n, preferred_salle=jury.salle
         )
-        if n and start_times is None:
+        if start_times is None:
             messages.error(
                 request,
                 f"Ce créneau n'est plus disponible pour les 3 membres le "
                 f"{new_date.strftime('%d/%m/%Y')}. Choisissez-en un autre dans la liste."
             )
             return redirect("admin_jury_update", pk=jury.pk)
-        if not n:
-            start_times, salle = [], jury.salle
 
+        target_jury = jury
+        split = bool(graded)
         with transaction.atomic():
-            Jury.objects.filter(pk=jury.pk).update(defense_date=new_date, salle=salle)
-            jury.defense_date = new_date
-            jury.salle = salle
-            # Replacer chaque passage sur le bloc commun trouvé (update() pour
-            # ne pas rejouer la validation ; le bloc est déjà validé disponible).
-            for js, t in zip(js_list, start_times):
-                DefenseSchedule.objects.filter(jury_student=js).update(
-                    start_time=t,
-                    end_time=slot_end_time(new_date, t),
+            if split:
+                # Certains étudiants sont déjà notés → ils RESTENT dans le jury
+                # d'origine (date d'origine). On crée un NOUVEAU jury (mêmes
+                # membres) à la nouvelle date pour les non notés.
+                target_jury = Jury.objects.create(
+                    name=build_grouped_jury_name(
+                        [js.student for js in to_move], new_date
+                    ),
+                    defense_date=new_date,
+                    salle=salle,
+                    is_validated=jury.is_validated,
                 )
+                for m in members:
+                    JuryMember.objects.create(jury=target_jury, professor=m)
+                for js, t in zip(to_move, start_times):
+                    JuryStudent.objects.filter(pk=js.pk).update(jury=target_jury)
+                    DefenseSchedule.objects.filter(jury_student=js).update(
+                        start_time=t, end_time=slot_end_time(new_date, t),
+                    )
+                # Le jury d'origine ne garde que les notés : on rafraîchit son
+                # nom, sans toucher aux horaires déjà passés.
+                refresh_jury_name_count(jury)
+                refresh_jury_name_count(target_jury)
+            else:
+                # Aucun étudiant noté → on déplace tout le jury.
+                Jury.objects.filter(pk=jury.pk).update(
+                    defense_date=new_date, salle=salle
+                )
+                target_jury.defense_date = new_date
+                target_jury.salle = salle
+                for js, t in zip(to_move, start_times):
+                    DefenseSchedule.objects.filter(jury_student=js).update(
+                        start_time=t, end_time=slot_end_time(new_date, t),
+                    )
 
-        warnings = []
-        if jury.is_validated:
-            for js in JuryStudent.objects.filter(jury=jury).select_related("student__user"):
-                sch = getattr(js, "schedule", None)
-                hh = f" à {sch.start_time.strftime('%H:%M')}" if sch else ""
+        # Notifier les non notés (déplacés) + les membres si publié.
+        if target_jury.is_validated:
+            for js, t in zip(to_move, start_times):
                 notify(
                     getattr(js.student, "user", None),
                     "Soutenance reportée",
                     f"Votre soutenance est reportée au "
-                    f"{new_date.strftime('%d/%m/%Y')}{hh} (jury « {jury.name} », "
-                    f"salle {jury.get_salle_display() or '—'}).",
+                    f"{new_date.strftime('%d/%m/%Y')} à {t.strftime('%H:%M')} "
+                    f"(jury « {target_jury.name} », salle "
+                    f"{target_jury.get_salle_display() or '—'}).",
                     "/student-dashboard/",
                     category=Notification.CATEGORY_JURY,
                 )
@@ -3457,28 +3503,32 @@ def admin_jury_update(request, pk):
                 notify(
                     getattr(m, "user", None),
                     "Jury reporté",
-                    f"Le jury « {jury.name} » est reporté au "
+                    f"Le jury « {target_jury.name} » est prévu le "
                     f"{new_date.strftime('%d/%m/%Y')}.",
                     "/professors/juries/",
                     category=Notification.CATEGORY_JURY,
                 )
 
-        if start_times:
-            créneau = (
-                f" — passages de {start_times[0].strftime('%H:%M')} à "
-                f"{slot_end_time(new_date, start_times[-1]).strftime('%H:%M')} "
-                f"en {jury.get_salle_display()}"
+        créneau = (
+            f" — passages de {start_times[0].strftime('%H:%M')} à "
+            f"{slot_end_time(new_date, start_times[-1]).strftime('%H:%M')} "
+            f"en {target_jury.get_salle_display()}"
+        )
+        if split:
+            messages.success(
+                request,
+                f"{n} étudiant(s) non noté(s) reprogrammé(s) au "
+                f"{new_date.strftime('%d/%m/%Y')}{créneau}. Les "
+                f"{len(graded)} étudiant(s) déjà noté(s) restent sur leur date "
+                f"d'origine (jury « {jury.name} »)."
             )
         else:
-            créneau = ""
-        messages.success(
-            request,
-            f"Jury reprogrammé au {new_date.strftime('%d/%m/%Y')}{créneau} "
-            f"(disponibilité commune des 3 membres vérifiée)."
-        )
-        for w in warnings:
-            messages.warning(request, w)
-        return redirect("admin_jury_update", pk=jury.pk)
+            messages.success(
+                request,
+                f"Jury reprogrammé au {new_date.strftime('%d/%m/%Y')}{créneau} "
+                f"(disponibilité commune des 3 membres vérifiée)."
+            )
+        return redirect("admin_jury_update", pk=target_jury.pk)
 
     # ── 7. POST : désigner le président d'une soutenance (≠ encadrant) ────────
     if request.method == "POST" and request.POST.get("action") == "set_president":
