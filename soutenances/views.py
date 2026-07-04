@@ -2053,16 +2053,19 @@ def build_grouped_jury_name(students, defense_date):
 def recompact_jury_schedule(jury):
     """Réorganise les horaires d'un jury pour supprimer les trous : les
     passages restants sont replacés de façon contiguë (20 min chacun) à
-    partir de l'heure du premier passage. À appeler après ajout/retrait/
-    déplacement d'un étudiant. Utilise update() pour ne pas rejouer la
-    validation de disponibilité (le bloc était déjà valide)."""
+    partir de l'heure du premier passage. S'applique aussi aux jurys
+    PUBLIÉS ; dans ce cas, les étudiants dont l'horaire change sont prévenus.
+    Utilise update() pour ne pas rejouer la validation de disponibilité
+    (le bloc était déjà valide)."""
     scheds = list(
         DefenseSchedule.objects.filter(jury_student__jury=jury)
+        .select_related("jury_student__student__user")
         .order_by("start_time", "id")
     )
     if not scheds:
         return
     cursor = datetime.combine(jury.defense_date, scheds[0].start_time)
+    changed = []
     for sched in scheds:
         minutes = sched.duration_minutes or DEFENSE_DURATION_MINUTES
         new_start = cursor.time()
@@ -2071,7 +2074,22 @@ def recompact_jury_schedule(jury):
             DefenseSchedule.objects.filter(pk=sched.pk).update(
                 start_time=new_start, end_time=new_end,
             )
+            changed.append((sched.jury_student, new_start, new_end))
         cursor = cursor + timedelta(minutes=minutes)
+
+    # Jury déjà publié : prévenir les étudiants dont l'horaire a bougé.
+    if jury.is_validated and changed:
+        for js, new_start, new_end in changed:
+            notify(
+                getattr(js.student, "user", None),
+                "Horaire de soutenance ajusté",
+                f"Votre passage est désormais prévu à "
+                f"{new_start.strftime('%H:%M')}–{new_end.strftime('%H:%M')} "
+                f"le {jury.defense_date.strftime('%d/%m/%Y')} "
+                f"(jury « {jury.name} »).",
+                "/student-dashboard/",
+                category=Notification.CATEGORY_JURY,
+            )
 
 
 def refresh_jury_name_count(jury):
@@ -3185,6 +3203,15 @@ def admin_jury_update(request, pk):
                     "/student-dashboard/",
                     category=Notification.CATEGORY_JURY,
                 )
+        return redirect("admin_jury_update", pk=jury.pk)
+
+    # ── 6quinquies. POST : resserrer les horaires (supprimer les trous) ──────
+    if request.method == "POST" and request.POST.get("action") == "recompact":
+        recompact_jury_schedule(jury)
+        messages.success(
+            request,
+            "Horaires resserrés : les passages sont désormais contigus (sans trou)."
+        )
         return redirect("admin_jury_update", pk=jury.pk)
 
     # ── 7. POST : désigner le président d'une soutenance (≠ encadrant) ────────

@@ -66,11 +66,20 @@
             </p>
         </div>
 
-        {% if current_members_count < 3 %}
-            <span class="status-pill warning">Jury incomplet ({{ current_members_count }}/3)</span>
-        {% else %}
-            <span class="status-pill success">3/3 membres</span>
-        {% endif %}
+        <div class="d-flex flex-column align-items-end gap-2">
+            {% if current_members_count < 3 %}
+                <span class="status-pill warning">Jury incomplet ({{ current_members_count }}/3)</span>
+            {% else %}
+                <span class="status-pill success">3/3 membres</span>
+            {% endif %}
+            {% if has_real_slot %}
+                <form method="post" onsubmit="return confirm('Resserrer les horaires de ce jury (supprimer les trous) ?{% if jury.is_validated %} Le jury est publié : les étudiants concernés seront prévenus de leur nouvel horaire.{% endif %}');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="recompact">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Resserrer les horaires</button>
+                </form>
+            {% endif %}
+        </div>
     </div>
 
     <div class="row g-2 mt-2">
