@@ -3214,6 +3214,87 @@ def admin_jury_update(request, pk):
         )
         return redirect("admin_jury_update", pk=jury.pk)
 
+    # ── 6sexies. POST : REPROGRAMMER le jury entier à une autre date ─────────
+    #     (report suite à coupure d'électricité, etc.) — composition, salle,
+    #     étudiants et ordre de passage conservés.
+    if request.method == "POST" and request.POST.get("action") == "reschedule_date":
+        raw = (request.POST.get("new_date") or "").strip()
+        try:
+            new_date = date_cls.fromisoformat(raw)
+        except ValueError:
+            messages.error(request, "Date invalide.")
+            return redirect("admin_jury_update", pk=jury.pk)
+        if new_date < timezone.localdate():
+            messages.error(request, "La nouvelle date doit être aujourd'hui ou ultérieure.")
+            return redirect("admin_jury_update", pk=jury.pk)
+        if new_date == jury.defense_date:
+            messages.info(request, "Le jury est déjà à cette date.")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        members = [m.professor for m in jury.members.select_related("professor")]
+        scheds = list(
+            DefenseSchedule.objects.filter(jury_student__jury=jury).order_by("start_time")
+        )
+        Jury.objects.filter(pk=jury.pk).update(defense_date=new_date)
+        jury.defense_date = new_date
+
+        warnings = []
+        if jury.salle and scheds:
+            b_start = scheds[0].start_time
+            b_end = scheds[-1].end_time or slot_end_time(new_date, scheds[-1].start_time)
+            room_conflict = DefenseSchedule.objects.filter(
+                jury_student__jury__defense_date=new_date,
+                jury_student__jury__salle=jury.salle,
+                start_time__lt=b_end, end_time__gt=b_start,
+            ).exclude(jury_student__jury=jury).exists()
+            if room_conflict:
+                warnings.append(
+                    f"La salle {jury.get_salle_display()} est déjà occupée sur ce "
+                    f"créneau le {new_date.strftime('%d/%m/%Y')} — changez de salle."
+                )
+        for m in members:
+            has_other = DefenseSchedule.objects.filter(
+                jury_student__jury__defense_date=new_date,
+                jury_student__jury__members__professor=m,
+            ).exclude(jury_student__jury=jury).exists()
+            if has_other:
+                warnings.append(
+                    f"{m.full_name} siège déjà dans un autre jury le "
+                    f"{new_date.strftime('%d/%m/%Y')} — à vérifier."
+                )
+
+        if jury.is_validated:
+            for js in JuryStudent.objects.filter(jury=jury).select_related("student__user"):
+                sch = getattr(js, "schedule", None)
+                hh = f" à {sch.start_time.strftime('%H:%M')}" if sch else ""
+                notify(
+                    getattr(js.student, "user", None),
+                    "Soutenance reportée",
+                    f"Votre soutenance est reportée au "
+                    f"{new_date.strftime('%d/%m/%Y')}{hh} (jury « {jury.name} », "
+                    f"salle {jury.get_salle_display() or '—'}).",
+                    "/student-dashboard/",
+                    category=Notification.CATEGORY_JURY,
+                )
+            for m in members:
+                notify(
+                    getattr(m, "user", None),
+                    "Jury reporté",
+                    f"Le jury « {jury.name} » est reporté au "
+                    f"{new_date.strftime('%d/%m/%Y')}.",
+                    "/professors/juries/",
+                    category=Notification.CATEGORY_JURY,
+                )
+
+        messages.success(
+            request,
+            f"Jury reprogrammé au {new_date.strftime('%d/%m/%Y')} — composition, "
+            f"salle et passages conservés."
+        )
+        for w in warnings:
+            messages.warning(request, w)
+        return redirect("admin_jury_update", pk=jury.pk)
+
     # ── 7. POST : désigner le président d'une soutenance (≠ encadrant) ────────
     if request.method == "POST" and request.POST.get("action") == "set_president":
         try:

@@ -44,7 +44,32 @@
             <button type="submit" class="btn btn-primary w-100">Enregistrer la salle</button>
         </div>
     </form>
+
+    <hr>
+    <div>
+        <span class="eyebrow">Report</span>
+        <h3>Reprogrammer ce jury à une autre date</h3>
+        <p class="text-muted mb-2" style="font-size:.88rem;">
+            En cas de coupure d'électricité ou d'imprévu : déplace <strong>tout le jury</strong>
+            (mêmes membres, même salle, mêmes étudiants et mêmes horaires) vers une autre date,
+            sans le supprimer. {% if jury.is_validated %}Le jury étant publié, étudiants et professeurs seront prévenus du report.{% endif %}
+        </p>
+        <form method="post" class="row g-2 align-items-end" style="max-width:520px;"
+              onsubmit="return confirm('Reprogrammer ce jury à la date choisie ?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reschedule_date">
+            <div class="col-md-8">
+                <label class="form-label">Nouvelle date de soutenance</label>
+                <input type="date" name="new_date" value="{{ jury.defense_date|date:'Y-m-d' }}" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-outline-primary w-100">Reprogrammer</button>
+            </div>
+        </form>
+    </div>
 </div>
+{# NB : si un jury a déjà été SUPPRIMÉ, ses étudiants sont redevenus « sans jury » :
+   utilisez « Générer automatiquement » (fenêtre future) ou « Ajouter un jury manuel ». #}
 
 <!-- ── Section 1 : Créneau réel + Composition actuelle ────────────────────── -->
 <div class="glass-card">
