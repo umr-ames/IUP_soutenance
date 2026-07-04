@@ -1380,9 +1380,15 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             and not professor_busy_other_slot(p, date, slot)
         )
 
+    # PK des jurys créés durant CE run (seuls fusionnables entre eux ; les
+    # jurys existants ne sont jamais modifiés par la génération).
+    created_ids = set()
+
     def register_jury(jury, members, sel, sel_slots, date, t, experts_here):
         nonlocal jury_index
         created_new = getattr(jury, "_created_new", True)
+        # Jurys créés durant CE run : seuls eux sont fusionnables entre eux.
+        created_ids.add(jury.pk)
         if created_new:
             result["created"] += 1
             jury_index += 1
@@ -1612,7 +1618,9 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                 "experts": c["experts_here"],
             }
             try:
-                jury = create_grouped_jury_from_plan(plan, jury_index)
+                jury = create_grouped_jury_from_plan(
+                    plan, jury_index, mergeable_ids=created_ids
+                )
             except ValidationError:
                 continue
             register_jury(
@@ -1729,7 +1737,9 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                         "encadrant_absent": True,
                     }
                     try:
-                        jury = create_grouped_jury_from_plan(plan, jury_index)
+                        jury = create_grouped_jury_from_plan(
+                            plan, jury_index, mergeable_ids=created_ids
+                        )
                     except ValidationError as exc:
                         for student in sel:
                             result["errors"].append({
@@ -1826,9 +1836,10 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
         key=lambda e: (e["defense_date"], e["slot_start"])
     )
 
-    # 11. Numérotation par jour des jurys brouillons (Jury 1..n par date),
-    #     puis rafraîchissement des noms dans le rapport.
-    renumber_draft_juries()
+    # 11. On NE renumérote PAS les brouillons existants : la génération ne
+    #     touche jamais aux jurys déjà créés. Les nouveaux jurys ont déjà un
+    #     numéro par jour attribué à leur création (après les jurys existants).
+    #     On rafraîchit seulement les noms dans le rapport.
     pk_list = [
         e.get("jury_pk") for e in result["report"]["juries"] if e.get("jury_pk")
     ]
@@ -1937,7 +1948,7 @@ def build_consecutive_available_slots(members, defense_date, block_start, max_sl
     return slots
 
 
-def create_grouped_jury_from_plan(plan, jury_index):
+def create_grouped_jury_from_plan(plan, jury_index, mergeable_ids=None):
     defense_date = plan["defense_date"]
     start_times = plan["start_times"]
     member_ids = sorted(p.id for p in plan["members"])
@@ -1948,13 +1959,18 @@ def create_grouped_jury_from_plan(plan, jury_index):
     ).time() if start_times else None
 
     # ── FUSION : mêmes 3 membres + même date + même demi-journée = UN SEUL
-    #    jury. Si un jury brouillon identique existe déjà, on le PROLONGE
-    #    (les nouveaux étudiants s'ajoutent à sa suite) au lieu d'en créer
-    #    un deuxième avec un autre numéro.
+    #    jury. On ne prolonge QUE les jurys créés pendant CE run de génération
+    #    (mergeable_ids) : les jurys existants (brouillons compris) ne sont
+    #    JAMAIS modifiés par la génération automatique.
     existing = None
-    for candidate in Jury.objects.filter(
+    merge_pool = Jury.objects.filter(
         defense_date=defense_date, is_validated=False
-    ).prefetch_related("members"):
+    )
+    if mergeable_ids is None:
+        merge_pool = merge_pool.none()
+    else:
+        merge_pool = merge_pool.filter(pk__in=mergeable_ids)
+    for candidate in merge_pool.prefetch_related("members"):
         ids = sorted(m.professor_id for m in candidate.members.all())
         if ids != member_ids:
             continue
