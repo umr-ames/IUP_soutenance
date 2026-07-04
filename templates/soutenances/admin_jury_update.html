@@ -51,21 +51,37 @@
         <h3>Reprogrammer ce jury à une autre date</h3>
         <p class="text-muted mb-2" style="font-size:.88rem;">
             En cas de coupure d'électricité ou d'imprévu : déplace <strong>tout le jury</strong>
-            (mêmes membres, même salle, mêmes étudiants et mêmes horaires) vers une autre date,
-            sans le supprimer. {% if jury.is_validated %}Le jury étant publié, étudiants et professeurs seront prévenus du report.{% endif %}
+            (mêmes membres, mêmes étudiants) vers un créneau où <strong>les 3 membres sont disponibles simultanément</strong>.
+            {% if jury.is_validated %}Le jury étant publié, étudiants et professeurs seront prévenus du report.{% endif %}
         </p>
-        <form method="post" class="row g-2 align-items-end" style="max-width:520px;"
-              onsubmit="return confirm('Reprogrammer ce jury à la date choisie ?');">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="reschedule_date">
-            <div class="col-md-8">
-                <label class="form-label">Nouvelle date de soutenance</label>
-                <input type="date" name="new_date" value="{{ jury.defense_date|date:'Y-m-d' }}" class="form-control" required>
+        {% if reschedule_options %}
+            <form method="post" class="row g-2 align-items-end" style="max-width:640px;"
+                  onsubmit="return confirm('Reprogrammer ce jury au créneau choisi ?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="reschedule_date">
+                <div class="col-md-8">
+                    <label class="form-label">Créneau (les 3 membres disponibles)</label>
+                    <select name="reschedule_slot" class="form-select" required>
+                        <option value="">— Choisir un créneau proposé —</option>
+                        {% for opt in reschedule_options %}
+                            <option value="{{ opt.value }}">
+                                {{ opt.date|date:"D d/m/Y" }} · {{ opt.half }} · {{ opt.start|time:"H:i" }}–{{ opt.end|time:"H:i" }} · {{ opt.salle }}{% if opt.current %} (date actuelle){% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-help">Seuls les créneaux où les 3 membres sont libres simultanément (avec une salle) sont proposés.</small>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-outline-primary w-100">Reprogrammer</button>
+                </div>
+            </form>
+        {% else %}
+            <div class="helper-hint empty">
+                Aucun créneau commun aux 3 membres n'est disponible. Demandez-leur de
+                déclarer des disponibilités communes (page « Disponibilités des professeurs »),
+                puis revenez ici.
             </div>
-            <div class="col-md-4">
-                <button type="submit" class="btn btn-outline-primary w-100">Reprogrammer</button>
-            </div>
-        </form>
+        {% endif %}
     </div>
 </div>
 {# NB : si un jury a déjà été SUPPRIMÉ, ses étudiants sont redevenus « sans jury » :

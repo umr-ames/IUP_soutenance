@@ -2130,6 +2130,88 @@ def free_slot_at_end_of_jury(jury, members=None):
     return start
 
 
+def build_block_from_start(members, on_date, start, n, preferred_salle=""):
+    """Vérifie qu'à partir de `start` le `on_date`, il y a `n` passages
+    consécutifs où les 3 membres sont disponibles + une salle libre. Renvoie
+    (start_times, salle) ou (None, None)."""
+    if n <= 0:
+        return [], (preferred_salle or "")
+    common = {t for (d, t) in get_common_available_slots(members) if d == on_date}
+    label = _slot_label_at(on_date, start)
+    if not label:
+        return None, None
+    _, hd_end = defense_slots.slot_bounds(on_date, label)
+    times = []
+    cursor = datetime.combine(on_date, start)
+    for _ in range(n):
+        t = cursor.time()
+        nxt = cursor + timedelta(minutes=DEFENSE_DURATION_MINUTES)
+        if t not in common or nxt > datetime.combine(on_date, hd_end):
+            return None, None
+        times.append(t)
+        cursor = nxt
+    block_end = slot_end_time(on_date, times[-1])
+    if preferred_salle and not _salle_occupee(on_date, times[0], block_end, preferred_salle):
+        return times, preferred_salle
+    salle = _choisir_salle_libre(on_date, times[0], block_end)
+    if salle:
+        return times, salle
+    return None, None
+
+
+def reschedule_options_for_jury(jury, members, n, max_options=60):
+    """Liste des créneaux (date + demi-journée) où les 3 membres sont
+    disponibles simultanément pour `n` passages consécutifs, avec une salle
+    libre. Un créneau par (date, demi-journée), le plus tôt. C'est ce que
+    l'admin choisit pour reprogrammer (au lieu d'une date au hasard)."""
+    from collections import defaultdict
+
+    need = max(n, 1)
+    by_key = defaultdict(set)
+    for d, t in get_common_available_slots(members):
+        label = _slot_label_at(d, t)
+        if label:
+            by_key[(d, label)].add(t)
+
+    options = []
+    for (d, label) in sorted(by_key):
+        _, hd_end = defense_slots.slot_bounds(d, label)
+        for start in sorted(by_key[(d, label)]):
+            times = []
+            cursor = datetime.combine(d, start)
+            ok = True
+            for _ in range(need):
+                t = cursor.time()
+                nxt = cursor + timedelta(minutes=DEFENSE_DURATION_MINUTES)
+                if t not in by_key[(d, label)] or nxt > datetime.combine(d, hd_end):
+                    ok = False
+                    break
+                times.append(t)
+                cursor = nxt
+            if not ok:
+                continue
+            block_end = slot_end_time(d, times[-1])
+            salle = (
+                jury.salle if (jury.salle and not _salle_occupee(d, times[0], block_end, jury.salle))
+                else _choisir_salle_libre(d, times[0], block_end)
+            )
+            if not salle:
+                continue
+            options.append({
+                "value": f"{d.isoformat()}|{times[0].strftime('%H:%M')}",
+                "date": d,
+                "start": times[0],
+                "end": block_end,
+                "half": "Matin" if label == defense_slots.MORNING else "Après-midi",
+                "salle": salle,
+                "current": (d == jury.defense_date),
+            })
+            break  # un seul créneau par (date, demi-journée)
+        if len(options) >= max_options:
+            break
+    return options
+
+
 def recompact_jury_schedule(jury):
     """Réorganise les horaires d'un jury pour supprimer les trous : les
     passages restants sont replacés de façon contiguë (20 min chacun) à
@@ -2834,6 +2916,12 @@ def admin_jury_update(request, pk):
         "move_target_juries": Jury.objects.exclude(pk=jury.pk).order_by(
             "defense_date", "name"
         ),
+        # Créneaux proposés pour reprogrammer (dispo commune des 3 membres).
+        "reschedule_options": reschedule_options_for_jury(
+            jury,
+            [m.professor for m in current_members],
+            len(jury_students),
+        ) if len(current_members) >= 3 else [],
     }
 
     # ── 4. POST : retirer un membre ────────────────────────────────────────
@@ -3298,19 +3386,6 @@ def admin_jury_update(request, pk):
     #     (report suite à coupure d'électricité, etc.) — composition, salle,
     #     étudiants et ordre de passage conservés.
     if request.method == "POST" and request.POST.get("action") == "reschedule_date":
-        raw = (request.POST.get("new_date") or "").strip()
-        try:
-            new_date = date_cls.fromisoformat(raw)
-        except ValueError:
-            messages.error(request, "Date invalide.")
-            return redirect("admin_jury_update", pk=jury.pk)
-        if new_date < timezone.localdate():
-            messages.error(request, "La nouvelle date doit être aujourd'hui ou ultérieure.")
-            return redirect("admin_jury_update", pk=jury.pk)
-        if new_date == jury.defense_date:
-            messages.info(request, "Le jury est déjà à cette date.")
-            return redirect("admin_jury_update", pk=jury.pk)
-
         members = [m.professor for m in jury.members.select_related("professor")]
         if len(members) < 3:
             messages.error(request, "Le jury doit avoir 3 membres avant d'être reprogrammé.")
@@ -3322,22 +3397,34 @@ def admin_jury_update(request, pk):
         )
         n = len(js_list)
 
-        # OBLIGATOIRE : trouver une disponibilité commune aux 3 membres sur la
-        # nouvelle date, avec une salle libre. Sinon on ne reprogramme pas.
-        if n:
-            start_times, salle = find_common_block(
-                members, new_date, n, preferred_salle=jury.salle
+        # L'admin choisit un CRÉNEAU PROPOSÉ (date|HH:MM) où les 3 membres sont
+        # disponibles simultanément — pas une date au hasard.
+        slot_raw = (request.POST.get("reschedule_slot") or "").strip()
+        try:
+            date_part, time_part = slot_raw.split("|")
+            new_date = date_cls.fromisoformat(date_part)
+            chosen_start = datetime.strptime(time_part, "%H:%M").time()
+        except (ValueError, AttributeError):
+            messages.error(request, "Choisissez un créneau proposé dans la liste.")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        if new_date < timezone.localdate():
+            messages.error(request, "La nouvelle date doit être aujourd'hui ou ultérieure.")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        # Revérification serveur : le créneau doit toujours convenir aux 3
+        # membres (dispo commune) avec une salle libre.
+        start_times, salle = build_block_from_start(
+            members, new_date, chosen_start, n, preferred_salle=jury.salle
+        )
+        if n and start_times is None:
+            messages.error(
+                request,
+                f"Ce créneau n'est plus disponible pour les 3 membres le "
+                f"{new_date.strftime('%d/%m/%Y')}. Choisissez-en un autre dans la liste."
             )
-            if start_times is None:
-                messages.error(
-                    request,
-                    f"Report impossible : les 3 membres n'ont pas de disponibilité "
-                    f"commune (ou aucune salle libre) le "
-                    f"{new_date.strftime('%d/%m/%Y')}. Demandez-leur de déclarer un "
-                    f"créneau commun ce jour-là, ou choisissez une autre date."
-                )
-                return redirect("admin_jury_update", pk=jury.pk)
-        else:
+            return redirect("admin_jury_update", pk=jury.pk)
+        if not n:
             start_times, salle = [], jury.salle
 
         with transaction.atomic():
