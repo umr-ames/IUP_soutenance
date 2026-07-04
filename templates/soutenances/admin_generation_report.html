@@ -110,6 +110,39 @@
     </div>
     {% endif %}
 
+    <!-- Étudiants ajoutés à des jurys existants -->
+    {% if report.filled_details %}
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">Étudiants ajoutés à des jurys existants ({{ report.filled_details|length }})</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Étudiant</th>
+                        <th>Encadrant</th>
+                        <th>Jury</th>
+                        <th>Date</th>
+                        <th class="text-center">Heure de passage</th>
+                        <th>Salle</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in report.filled_details %}
+                    <tr>
+                        <td>{{ f.name }} <span class="text-muted">· {{ f.matricule }}</span></td>
+                        <td>{{ f.encadrant }}</td>
+                        <td>{{ f.jury_name }}{% if f.is_validated %} <span class="status-pill success">publié</span>{% else %} <span class="status-pill warning">brouillon</span>{% endif %}</td>
+                        <td>{{ f.date }}</td>
+                        <td class="text-center">{{ f.time }}</td>
+                        <td>{{ f.salle }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Bilan par encadrant -->
     {% if report.by_encadrant %}
     <div class="card mb-4">

@@ -769,6 +769,19 @@ def build_generation_report_payload(result):
         "created": result.get("created", 0),
         "assigned": result.get("assigned", 0),
         "filled_existing": report.get("filled_existing", 0),
+        "filled_details": [
+            {
+                "name": f.get("name", ""),
+                "matricule": f.get("matricule", ""),
+                "encadrant": f.get("encadrant", ""),
+                "jury_name": f.get("jury_name", ""),
+                "date": fmt_d(f.get("defense_date")),
+                "time": f"{fmt_t(f.get('start_time'))} → {fmt_t(f.get('end_time'))}",
+                "salle": f.get("salle", ""),
+                "is_validated": f.get("is_validated", False),
+            }
+            for f in report.get("filled_details", [])
+        ],
         "errors_count": len(errors),
         "feasibility": report.get("feasibility", {}),
         "priority_usage": report.get("priority_usage", []),
@@ -1261,6 +1274,7 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
             "total_ready": len(all_ready),
             "by_encadrant_before": {},
             "juries": [],
+            "filled_details": [],
             "feasibility": {"encadrants": [], "global": {}},
             "coverage": {"with_priority": 0, "with_expert": 0},
             "priority_usage": [],
@@ -1345,6 +1359,17 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
                         "/student-dashboard/",
                         category=Notification.CATEGORY_JURY,
                     )
+                result["report"]["filled_details"].append({
+                    "name": student.full_name or "(nom absent)",
+                    "matricule": student.matricule,
+                    "encadrant": student.encadrant.full_name if student.encadrant else "—",
+                    "jury_name": jury.name,
+                    "defense_date": jury.defense_date,
+                    "start_time": slot,
+                    "end_time": slot_end_time(jury.defense_date, slot),
+                    "salle": jury.get_salle_display() if jury.salle else "",
+                    "is_validated": jury.is_validated,
+                })
                 students.pop(0)
                 filled += 1
                 result["assigned"] += 1
