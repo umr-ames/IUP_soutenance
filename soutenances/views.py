@@ -687,6 +687,19 @@ def admin_generate_by_filiere(request):
             messages.error(request, "La date de fin doit être postérieure ou égale au début.")
             return redirect("admin_generate_by_filiere")
         payload = run_by_filiere(sd, ed, cap, commit=False)
+        # On SAUVEGARDE l'aperçu pour pouvoir le reconsulter (le bouton
+        # « Dernier test par filière »), même après avoir changé d'onglet.
+        payload["kind"] = "by_filiere"
+        payload["start_date"] = sd.isoformat()
+        payload["end_date"] = ed.isoformat()
+        payload["max_simultaneous"] = cap
+        GenerationReport.objects.create(data=payload)
+        old_ids = list(
+            GenerationReport.objects.filter(data__kind="by_filiere")
+            .order_by("-created_at").values_list("id", flat=True)[5:]
+        )
+        if old_ids:
+            GenerationReport.objects.filter(id__in=old_ids).delete()
         return render(request, "soutenances/admin_by_filiere_preview.html", {
             "report": payload,
             "start_date": sd.isoformat(),
@@ -698,6 +711,32 @@ def admin_generate_by_filiere(request):
         "end_date": friday.isoformat(),
         "max_simultaneous": len(DEFENSE_SALLES),
         "salles": DEFENSE_SALLES,
+    })
+
+
+@login_required
+@role_required(["admin"])
+def admin_by_filiere_last_preview(request):
+    """Rouvre le dernier aperçu « par filière » sauvegardé (pour le consulter
+    à nouveau et éventuellement l'appliquer)."""
+    entry = (
+        GenerationReport.objects.filter(data__kind="by_filiere")
+        .order_by("-created_at").first()
+    )
+    if not entry:
+        messages.info(
+            request,
+            "Aucun test par filière enregistré. Lancez d'abord un aperçu."
+        )
+        return redirect("admin_generate_by_filiere")
+    data = entry.data
+    return render(request, "soutenances/admin_by_filiere_preview.html", {
+        "report": data,
+        "start_date": data.get("start_date", ""),
+        "end_date": data.get("end_date", ""),
+        "max_simultaneous": data.get("max_simultaneous", len(DEFENSE_SALLES)),
+        "saved_preview": True,
+        "saved_at": data.get("generated_at", ""),
     })
 
 
@@ -775,8 +814,13 @@ def admin_generate_juries(request):
 @login_required
 @role_required(["admin"])
 def admin_last_generation_report(request):
-    """Reconsulter le dernier rapport de génération automatique."""
-    entry = GenerationReport.objects.order_by("-created_at").first()
+    """Reconsulter le dernier rapport de génération automatique (hors tests
+    par filière, qui ont leur propre bouton)."""
+    entry = None
+    for r in GenerationReport.objects.order_by("-created_at")[:30]:
+        if (r.data or {}).get("kind") != "by_filiere":
+            entry = r
+            break
     if not entry:
         messages.info(
             request,

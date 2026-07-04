@@ -10,10 +10,12 @@
         <p class="text-muted" style="font-size:.9rem;">
             Rien n'a été modifié. Voici ce que donnerait l'algorithme par filière sur la période
             {{ start_date }} → {{ end_date }}.
+            {% if saved_preview %}<br><span class="status-pill info">Aperçu enregistré{% if saved_at %} le {{ saved_at }}{% endif %}</span> — vous pouvez le reconsulter à tout moment via « Dernier test par filière ».{% endif %}
         </p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-        <a href="{% url 'admin_generate_by_filiere' %}" class="btn btn-outline-secondary">Modifier les dates</a>
+        <a href="{% url 'admin_generate_by_filiere' %}" class="btn btn-outline-secondary">Relancer / modifier les dates</a>
+        <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">Retour aux jurys</a>
     </div>
 </div>
 

@@ -22,6 +22,7 @@ urlpatterns = [
     path("admin/jurys/placer-sans-jury/", views.admin_fill_unassigned_into_juries, name="admin_fill_unassigned_into_juries"),
     path("admin/jurys/ajouter-manuel/", views.admin_jury_add_manual, name="admin_jury_add_manual"),
     path("admin/jurys/generer-par-filiere/", views.admin_generate_by_filiere, name="admin_generate_by_filiere"),
+    path("admin/jurys/dernier-test-filiere/", views.admin_by_filiere_last_preview, name="admin_by_filiere_last_preview"),
     path("admin/jurys/appliquer-par-filiere/", views.admin_apply_by_filiere, name="admin_apply_by_filiere"),
     path("admin/jurys/delete-drafts/", views.admin_delete_draft_juries, name="admin_delete_draft_juries"),
     path("admin/jurys/create/", views.admin_jury_create, name="admin_jury_create"),
