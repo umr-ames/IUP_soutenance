@@ -3576,28 +3576,51 @@ def admin_jury_update(request, pk):
 @login_required
 @role_required(["admin"])
 def admin_jury_delete(request, pk):
-    """Suppression complète d'un jury — bloquée si évaluations ou résultats existent."""
+    """Suppression d'un jury en préservant les étudiants DÉJÀ NOTÉS.
+
+    - Les étudiants non notés sont retirés en masse (redeviennent « sans jury »,
+      prêts à être régénérés).
+    - Les étudiants déjà notés (évaluation ou résultat) et leurs notes sont
+      CONSERVÉS : le jury est gardé mais ne contient plus qu'eux.
+    - S'il ne reste aucun étudiant noté, le jury est supprimé entièrement.
+    """
     jury = get_object_or_404(Jury, pk=pk)
 
     if request.method != "POST":
         return redirect("admin_jury_update", pk=pk)
 
-    # Protection : ne pas supprimer si des évaluations ou résultats existent
-    has_evaluations = Evaluation.objects.filter(jury_student__jury=jury).exists()
-    has_results     = Result.objects.filter(jury_student__jury=jury).exists()
+    js_list = list(JuryStudent.objects.filter(jury=jury).select_related("student"))
+    graded = [
+        js for js in js_list
+        if js.evaluations.exists() or hasattr(js, "result")
+    ]
+    ungraded = [js for js in js_list if js not in graded]
 
-    if has_evaluations or has_results:
-        messages.error(
-            request,
-            "Impossible de supprimer ce jury : des évaluations ou résultats existent déjà. "
-            "Supprimez-les manuellement si nécessaire."
-        )
-        return redirect("admin_jury_update", pk=pk)
+    if not graded:
+        # Aucune note → suppression complète (comportement classique).
+        jury_name = jury.name
+        jury.delete()
+        messages.success(request, f"Le jury « {jury_name} » a été supprimé.")
+        return redirect("admin_jury_list")
 
-    jury_name = jury.name
-    # CASCADE Django supprime automatiquement : JuryMember, JuryStudent, DefenseSchedule
-    jury.delete()
-    messages.success(request, f"Le jury « {jury_name} » a été supprimé.")
+    # Il reste des notes → on libère les non notés et on garde le jury pour les
+    # notés (données intactes).
+    freed = len(ungraded)
+    with transaction.atomic():
+        JuryStudent.objects.filter(
+            pk__in=[js.pk for js in ungraded]
+        ).delete()
+        recompact_jury_schedule(jury)
+        refresh_jury_name_count(jury)
+
+    messages.success(
+        request,
+        f"{freed} étudiant(s) non noté(s) libéré(s) (redevenus « sans jury » — "
+        f"régénérez-les via « Générer automatiquement », « Placer dans les jurys "
+        f"de l'encadrant » ou « Ajouter un jury manuel »). Le jury « {jury.name} » "
+        f"est conservé avec les {len(graded)} étudiant(s) déjà noté(s) — notes "
+        f"intactes."
+    )
     return redirect("admin_jury_list")
 
 

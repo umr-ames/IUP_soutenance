@@ -377,17 +377,24 @@
             <span class="eyebrow" style="color: #dc2626;">Zone danger</span>
             <h3>Supprimer le jury</h3>
             <p class="text-muted mb-0">
-                Supprime définitivement le jury, ses membres et les horaires planifiés.
-                <strong>Bloqué si des évaluations ou résultats existent.</strong>
+                {% if graded_count %}
+                    Ce jury contient <strong>{{ graded_count }} étudiant(s) déjà noté(s)</strong>.
+                    La suppression <strong>libère les étudiants non notés</strong> (ils redeviennent
+                    « sans jury » et pourront être régénérés) et <strong>conserve les étudiants
+                    déjà notés</strong> avec leurs notes. Le jury n'est supprimé entièrement que
+                    s'il ne reste aucun étudiant noté.
+                {% else %}
+                    Supprime définitivement le jury, ses membres et les horaires planifiés.
+                {% endif %}
             </p>
         </div>
     </div>
 
     <form method="post" action="{% url 'admin_jury_delete' jury.pk %}"
-          onsubmit="return confirm('Supprimer définitivement le jury « {{ jury.name }} » ?\nCette action est irréversible.');">
+          onsubmit="return confirm('{% if graded_count %}Libérer les étudiants non notés et conserver les {{ graded_count }} déjà noté(s) ?{% else %}Supprimer définitivement le jury « {{ jury.name }} » ?\nCette action est irréversible.{% endif %}');">
         {% csrf_token %}
         <button type="submit" class="btn btn-danger mt-2">
-            Supprimer ce jury
+            {% if graded_count %}Libérer les non notés / supprimer{% else %}Supprimer ce jury{% endif %}
         </button>
     </form>
 </div>
