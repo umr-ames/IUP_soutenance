@@ -2050,6 +2050,30 @@ def build_grouped_jury_name(students, defense_date):
     return f"Jury {index} - {n} étudiant{'s' if n > 1 else ''}"
 
 
+def recompact_jury_schedule(jury):
+    """Réorganise les horaires d'un jury pour supprimer les trous : les
+    passages restants sont replacés de façon contiguë (20 min chacun) à
+    partir de l'heure du premier passage. À appeler après ajout/retrait/
+    déplacement d'un étudiant. Utilise update() pour ne pas rejouer la
+    validation de disponibilité (le bloc était déjà valide)."""
+    scheds = list(
+        DefenseSchedule.objects.filter(jury_student__jury=jury)
+        .order_by("start_time", "id")
+    )
+    if not scheds:
+        return
+    cursor = datetime.combine(jury.defense_date, scheds[0].start_time)
+    for sched in scheds:
+        minutes = sched.duration_minutes or DEFENSE_DURATION_MINUTES
+        new_start = cursor.time()
+        new_end = (cursor + timedelta(minutes=minutes)).time()
+        if sched.start_time != new_start or sched.end_time != new_end:
+            DefenseSchedule.objects.filter(pk=sched.pk).update(
+                start_time=new_start, end_time=new_end,
+            )
+        cursor = cursor + timedelta(minutes=minutes)
+
+
 def refresh_jury_name_count(jury):
     """Met à jour le nombre d'étudiants dans le nom du jury (« Jury 2 - N
     étudiants »), en conservant son numéro. À appeler après ajout/retrait
@@ -2326,6 +2350,7 @@ def admin_jury_add_manual(request):
                     if not enc_in:
                         enc = student.encadrant.full_name if student.encadrant else "?"
                         warnings.append(f"{student.full_name} (encadrant {enc})")
+                recompact_jury_schedule(jury)
                 refresh_jury_name_count(jury)
                 jury.refresh_from_db()
 
@@ -3027,11 +3052,12 @@ def admin_jury_update(request, pk):
         else:
             name = js.student.full_name
             js.delete()
+            recompact_jury_schedule(jury)
             refresh_jury_name_count(jury)
             messages.success(
                 request,
-                f"{name} a été retiré du jury. Il redevient affectable à un "
-                f"autre jury (section « Ajouter un étudiant »)."
+                f"{name} a été retiré du jury. Les horaires ont été resserrés "
+                f"(pas de trou). Il redevient affectable à un autre jury."
             )
         return redirect("admin_jury_update", pk=jury.pk)
 
@@ -3125,6 +3151,8 @@ def admin_jury_update(request, pk):
                         duration_minutes=DEFENSE_DURATION_MINUTES,
                     )
                 ])
+                recompact_jury_schedule(source_jury)
+                recompact_jury_schedule(target)
                 refresh_jury_name_count(source_jury)
                 refresh_jury_name_count(target)
 
@@ -3454,6 +3482,7 @@ def admin_jury_add_student(request, pk):
                             start_time=next_start,
                             duration_minutes=DEFENSE_DURATION_MINUTES,
                         )
+                    recompact_jury_schedule(jury)
                     refresh_jury_name_count(jury)
 
             except ValidationError as exc:
@@ -3502,8 +3531,21 @@ def admin_jury_remove_student(request, pk, assignment_pk):
     )
 
     if request.method == "POST":
+        if assignment.evaluations.exists() or hasattr(assignment, "result"):
+            messages.error(
+                request,
+                "Impossible de retirer cet étudiant : des notes ou un résultat "
+                "existent déjà pour cette soutenance."
+            )
+            return redirect("admin_jury_detail", pk=jury.pk)
         assignment.delete()
-        messages.success(request, "L'affectation a été supprimée.")
+        recompact_jury_schedule(jury)
+        refresh_jury_name_count(jury)
+        messages.success(
+            request,
+            "L'affectation a été supprimée. Les horaires ont été resserrés "
+            "(pas de trou)."
+        )
 
     return redirect("admin_jury_detail", pk=jury.pk)
 
