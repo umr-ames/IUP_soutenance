@@ -13,7 +13,14 @@
         </p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-        <a href="{% url 'admin_generate_juries' %}" class="btn btn-primary">Générer automatiquement</a>
+        {% if unscheduled_count %}
+        <form method="post" action="{% url 'admin_fill_unassigned_into_juries' %}" style="margin:0;"
+              onsubmit="return confirm('Placer les étudiants sans jury dans un jury existant de leur encadrant qui a du temps libre ?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">Placer dans les jurys de l'encadrant (temps libre)</button>
+        </form>
+        {% endif %}
+        <a href="{% url 'admin_generate_juries' %}" class="btn btn-outline-primary">Générer automatiquement</a>
         <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">Retour aux jurys</a>
     </div>
 </div>

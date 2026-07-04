@@ -2050,6 +2050,86 @@ def build_grouped_jury_name(students, defense_date):
     return f"Jury {index} - {n} étudiant{'s' if n > 1 else ''}"
 
 
+def find_common_block(members, new_date, n, preferred_salle=""):
+    """Cherche un bloc de `n` passages de 20 min consécutifs, le même jour,
+    dans une seule demi-journée, où les 3 membres sont TOUS disponibles (dispo
+    déclarée + sans conflit), avec une salle libre. Renvoie (start_times,
+    salle) ou (None, None) si aucune disponibilité commune n'existe."""
+    common = sorted(
+        t for (d, t) in get_common_available_slots(members) if d == new_date
+    )
+    if not common:
+        return None, None
+    common_set = set(common)
+    for start in common:
+        label = _slot_label_at(new_date, start)
+        if not label:
+            continue
+        _, hd_end = defense_slots.slot_bounds(new_date, label)
+        times = []
+        cursor = datetime.combine(new_date, start)
+        ok = True
+        for _ in range(n):
+            t = cursor.time()
+            nxt = cursor + timedelta(minutes=DEFENSE_DURATION_MINUTES)
+            if t not in common_set or nxt > datetime.combine(new_date, hd_end):
+                ok = False
+                break
+            times.append(t)
+            cursor = nxt
+        if not ok or len(times) != n:
+            continue
+        block_end = slot_end_time(new_date, times[-1])
+        if preferred_salle and not _salle_occupee(new_date, times[0], block_end, preferred_salle):
+            return times, preferred_salle
+        salle = _choisir_salle_libre(new_date, times[0], block_end)
+        if salle:
+            return times, salle
+    return None, None
+
+
+def free_slot_at_end_of_jury(jury, members=None):
+    """Prochain créneau de 20 min libre à la SUITE des passages d'un jury,
+    s'il reste du temps dans sa demi-journée (matin fini avant 14h, après-midi
+    avant 19h) et si les 3 membres y sont disponibles + la salle libre.
+    Renvoie le start_time ou None."""
+    if members is None:
+        members = [m.professor for m in jury.members.select_related("professor")]
+    if len(members) < 3:
+        return None
+    scheds = list(
+        DefenseSchedule.objects.filter(jury_student__jury=jury).order_by("start_time")
+    )
+    if not scheds:
+        return None
+    label = _slot_label_at(jury.defense_date, scheds[0].start_time)
+    if not label:
+        return None
+    _, hd_end = defense_slots.slot_bounds(jury.defense_date, label)
+    last = scheds[-1]
+    start = last.end_time or slot_end_time(
+        jury.defense_date, last.start_time,
+        last.duration_minutes or DEFENSE_DURATION_MINUTES,
+    )
+    # Reste-t-il un créneau de 20 min dans la demi-journée ?
+    if (datetime.combine(jury.defense_date, start)
+            + timedelta(minutes=DEFENSE_DURATION_MINUTES)
+            > datetime.combine(jury.defense_date, hd_end)):
+        return None
+    # Les 3 membres disponibles et sans conflit à ce créneau.
+    for m in members:
+        if not is_professor_available(m, jury.defense_date, start):
+            return None
+        if professor_has_conflict(m, jury.defense_date, start):
+            return None
+    # Salle libre à ce créneau (aucun autre jury n'y chevauche).
+    if jury.salle and _salle_occupee(
+        jury.defense_date, start, slot_end_time(jury.defense_date, start), jury.salle
+    ):
+        return None
+    return start
+
+
 def recompact_jury_schedule(jury):
     """Réorganise les horaires d'un jury pour supprimer les trous : les
     passages restants sont replacés de façon contiguë (20 min chacun) à
@@ -3232,37 +3312,47 @@ def admin_jury_update(request, pk):
             return redirect("admin_jury_update", pk=jury.pk)
 
         members = [m.professor for m in jury.members.select_related("professor")]
-        scheds = list(
-            DefenseSchedule.objects.filter(jury_student__jury=jury).order_by("start_time")
+        if len(members) < 3:
+            messages.error(request, "Le jury doit avoir 3 membres avant d'être reprogrammé.")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        js_list = list(
+            JuryStudent.objects.filter(jury=jury)
+            .select_related("student__user").order_by("schedule__start_time", "id")
         )
-        Jury.objects.filter(pk=jury.pk).update(defense_date=new_date)
-        jury.defense_date = new_date
+        n = len(js_list)
+
+        # OBLIGATOIRE : trouver une disponibilité commune aux 3 membres sur la
+        # nouvelle date, avec une salle libre. Sinon on ne reprogramme pas.
+        if n:
+            start_times, salle = find_common_block(
+                members, new_date, n, preferred_salle=jury.salle
+            )
+            if start_times is None:
+                messages.error(
+                    request,
+                    f"Report impossible : les 3 membres n'ont pas de disponibilité "
+                    f"commune (ou aucune salle libre) le "
+                    f"{new_date.strftime('%d/%m/%Y')}. Demandez-leur de déclarer un "
+                    f"créneau commun ce jour-là, ou choisissez une autre date."
+                )
+                return redirect("admin_jury_update", pk=jury.pk)
+        else:
+            start_times, salle = [], jury.salle
+
+        with transaction.atomic():
+            Jury.objects.filter(pk=jury.pk).update(defense_date=new_date, salle=salle)
+            jury.defense_date = new_date
+            jury.salle = salle
+            # Replacer chaque passage sur le bloc commun trouvé (update() pour
+            # ne pas rejouer la validation ; le bloc est déjà validé disponible).
+            for js, t in zip(js_list, start_times):
+                DefenseSchedule.objects.filter(jury_student=js).update(
+                    start_time=t,
+                    end_time=slot_end_time(new_date, t),
+                )
 
         warnings = []
-        if jury.salle and scheds:
-            b_start = scheds[0].start_time
-            b_end = scheds[-1].end_time or slot_end_time(new_date, scheds[-1].start_time)
-            room_conflict = DefenseSchedule.objects.filter(
-                jury_student__jury__defense_date=new_date,
-                jury_student__jury__salle=jury.salle,
-                start_time__lt=b_end, end_time__gt=b_start,
-            ).exclude(jury_student__jury=jury).exists()
-            if room_conflict:
-                warnings.append(
-                    f"La salle {jury.get_salle_display()} est déjà occupée sur ce "
-                    f"créneau le {new_date.strftime('%d/%m/%Y')} — changez de salle."
-                )
-        for m in members:
-            has_other = DefenseSchedule.objects.filter(
-                jury_student__jury__defense_date=new_date,
-                jury_student__jury__members__professor=m,
-            ).exclude(jury_student__jury=jury).exists()
-            if has_other:
-                warnings.append(
-                    f"{m.full_name} siège déjà dans un autre jury le "
-                    f"{new_date.strftime('%d/%m/%Y')} — à vérifier."
-                )
-
         if jury.is_validated:
             for js in JuryStudent.objects.filter(jury=jury).select_related("student__user"):
                 sch = getattr(js, "schedule", None)
@@ -3286,10 +3376,18 @@ def admin_jury_update(request, pk):
                     category=Notification.CATEGORY_JURY,
                 )
 
+        if start_times:
+            créneau = (
+                f" — passages de {start_times[0].strftime('%H:%M')} à "
+                f"{slot_end_time(new_date, start_times[-1]).strftime('%H:%M')} "
+                f"en {jury.get_salle_display()}"
+            )
+        else:
+            créneau = ""
         messages.success(
             request,
-            f"Jury reprogrammé au {new_date.strftime('%d/%m/%Y')} — composition, "
-            f"salle et passages conservés."
+            f"Jury reprogrammé au {new_date.strftime('%d/%m/%Y')}{créneau} "
+            f"(disponibilité commune des 3 membres vérifiée)."
         )
         for w in warnings:
             messages.warning(request, w)
@@ -3928,6 +4026,75 @@ def build_slots_from_availability(availability):
         cursor += timedelta(minutes=DEFENSE_DURATION_MINUTES)
 
     return slots
+
+
+@login_required
+@role_required(["admin"])
+def admin_fill_unassigned_into_juries(request):
+    """Place les étudiants sans jury dans un jury EXISTANT de leur encadrant
+    qui a encore du temps libre (matin fini avant 14h ou après-midi avant 19h),
+    avec les 3 membres disponibles et la salle libre. Les horaires sont
+    resserrés ; les étudiants des jurys publiés sont prévenus."""
+    if request.method != "POST":
+        return redirect("admin_scheduling_diagnostic")
+
+    today = timezone.localdate()
+    unassigned = (
+        StudentProfile.objects.filter(
+            pfe_request__status=PFERequest.STATUS_ACCEPTED,
+            jury_assignment__isnull=True,
+            encadrant__isnull=False,
+        ).select_related("encadrant").order_by("encadrant__full_name", "full_name")
+    )
+
+    placed = 0
+    for student in unassigned:
+        candidate_juries = (
+            Jury.objects.filter(
+                members__professor=student.encadrant,
+                defense_date__gte=today,
+            ).order_by("defense_date", "id").distinct()
+        )
+        for jury in candidate_juries:
+            members = [m.professor for m in jury.members.select_related("professor")]
+            start = free_slot_at_end_of_jury(jury, members)
+            if start is None:
+                continue
+            president = choose_president_for_student(
+                student=student, members=members, defense_date=jury.defense_date,
+            )
+            try:
+                with transaction.atomic():
+                    js = JuryStudent.objects.create(
+                        jury=jury, student=student, president=president,
+                        encadrant_absent=False,
+                    )
+                    DefenseSchedule.objects.create(
+                        jury_student=js, start_time=start,
+                        duration_minutes=DEFENSE_DURATION_MINUTES,
+                    )
+                    recompact_jury_schedule(jury)
+                    refresh_jury_name_count(jury)
+            except ValidationError:
+                continue
+            placed += 1
+            break
+
+    remaining = unassigned.filter(jury_assignment__isnull=True).count()
+    if placed:
+        messages.success(
+            request,
+            f"{placed} étudiant(s) placé(s) dans un jury de leur encadrant "
+            f"(temps libre). Restants : {remaining}."
+        )
+    else:
+        messages.info(
+            request,
+            "Aucun étudiant n'a pu être placé dans un jury existant de son "
+            "encadrant (pas de temps libre commun). Utilisez « Générer "
+            "automatiquement » ou « Ajouter un jury manuel »."
+        )
+    return redirect("admin_scheduling_diagnostic")
 
 
 @login_required
