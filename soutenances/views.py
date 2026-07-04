@@ -2050,6 +2050,23 @@ def build_grouped_jury_name(students, defense_date):
     return f"Jury {index} - {n} étudiant{'s' if n > 1 else ''}"
 
 
+def refresh_jury_name_count(jury):
+    """Met à jour le nombre d'étudiants dans le nom du jury (« Jury 2 - N
+    étudiants »), en conservant son numéro. À appeler après ajout/retrait
+    d'un étudiant."""
+    import re
+    n = jury.students.count()
+    m = re.match(r"(Jury\s+\d+)", jury.name or "")
+    prefix = m.group(1) if m else f"Jury {jury.pk}"
+    if n:
+        new_name = f"{prefix} - {n} étudiant{'s' if n > 1 else ''}"
+    else:
+        new_name = prefix
+    if new_name != jury.name:
+        Jury.objects.filter(pk=jury.pk).update(name=new_name)
+        jury.name = new_name
+
+
 def renumber_draft_juries():
     """Renomme les jurys BROUILLONS : numérotation PAR JOUR (Jury 1..n) dans
     l'ordre chronologique des passages. Les jurys publiés ne sont pas touchés ;
@@ -2309,7 +2326,7 @@ def admin_jury_add_manual(request):
                     if not enc_in:
                         enc = student.encadrant.full_name if student.encadrant else "?"
                         warnings.append(f"{student.full_name} (encadrant {enc})")
-                renumber_draft_juries()
+                refresh_jury_name_count(jury)
                 jury.refresh_from_db()
 
             messages.success(
@@ -3010,6 +3027,7 @@ def admin_jury_update(request, pk):
         else:
             name = js.student.full_name
             js.delete()
+            refresh_jury_name_count(jury)
             messages.success(
                 request,
                 f"{name} a été retiré du jury. Il redevient affectable à un "
@@ -3083,6 +3101,7 @@ def admin_jury_update(request, pk):
                     "à vérifier."
                 )
 
+            source_jury = jury
             with transaction.atomic():
                 js.delete()
                 new_js = JuryStudent.objects.create(
@@ -3106,6 +3125,8 @@ def admin_jury_update(request, pk):
                         duration_minutes=DEFENSE_DURATION_MINUTES,
                     )
                 ])
+                refresh_jury_name_count(source_jury)
+                refresh_jury_name_count(target)
 
             messages.success(
                 request,
@@ -3433,14 +3454,15 @@ def admin_jury_add_student(request, pk):
                             start_time=next_start,
                             duration_minutes=DEFENSE_DURATION_MINUTES,
                         )
+                    refresh_jury_name_count(jury)
 
             except ValidationError as exc:
                 messages.error(request, "; ".join(exc.messages))
             else:
                 messages.success(
                     request,
-                    f"L'étudiant a été ajouté au jury — passage à "
-                    f"{next_start.strftime('%H:%M')}."
+                    f"{student.full_name} a été ajouté au jury « {jury.name} » — "
+                    f"passage à {next_start.strftime('%H:%M')}."
                 )
                 if schedule_warning:
                     messages.warning(request, schedule_warning)

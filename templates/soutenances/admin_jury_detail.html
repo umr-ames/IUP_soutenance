@@ -73,14 +73,22 @@
                 l'affectation sera marquée « encadrant absent » avec un avertissement.
             </p>
 
-            <form method="post" action="{% url 'admin_jury_add_student' jury.pk %}" class="form-stack">
-                {% csrf_token %}
-                {{ form.as_p }}
+            {% if form.fields.student.queryset.exists %}
+                <form method="post" action="{% url 'admin_jury_add_student' jury.pk %}" class="form-stack">
+                    {% csrf_token %}
+                    {{ form.as_p }}
 
-                <button type="submit" class="btn btn-primary">
-                    Ajouter au jury
-                </button>
-            </form>
+                    <button type="submit" class="btn btn-primary">
+                        Ajouter au jury
+                    </button>
+                </form>
+            {% else %}
+                <div class="empty-state">
+                    Aucun étudiant à ajouter : tous les étudiants acceptés sont déjà affectés à un jury.
+                    <br>Pour vérifier où se trouve un étudiant précis, utilisez la recherche de la page
+                    <a href="{% url 'admin_scheduling_diagnostic' %}">Diagnostic</a>.
+                </div>
+            {% endif %}
         </article>
     </div>
 
