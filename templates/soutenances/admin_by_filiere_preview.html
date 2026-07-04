@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Aperçu — génération par filière{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Algorithme alternatif · Aperçu</span>
+        <h1>Aperçu — génération par filière</h1>
+        <p class="text-muted" style="font-size:.9rem;">
+            Rien n'a été modifié. Voici ce que donnerait l'algorithme par filière sur la période
+            {{ start_date }} → {{ end_date }}.
+        </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'admin_generate_by_filiere' %}" class="btn btn-outline-secondary">Modifier les dates</a>
+    </div>
+</div>
+
+<!-- Synthèse -->
+<div class="soft-grid" style="margin-bottom:1.5rem;">
+    <article class="soft-card"><span class="label">Étudiants concernés</span><strong>{{ report.total_ready }}</strong></article>
+    <article class="soft-card"><span class="label">Nouveaux jurys</span><strong>{{ report.created }}</strong></article>
+    <article class="soft-card"><span class="label">Étudiants programmés</span><strong>{{ report.assigned }}</strong></article>
+    <article class="soft-card"><span class="label">Non programmés</span><strong style="{% if report.errors_count %}color:#b91c1c;{% endif %}">{{ report.errors_count }}</strong></article>
+</div>
+
+<!-- Action : appliquer -->
+<section class="content-panel" style="border-left:5px solid #d97706;">
+    <h3 style="margin-top:0;">Appliquer cette génération ?</h3>
+    <p class="text-muted" style="font-size:.88rem;">
+        En appliquant, les <strong>{{ report.replaced_juries }} jury(s) publié(s)</strong> de la période
+        seront <strong>remplacés</strong> par ces nouveaux jurys (qui deviennent publiés, étudiants et
+        professeurs notifiés).
+        {% if report.skipped_graded %}<br><strong>{{ report.skipped_graded }} jury(s)</strong> contenant des étudiants déjà notés seront <strong>conservés</strong> (non touchés).{% endif %}
+        <strong>Action irréversible.</strong>
+    </p>
+    <form method="post" action="{% url 'admin_apply_by_filiere' %}"
+          onsubmit="return confirm('Remplacer les jurys publiés de la période par cette génération par filière ? Action irréversible.');">
+        {% csrf_token %}
+        <input type="hidden" name="start_date" value="{{ start_date }}">
+        <input type="hidden" name="end_date" value="{{ end_date }}">
+        <input type="hidden" name="max_simultaneous" value="{{ max_simultaneous }}">
+        <button type="submit" class="btn btn-danger">Appliquer et remplacer les jurys publiés</button>
+        <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">Annuler (ne rien changer)</a>
+    </form>
+</section>
+
+<!-- Jurys proposés -->
+{% if report.juries %}
+<h2 class="h5 mb-3 mt-4">Jurys proposés ({{ report.juries|length }})</h2>
+{% for entry in report.juries %}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">{{ entry.name }}{% if entry.filiere %} · filière {{ entry.filiere }}{% endif %}</span>
+        <span class="text-muted small">{{ entry.date }} — {{ entry.start }}{% if entry.salle %} — {{ entry.salle }}{% endif %} — {{ entry.capacity }} étudiant(s)</span>
+    </div>
+    <div class="card-body pt-2 pb-2"><span class="text-muted small">Membres : {{ entry.members|join:", " }}</span></div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead><tr><th>Étudiant</th><th>Encadrant</th><th class="text-center">Heure</th></tr></thead>
+            <tbody>
+                {% for s in entry.students %}
+                <tr><td>{{ s.name }} <span class="text-muted">· {{ s.matricule }}</span></td><td>{{ s.encadrant }}</td><td class="text-center">{{ s.time }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="alert alert-info">Aucun jury n'a pu être proposé (pas d'expert de filière disponible, ou aucune disponibilité).</div>
+{% endif %}
+
+<!-- Non programmés -->
+{% if report.errors %}
+<div class="card mb-4">
+    <div class="card-header fw-semibold" style="color:#b91c1c;">Étudiants non programmés ({{ report.errors_count }})</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead><tr><th>Étudiant</th><th>Encadrant</th><th>Raison</th></tr></thead>
+            <tbody>
+                {% for err in report.errors %}
+                <tr><td>{{ err.student }} <span class="text-muted">· {{ err.matricule }}</span></td><td>{{ err.encadrant }}</td><td>{{ err.message }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

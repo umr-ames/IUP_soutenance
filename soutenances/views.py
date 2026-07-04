@@ -649,6 +649,87 @@ def admin_jury_list(request):
     })
 
 
+def _next_week_monday_friday():
+    today = timezone.localdate()
+    days_ahead = (0 - today.weekday()) % 7 or 7  # lundi prochain (semaine suivante)
+    monday = today + timedelta(days=days_ahead)
+    return monday, monday + timedelta(days=4)
+
+
+def _parse_by_filiere_params(request):
+    monday, friday = _next_week_monday_friday()
+    try:
+        sd = date_cls.fromisoformat((request.POST.get("start_date") or "").strip())
+    except ValueError:
+        sd = monday
+    try:
+        ed = date_cls.fromisoformat((request.POST.get("end_date") or "").strip())
+    except ValueError:
+        ed = friday
+    try:
+        cap = int(request.POST.get("max_simultaneous") or len(DEFENSE_SALLES))
+    except ValueError:
+        cap = len(DEFENSE_SALLES)
+    cap = max(1, min(cap, len(DEFENSE_SALLES)))
+    return sd, ed, cap
+
+
+@login_required
+@role_required(["admin"])
+def admin_generate_by_filiere(request):
+    """Teste l'algorithme ALTERNATIF par filière. GET : formulaire (lundi→
+    vendredi prochain pré-rempli). POST preview : aperçu NON destructif.
+    L'application se fait via admin_apply_by_filiere."""
+    monday, friday = _next_week_monday_friday()
+    if request.method == "POST":
+        sd, ed, cap = _parse_by_filiere_params(request)
+        if ed < sd:
+            messages.error(request, "La date de fin doit être postérieure ou égale au début.")
+            return redirect("admin_generate_by_filiere")
+        payload = run_by_filiere(sd, ed, cap, commit=False)
+        return render(request, "soutenances/admin_by_filiere_preview.html", {
+            "report": payload,
+            "start_date": sd.isoformat(),
+            "end_date": ed.isoformat(),
+            "max_simultaneous": cap,
+        })
+    return render(request, "soutenances/admin_by_filiere_form.html", {
+        "start_date": monday.isoformat(),
+        "end_date": friday.isoformat(),
+        "max_simultaneous": len(DEFENSE_SALLES),
+        "salles": DEFENSE_SALLES,
+    })
+
+
+@login_required
+@role_required(["admin"])
+def admin_apply_by_filiere(request):
+    """Applique l'algorithme par filière : REMPLACE les jurys publiés de la
+    fenêtre (hors jurys contenant des étudiants déjà notés) par la nouvelle
+    génération, qui devient publiée. Action irréversible (confirmée)."""
+    if request.method != "POST":
+        return redirect("admin_generate_by_filiere")
+    sd, ed, cap = _parse_by_filiere_params(request)
+    if ed < sd:
+        messages.error(request, "Dates invalides.")
+        return redirect("admin_generate_by_filiere")
+    payload = run_by_filiere(sd, ed, cap, commit=True)
+    GenerationReport.objects.create(data=payload)
+    messages.success(
+        request,
+        f"Génération par filière appliquée : {payload.get('replaced_juries', 0)} "
+        f"jury(s) publié(s) remplacé(s), {payload.get('created', 0)} nouveau(x) "
+        f"jury(s), {payload.get('assigned', 0)} étudiant(s) programmé(s)."
+    )
+    if payload.get("skipped_graded"):
+        messages.info(
+            request,
+            f"{payload['skipped_graded']} jury(s) conservé(s) car ils contiennent "
+            f"des étudiants déjà notés."
+        )
+    return redirect("admin_jury_list")
+
+
 @login_required
 @role_required(["admin"])
 def admin_generate_juries(request):
@@ -726,6 +807,7 @@ def build_generation_report_payload(result):
             "name": e.get("jury_name", ""),
             "salle": e.get("salle", ""),
             "members": e.get("members", []),
+            "filiere": e.get("filiere", ""),
             "date": fmt_d(e.get("defense_date")),
             "start": fmt_t(e.get("slot_start")),
             "capacity": e.get("capacity", 0),
@@ -769,6 +851,8 @@ def build_generation_report_payload(result):
         "created": result.get("created", 0),
         "assigned": result.get("assigned", 0),
         "filled_existing": report.get("filled_existing", 0),
+        "replaced_juries": report.get("replaced_juries", 0),
+        "skipped_graded": report.get("skipped_graded", 0),
         "filled_details": [
             {
                 "name": f.get("name", ""),
@@ -1941,6 +2025,245 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
 @transaction.atomic
 def generate_juries_for_date(defense_date=None):
     return generate_smart_juries()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  ALGORITHME ALTERNATIF « PAR FILIÈRE » (à tester)
+#  - jurys mono-filière ; un expert de la filière maximisé dans chaque jury ;
+#    encadrant gardé si disponible, sinon expert ; président prioritaire favorisé.
+#  - APERÇU non destructif (transaction annulée) ; APPLICATION = remplace les
+#    jurys PUBLIÉS de la fenêtre (hors jurys contenant des étudiants déjà notés).
+# ══════════════════════════════════════════════════════════════════════════
+
+class _PreviewRollback(Exception):
+    """Sert à annuler la transaction après avoir capturé l'aperçu."""
+
+
+def _window_published_target(start_date, end_date):
+    """Étudiants actuellement dans des jurys PUBLIÉS de la fenêtre, à
+    re-générer. On EXCLUT tout jury contenant un étudiant déjà noté (pour ne
+    pas toucher aux soutenances terminées)."""
+    juries = Jury.objects.filter(
+        is_validated=True,
+        defense_date__gte=start_date,
+        defense_date__lte=end_date,
+    ).prefetch_related("students__student__encadrant")
+    students, deletable_ids, skipped = [], [], 0
+    for j in juries:
+        jss = list(j.students.all())
+        has_graded = any(
+            js.evaluations.exists() or hasattr(js, "result") for js in jss
+        )
+        if has_graded:
+            skipped += 1
+            continue
+        deletable_ids.append(j.id)
+        students.extend(js.student for js in jss)
+    return students, deletable_ids, skipped
+
+
+def _by_filiere_place(students, start_date, end_date, cap, result):
+    """Place les `students` en jurys mono-filière (expert de filière requis,
+    encadrant si dispo, président prioritaire favorisé)."""
+    from collections import defaultdict
+
+    experts_by_filiere = defaultdict(set)
+    for e in FiliereExpert.objects.all():
+        experts_by_filiere[e.filiere].add(e.professor_id)
+    professors = list(ProfessorProfile.objects.all())
+
+    by_fil = defaultdict(list)
+    for s in students:
+        by_fil[s.filiere or "?"].append(s)
+    for k in by_fil:
+        by_fil[k].sort(key=lambda s: (s.full_name or "").lower())
+
+    candidate_slots = build_all_future_slot_starts(start_date, end_date)
+    slot_used = defaultdict(set)
+    jury_index = 1
+
+    for defense_date, block_start in candidate_slots:
+        if not any(by_fil.values()):
+            break
+        current_slot = _slot_label_at(defense_date, block_start)
+        other_slot = (
+            defense_slots.AFTERNOON if current_slot == defense_slots.MORNING
+            else defense_slots.MORNING
+        )
+        while any(by_fil.values()):
+            if jury_slot_capacity_reached(defense_date, block_start, max_simultaneous=cap):
+                break
+            blocked = slot_used.get((defense_date, other_slot), set())
+            avail = [
+                p for p in professors
+                if p.id not in blocked
+                and is_professor_available(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
+                and not professor_has_conflict(p, defense_date, block_start, DEFENSE_DURATION_MINUTES)
+                and not professor_busy_other_slot(p, defense_date, current_slot)
+            ]
+            if len(avail) < 3:
+                break
+
+            # Choisir une filière ayant des étudiants ET un expert disponible.
+            chosen = None
+            for fil, studs in sorted(by_fil.items(), key=lambda kv: -len(kv[1])):
+                if not studs:
+                    continue
+                experts_here = [p for p in avail if p.id in experts_by_filiere.get(fil, set())]
+                if experts_here:
+                    chosen = (fil, studs, experts_here)
+                    break
+            if chosen is None:
+                break
+            fil, studs, experts_here = chosen
+
+            # Expert : prioritaire d'abord, puis le moins chargé.
+            experts_here.sort(key=lambda p: (
+                0 if getattr(p, "is_priority", False) else 1,
+                professor_total_scheduled_load(p), (p.full_name or "").lower(),
+            ))
+            expert = experts_here[0]
+
+            # Membres : expert + encadrants dispo de ces étudiants + remplisseurs
+            # (prioritaires d'abord pour la présidence).
+            enc_ids = {s.encadrant_id for s in studs}
+            members = [expert]
+            for p in avail:
+                if len(members) >= 3:
+                    break
+                if p.id != expert.id and p.id in enc_ids:
+                    members.append(p)
+            if len(members) < 3:
+                fillers = [p for p in avail if p not in members]
+                fillers.sort(key=lambda p: (
+                    0 if getattr(p, "is_priority", False) else 1,
+                    (p.full_name or "").lower(),
+                ))
+                for p in fillers:
+                    if len(members) >= 3:
+                        break
+                    members.append(p)
+            if len(members) < 3:
+                break
+
+            block = build_consecutive_available_slots(
+                members=members, defense_date=defense_date,
+                block_start=block_start, max_slots=40, max_simultaneous=cap,
+            )
+            if not block:
+                break
+            sel = studs[:len(block)]
+            sel_slots = block[:len(sel)]
+            block_end = slot_end_time(defense_date, sel_slots[-1])
+            salle = _choisir_salle_libre(defense_date, block_start, block_end)
+            while salle is None and len(sel) > 1:
+                sel = sel[:-1]
+                sel_slots = sel_slots[:len(sel)]
+                block_end = slot_end_time(defense_date, sel_slots[-1])
+                salle = _choisir_salle_libre(defense_date, block_start, block_end)
+            if salle is None or not sel:
+                break
+
+            member_ids = {m.id for m in members}
+            president_order = sorted(members, key=lambda p: (
+                0 if getattr(p, "is_priority", False) else 1,
+                0 if p.id == expert.id else 1,
+                professor_load_on_date(p, defense_date),
+                (p.full_name or "").lower(),
+            ))
+            try:
+                with transaction.atomic():
+                    jury = Jury.objects.create(
+                        name=build_grouped_jury_name(sel, defense_date),
+                        defense_date=defense_date, salle=salle, is_validated=False,
+                    )
+                    for m in members:
+                        JuryMember.objects.create(jury=jury, professor=m)
+                    for s, t in zip(sel, sel_slots):
+                        president = next(
+                            (p for p in president_order if p.id != s.encadrant_id), None
+                        )
+                        js = JuryStudent.objects.create(
+                            jury=jury, student=s, president=president,
+                            encadrant_absent=(s.encadrant_id not in member_ids),
+                        )
+                        DefenseSchedule.objects.create(
+                            jury_student=js, start_time=t,
+                            duration_minutes=DEFENSE_DURATION_MINUTES,
+                        )
+            except ValidationError as exc:
+                for s in sel:
+                    result["errors"].append({
+                        "student": s, "reason": "validation_error",
+                        "message": "; ".join(exc.messages),
+                    })
+                break
+
+            for s in sel:
+                by_fil[fil].remove(s)
+            slot_used[(defense_date, current_slot)].update(m.id for m in members)
+            result["created"] += 1
+            result["assigned"] += len(sel)
+            jury_index += 1
+            entry = {
+                "jury_pk": jury.pk, "jury_name": jury.name,
+                "salle": jury.get_salle_display() if jury.salle else "",
+                "members": [p.full_name for p in members],
+                "filiere": fil,
+                "defense_date": defense_date, "slot_start": sel_slots[0],
+                "capacity": len(sel), "students_scheduled": [],
+            }
+            for s, t in zip(sel, sel_slots):
+                entry["students_scheduled"].append({
+                    "name": s.full_name or "(nom absent)", "matricule": s.matricule,
+                    "encadrant": s.encadrant.full_name if s.encadrant else "—",
+                    "start_time": t, "end_time": slot_end_time(defense_date, t),
+                })
+            result["report"]["juries"].append(entry)
+
+    # Étudiants non placés.
+    for fil, studs in by_fil.items():
+        for s in studs:
+            result["errors"].append({
+                "student": s, "reason": "no_slot_found",
+                "message": f"Filière {fil} : aucun créneau/expert disponible.",
+            })
+
+
+def run_by_filiere(start_date, end_date, cap, commit):
+    """Supprime les jurys publiés (hors notés) de la fenêtre et régénère par
+    filière. commit=False → aperçu (transaction annulée, rien n'est modifié)."""
+    def _work():
+        students, deletable_ids, skipped = _window_published_target(start_date, end_date)
+        result = {
+            "created": 0, "assigned": 0, "errors": [],
+            "report": {"total_ready": len(students), "juries": [], "replaced_juries": len(deletable_ids), "skipped_graded": skipped},
+        }
+        # Libère les étudiants en supprimant les jurys publiés (sans notes).
+        Jury.objects.filter(id__in=deletable_ids).delete()
+        _by_filiere_place(students, start_date, end_date, cap, result)
+        if commit:
+            # Les nouveaux jurys remplacent les anciens : publiés + notifiés.
+            new_ids = [e["jury_pk"] for e in result["report"]["juries"]]
+            Jury.objects.filter(id__in=new_ids).update(is_validated=True)
+            for jid in new_ids:
+                jury = Jury.objects.filter(pk=jid).first()
+                if jury:
+                    _notify_jury_published(jury)
+        return result
+
+    if commit:
+        with transaction.atomic():
+            return build_generation_report_payload(_work())
+    # Aperçu : on exécute puis on annule tout.
+    payload = {}
+    try:
+        with transaction.atomic():
+            payload = build_generation_report_payload(_work())
+            raise _PreviewRollback()
+    except _PreviewRollback:
+        pass
+    return payload
 
 
 def build_all_future_slot_starts(start_date=None, end_date=None):
