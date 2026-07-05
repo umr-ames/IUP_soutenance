@@ -5364,6 +5364,84 @@ def admin_publish_all_results(request):
 
 @login_required
 @role_required(["admin"])
+def admin_results_by_filiere(request):
+    """Rapport des notes par filière (résultats PUBLIÉS uniquement).
+    Se remplit au fur et à mesure des publications. Vue HTML imprimable,
+    export PDF et Excel. En-tête ISGI — Département de l'IUP."""
+    from collections import OrderedDict
+
+    header_l1 = "Institut Supérieur de Génie Industriel (ISGI)"
+    header_l2 = "Département de l'IUP"
+
+    results = (
+        Result.objects.filter(is_published=True)
+        .select_related("jury_student__student")
+        .order_by("jury_student__student__filiere", "jury_student__student__full_name")
+    )
+    groups = OrderedDict()
+    for r in results:
+        s = r.jury_student.student
+        fil = s.filiere or "(filière non renseignée)"
+        groups.setdefault(fil, []).append({
+            "name": s.full_name or "(nom absent)",
+            "matricule": s.matricule,
+            "average": r.average,
+            "mention": mention_for_average(r.average),
+        })
+
+    fmt = (request.GET.get("format") or "").strip()
+
+    if fmt == "xlsx":
+        from openpyxl import Workbook
+        wb = Workbook()
+        first = True
+        for fil, rows in groups.items():
+            ws = wb.active if first else wb.create_sheet()
+            ws.title = (fil[:28] or "Filiere")
+            first = False
+            ws.append([header_l1])
+            ws.append([header_l2])
+            ws.append([f"Résultats — Filière {fil}"])
+            ws.append([])
+            ws.append(["Nom & Prénom", "Matricule", "Note finale", "Mention"])
+            for row in rows:
+                ws.append([row["name"], row["matricule"],
+                           float(row["average"]) if row["average"] is not None else "",
+                           row["mention"]])
+        if first:  # aucun résultat
+            wb.active.append([header_l1]); wb.active.append([header_l2])
+            wb.active.append(["Aucun résultat publié pour le moment."])
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="notes_par_filiere.xlsx"'
+        wb.save(response)
+        return response
+
+    if fmt == "pdf":
+        lines = [header_l1, header_l2, "", "Résultats de soutenance par filière", ""]
+        for fil, rows in groups.items():
+            lines.append(f"— Filière {fil} ({len(rows)}) —")
+            for row in rows:
+                note = f"{row['average']}" if row["average"] is not None else "—"
+                lines.append(f"{row['matricule']}  {row['name']}  :  {note}  ({row['mention']})")
+            lines.append("")
+        if not groups:
+            lines.append("Aucun résultat publié pour le moment.")
+        return simple_pdf_response(
+            "Notes par filière", lines, "notes_par_filiere.pdf"
+        )
+
+    return render(request, "soutenances/admin_results_by_filiere.html", {
+        "groups": groups,
+        "header_l1": header_l1,
+        "header_l2": header_l2,
+        "total": sum(len(v) for v in groups.values()),
+    })
+
+
+@login_required
+@role_required(["admin"])
 def admin_unlock_evaluation(request, pk):
     evaluation = get_object_or_404(Evaluation, pk=pk)
 

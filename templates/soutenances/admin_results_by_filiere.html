@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Notes par filière{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media print {
+        .no-print { display: none !important; }
+        .page-shell { padding: 0 !important; }
+    }
+    .isgi-head { text-align:center; margin-bottom:18px; }
+    .isgi-head h2 { margin:0; font-size:1.15rem; }
+    .isgi-head p { margin:2px 0 0; font-weight:700; }
+    .fil-block { margin-bottom:22px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Notes par filière</h1>
+        <p class="text-muted" style="font-size:.9rem;">Résultats <strong>publiés</strong> uniquement ({{ total }} étudiant(s)). Se remplit au fur et à mesure des soutenances.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="button" onclick="window.print()" class="btn btn-primary">Imprimer</button>
+        <a href="?format=pdf" class="btn btn-outline-primary">Télécharger PDF</a>
+        <a href="?format=xlsx" class="btn btn-outline-primary">Télécharger Excel</a>
+    </div>
+</div>
+
+<section class="content-panel">
+    <div class="isgi-head">
+        <h2>{{ header_l1 }}</h2>
+        <p>{{ header_l2 }}</p>
+    </div>
+
+    {% if not groups %}
+        <div class="empty-state">Aucun résultat publié pour le moment.</div>
+    {% else %}
+        {% for fil, rows in groups.items %}
+            <div class="fil-block">
+                <h3>Filière {{ fil }} <span class="text-muted">({{ rows|length }})</span></h3>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Nom &amp; Prénom</th>
+                                <th>Matricule</th>
+                                <th class="text-center">Note finale</th>
+                                <th>Mention</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in rows %}
+                            <tr>
+                                <td>{{ row.name }}</td>
+                                <td>{{ row.matricule }}</td>
+                                <td class="text-center"><strong>{{ row.average|default:"—" }}</strong></td>
+                                <td>{{ row.mention }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endfor %}
+    {% endif %}
+</section>
+{% endblock %}
