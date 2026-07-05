@@ -3318,6 +3318,30 @@ def admin_jury_quick_create(request):
     return render(request, "soutenances/admin_jury_quick_create.html", context)
 
 
+def _mergeable_juries_for(jury, current_members):
+    """Autres jurys ayant EXACTEMENT les mêmes membres et la même date —
+    candidats à la fusion (coller deux jurys du même jour, mêmes membres)."""
+    member_ids = sorted(m.professor_id for m in current_members)
+    if len(member_ids) < 1:
+        return []
+    result = []
+    for other in Jury.objects.filter(
+        defense_date=jury.defense_date
+    ).exclude(pk=jury.pk).prefetch_related("members"):
+        ids = sorted(m.professor_id for m in other.members.all())
+        if ids == member_ids:
+            first = DefenseSchedule.objects.filter(
+                jury_student__jury=other
+            ).order_by("start_time").first()
+            result.append({
+                "jury": other,
+                "start": first.start_time if first else None,
+                "students": other.students.count(),
+            })
+    result.sort(key=lambda r: (r["start"] is None, r["start"] or time(0, 0)))
+    return result
+
+
 @login_required
 @role_required(["admin"])
 def admin_jury_update(request, pk):
@@ -3486,6 +3510,9 @@ def admin_jury_update(request, pk):
             1 for js in jury_students
             if js.evaluations.exists() or hasattr(js, "result")
         ),
+        # Jurys fusionnables : MÊMES membres + MÊME date (pour coller deux
+        # jurys du même jury et supprimer le vide).
+        "mergeable_juries": _mergeable_juries_for(jury, current_members),
     }
 
     # ── 4. POST : retirer un membre ────────────────────────────────────────
@@ -3613,12 +3640,32 @@ def admin_jury_update(request, pk):
         old_member = jury.members.filter(professor_id=old_id).first()
         new_prof = ProfessorProfile.objects.filter(id=new_id).first()
 
+        # Conflit dur : le nouveau prof est-il déjà dans un AUTRE jury sur un
+        # créneau de CE jury ? (évite le double-booking sur des jurys qui se
+        # chevauchent).
+        conflict_here = False
+        if new_prof and has_real_slot:
+            my_starts = DefenseSchedule.objects.filter(
+                jury_student__jury=jury
+            ).values_list("start_time", flat=True)
+            for st in my_starts:
+                if professor_has_conflict(new_prof, real_slot_date, st):
+                    conflict_here = True
+                    break
+
         if not old_member:
             messages.error(request, "Le membre à remplacer n'appartient pas à ce jury.")
         elif not new_prof:
             messages.error(request, "Choisissez un professeur remplaçant.")
         elif jury.members.filter(professor_id=new_id).exists():
             messages.error(request, f"{new_prof.full_name} est déjà membre de ce jury.")
+        elif conflict_here:
+            messages.error(
+                request,
+                f"Impossible : {new_prof.full_name} est déjà membre d'un autre jury "
+                f"sur un créneau de ce jury (chevauchement). Choisissez un prof libre "
+                f"ou reprogrammez l'un des jurys."
+            )
         else:
             old_name = old_member.professor.full_name
             with transaction.atomic():
@@ -3944,6 +3991,50 @@ def admin_jury_update(request, pk):
             request,
             "Horaires resserrés : les passages sont désormais contigus (sans trou)."
         )
+        return redirect("admin_jury_update", pk=jury.pk)
+
+    # ── 6quinquies-bis. POST : FUSIONNER un autre jury (mêmes membres) dans
+    #     celui-ci et coller les passages (supprime le vide).
+    if request.method == "POST" and request.POST.get("action") == "merge_jury":
+        try:
+            other_id = int(request.POST.get("merge_jury_id", ""))
+        except (ValueError, TypeError):
+            messages.error(request, "Sélection invalide.")
+            return redirect("admin_jury_update", pk=jury.pk)
+        other = Jury.objects.filter(pk=other_id).first()
+        my_ids = sorted(m.professor_id for m in current_members)
+        other_ids = sorted(m.professor_id for m in other.members.all()) if other else []
+        graded_here = any(
+            js.evaluations.exists() or hasattr(js, "result") for js in jury_students
+        )
+        graded_other = other and any(
+            js.evaluations.exists() or hasattr(js, "result")
+            for js in other.students.all()
+        )
+        if not other or other.pk == jury.pk:
+            messages.error(request, "Jury à fusionner introuvable.")
+        elif other_ids != my_ids:
+            messages.error(request, "Fusion impossible : les deux jurys n'ont pas les mêmes membres.")
+        elif other.defense_date != jury.defense_date:
+            messages.error(request, "Fusion impossible : les deux jurys ne sont pas le même jour.")
+        elif graded_here or graded_other:
+            messages.error(request, "Fusion impossible : un des jurys contient déjà des étudiants notés.")
+        else:
+            other_name = other.name
+            moved = other.students.count()
+            with transaction.atomic():
+                # Rattacher les étudiants de l'autre jury à celui-ci.
+                for js in list(other.students.all()):
+                    JuryStudent.objects.filter(pk=js.pk).update(jury=jury)
+                # Supprimer l'autre jury (désormais vide) puis coller les passages.
+                Jury.objects.filter(pk=other.pk).delete()
+                recompact_jury_schedule(jury)
+                refresh_jury_name_count(jury)
+            messages.success(
+                request,
+                f"« {other_name} » a été fusionné dans ce jury ({moved} étudiant(s) "
+                f"ajouté(s)) et les passages ont été collés (sans vide)."
+            )
         return redirect("admin_jury_update", pk=jury.pk)
 
     # ── 6sexies. POST : REPROGRAMMER le jury entier à une autre date ─────────

@@ -59,11 +59,21 @@
                 <span class="eyebrow">Programme</span>
                 <h3>{{ filtered_professor.full_name }}</h3>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
                 <span class="status-pill info">{{ row.scheduled_juries|default:0 }} jury(s) programmé(s)</span>
                 <span class="status-pill" style="background:rgba(13,148,136,.15); color:#0f5e59;">{{ row.scheduled_students|default:0 }} étudiant(s) à faire passer</span>
+                {% if row.conflicts %}
+                    <span class="status-pill danger">⚠ {{ row.conflicts }} chevauchement(s)</span>
+                {% endif %}
             </div>
         </div>
+        {% if row.conflicts %}
+            <div class="comment-box" style="border-color:rgba(220,38,38,.3); background:rgba(220,38,38,.05); margin:0 0 10px;">
+                <strong style="color:#b91c1c;">Conflit d'horaire :</strong> ce professeur est membre de deux jurys
+                dont les créneaux se chevauchent (surlignés en rouge). Corrigez en remplaçant/échangeant un membre,
+                en reprogrammant ou en fusionnant les jurys concernés.
+            </div>
+        {% endif %}
         {% if row.days %}
             {% for day in row.days %}
                 <div class="mb-2" style="padding:10px; border:1px solid var(--line); border-radius:8px;">
@@ -79,9 +89,9 @@
                     <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
                         <span class="text-muted" style="font-size:.8rem;">Jurys :</span>
                         {% for entry in day.programme %}
-                            <span class="status-pill" style="background:rgba(13,148,136,.12); color:#0f5e59;">
-                                {{ entry.jury.name }}{% if entry.jury.salle %} · {{ entry.jury.get_salle_display }}{% endif %}{% if entry.start %} · {{ entry.start|time:"H:i" }}–{{ entry.end|time:"H:i" }}{% endif %} · {{ entry.students_count }} étudiant(s){% if entry.jury.is_validated %} · publié{% else %} · brouillon{% endif %}
-                            </span>
+                            <a href="{% url 'admin_jury_update' entry.jury.id %}" class="status-pill" style="text-decoration:none; {% if entry.conflict %}background:rgba(220,38,38,.14); color:#b91c1c;{% else %}background:rgba(13,148,136,.12); color:#0f5e59;{% endif %}">
+                                {% if entry.conflict %}⚠ {% endif %}{{ entry.jury.name }}{% if entry.jury.salle %} · {{ entry.jury.get_salle_display }}{% endif %}{% if entry.start %} · {{ entry.start|time:"H:i" }}–{{ entry.end|time:"H:i" }}{% endif %} · {{ entry.students_count }} étudiant(s){% if entry.jury.is_validated %} · publié{% else %} · brouillon{% endif %}
+                            </a>
                         {% empty %}
                             <span class="text-muted" style="font-size:.8rem;">Aucun jury programmé ce jour.</span>
                         {% endfor %}

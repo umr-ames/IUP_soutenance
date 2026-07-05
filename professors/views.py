@@ -175,8 +175,22 @@ def admin_professor_availability(request):
         avail_by_date = {day["date"]: day["slots"] for day in row["days"]}
         all_dates = sorted(set(avail_by_date) | set(prof_prog))
         merged_days = []
+        day_conflicts = 0
         for d in all_dates:
             programme = prof_prog.get(d, [])
+            # Détection de CHEVAUCHEMENT : deux jurys du même jour dont les
+            # horaires se recoupent = le prof est doublement réservé (anomalie).
+            ordered = sorted(
+                [e for e in programme if e.get("start") and e.get("end")],
+                key=lambda e: e["start"],
+            )
+            for e in ordered:
+                e["conflict"] = False
+            for i in range(1, len(ordered)):
+                if ordered[i]["start"] < ordered[i - 1]["end"]:
+                    ordered[i]["conflict"] = True
+                    ordered[i - 1]["conflict"] = True
+                    day_conflicts += 1
             merged_days.append({
                 "date": d,
                 "slots": avail_by_date.get(d, []),
@@ -185,6 +199,7 @@ def admin_professor_availability(request):
             juries_count += len(programme)
             total_students += sum(e["students_count"] for e in programme)
         row["days"] = merged_days
+        row["conflicts"] = day_conflicts
         row["scheduled_juries"] = juries_count
         row["scheduled_students"] = total_students
 

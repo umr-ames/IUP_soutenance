@@ -45,6 +45,36 @@
         </div>
     </form>
 
+    {% if mergeable_juries %}
+    <hr>
+    <div>
+        <span class="eyebrow">Fusion</span>
+        <h3>Fusionner un autre jury dans celui-ci</h3>
+        <p class="text-muted mb-2" style="font-size:.88rem;">
+            Un ou plusieurs jurys du même jour ont <strong>exactement les mêmes membres</strong>.
+            Vous pouvez les fusionner ici : leurs étudiants rejoignent ce jury et les passages
+            sont <strong>collés</strong> (plus de trou). Les jurys avec des étudiants déjà notés ne sont pas fusionnables.
+        </p>
+        <form method="post" class="row g-2 align-items-end" style="max-width:640px;"
+              onsubmit="return confirm('Fusionner le jury sélectionné dans celui-ci ?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="merge_jury">
+            <div class="col-md-8">
+                <label class="form-label">Jury à fusionner (mêmes membres, même jour)</label>
+                <select name="merge_jury_id" class="form-select" required>
+                    <option value="">— Choisir un jury —</option>
+                    {% for m in mergeable_juries %}
+                        <option value="{{ m.jury.id }}">{{ m.jury.name }}{% if m.start %} · à partir de {{ m.start|time:"H:i" }}{% endif %} · {{ m.students }} étudiant(s){% if m.jury.salle %} · {{ m.jury.get_salle_display }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-outline-primary w-100">Fusionner et coller</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
     <hr>
     <div>
         <span class="eyebrow">Report</span>
