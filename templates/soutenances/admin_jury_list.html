@@ -126,6 +126,41 @@
         <button type="button" class="btn btn-outline-secondary jury-tab" data-cat="future">Futurs ({{ future_count|default:"0" }})</button>
     </div>
 
+    <!-- Filtre par jour + rapport jurys/jour (matin/après-midi) -->
+    <section class="content-panel" style="margin-bottom:14px;">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <form method="get" class="d-flex gap-2 align-items-end">
+                <div>
+                    <label class="form-label">Filtrer par jour</label>
+                    <select name="day" class="form-select" onchange="this.form.submit()" style="min-width:220px;">
+                        <option value="">— Tous les jours —</option>
+                        {% for d in available_days %}
+                            <option value="{{ d|date:'Y-m-d' }}" {% if selected_day and selected_day == d %}selected{% endif %}>{{ d|date:"D d/m/Y" }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% if selected_day %}<a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">Effacer</a>{% endif %}
+            </form>
+            <div class="table-responsive" style="max-width:520px;">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Jour</th><th class="text-center">Matin</th><th class="text-center">Après-midi</th><th class="text-center">Total</th></tr></thead>
+                    <tbody>
+                        {% for row in day_report %}
+                        <tr>
+                            <td><a href="?day={{ row.date|date:'Y-m-d' }}">{{ row.date|date:"D d/m/Y" }}</a></td>
+                            <td class="text-center">{{ row.morning }}</td>
+                            <td class="text-center">{{ row.afternoon }}</td>
+                            <td class="text-center"><strong>{{ row.total }}</strong></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-muted">Aucun jury programmé.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
     <div class="jury-board" id="juryBoard">
         {% for jury in juries %}
             <article class="jury-card" data-category="{{ jury.category }}" data-search="{{ jury.name }} {% for member in jury.members.all %} {{ member.professor.full_name }} {% endfor %} {% for item in jury.students.all %} {{ item.student.full_name }} {{ item.student.matricule }} {{ item.student.encadrant.full_name }} {% if item.president %} {{ item.president.full_name }} {% endif %} {% endfor %}">

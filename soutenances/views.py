@@ -580,6 +580,16 @@ def admin_jury_list(request):
         "students__schedule",
     ).order_by("defense_date", "name")
 
+    # Filtre par jour (optionnel).
+    day_filter = (request.GET.get("day") or "").strip()
+    selected_day = None
+    if day_filter:
+        try:
+            selected_day = date_cls.fromisoformat(day_filter)
+            juries = juries.filter(defense_date=selected_day)
+        except ValueError:
+            selected_day = None
+
     pending_students_count = StudentProfile.objects.filter(
         pfe_request__status=PFERequest.STATUS_ACCEPTED,
         jury_assignment__isnull=True,
@@ -615,22 +625,62 @@ def admin_jury_list(request):
         if not jury.is_validated:
             jury.category = "draft"
             continue
-        if jury.defense_date and jury.defense_date >= today:
-            jury.category = "future"
-            upcoming_juries_count += 1
-            future_count += 1
-            continue
-        # Jury validé, date passée.
-        jury.category = "past"
-        past_count += 1
+        # Un jury dont TOUS les étudiants sont notés par les 3 membres bascule
+        # dans « Passés » (Terminé), même si sa date est encore future.
         jury_students = list(jury.students.all())
         all_graded = bool(jury_students) and all(
             submitted_counts.get(js.id, 0) >= 3 for js in jury_students
         )
         if all_graded:
+            jury.category = "past"
+            past_count += 1
             completed_juries_count += 1
+            continue
+        if jury.defense_date and jury.defense_date >= today:
+            jury.category = "future"
+            upcoming_juries_count += 1
+            future_count += 1
+            continue
+        # Jury validé, date passée, notes incomplètes.
+        jury.category = "past"
+        past_count += 1
+        awaiting_notes_count += 1
+
+    # ── Rapport jurys par jour (matin / après-midi), recalculé à chaque
+    #    affichage (donc à jour après ajout/suppression). Basé sur TOUS les
+    #    jurys (indépendamment du filtre jour courant).
+    from collections import defaultdict
+    all_juries = Jury.objects.all()
+    first_start = {}
+    for row in (
+        DefenseSchedule.objects
+        .filter(jury_student__jury__in=all_juries)
+        .order_by("start_time")
+        .values("jury_student__jury_id", "start_time")
+    ):
+        jid = row["jury_student__jury_id"]
+        if jid not in first_start:
+            first_start[jid] = row["start_time"]
+    day_map = defaultdict(lambda: {"morning": 0, "afternoon": 0})
+    available_days = set()
+    for j in all_juries:
+        if not j.defense_date:
+            continue
+        available_days.add(j.defense_date)
+        st = first_start.get(j.pk)
+        label = _slot_label_at(j.defense_date, st) if st else None
+        if label == defense_slots.AFTERNOON:
+            day_map[j.defense_date]["afternoon"] += 1
         else:
-            awaiting_notes_count += 1
+            day_map[j.defense_date]["morning"] += 1
+    day_report = [
+        {
+            "date": d, "morning": day_map[d]["morning"],
+            "afternoon": day_map[d]["afternoon"],
+            "total": day_map[d]["morning"] + day_map[d]["afternoon"],
+        }
+        for d in sorted(day_map.keys())
+    ]
 
     return render(request, "soutenances/admin_jury_list.html", {
         "juries": juries,
@@ -646,6 +696,9 @@ def admin_jury_list(request):
         "past_count": past_count,
         "future_count": future_count,
         "assigned_students_count": assigned_students_count,
+        "day_report": day_report,
+        "available_days": sorted(available_days),
+        "selected_day": selected_day,
     })
 
 

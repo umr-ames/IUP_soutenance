@@ -703,6 +703,39 @@ def professor_evaluations(request):
     })
 
 
+def _auto_finalize_result(jury_student):
+    """Dès que les 3 membres ont noté : calcule le résultat et le PUBLIE
+    automatiquement s'il n'y a pas d'écart (< 3 pts). En cas d'écart (≥ 3),
+    le résultat reste NON publié (bloqué pour le département).
+
+    Renvoie True si publié auto, False si bloqué (écart), None si pas encore
+    3 notes."""
+    if jury_student.evaluations.filter(is_submitted=True).count() != 3:
+        return None
+    result, _ = Result.objects.get_or_create(jury_student=jury_student)
+    if result.is_published:
+        return True
+    result.calculate_average()  # renseigne average, note_gap_value, has_note_gap_alert
+    if result.has_note_gap_alert:
+        return False
+    result.publish()
+    notify(
+        getattr(jury_student.student, "user", None),
+        "Résultat publié",
+        "Votre résultat de soutenance est disponible.",
+        "/student-dashboard/",
+        category=Notification.CATEGORY_RESULT,
+    )
+    notify_admins(
+        "Résultat publié automatiquement",
+        f"{jury_student.student.full_name} — moyenne {result.average} "
+        f"(sans écart).",
+        "/admin-dashboard/results/",
+        category=Notification.CATEGORY_RESULT,
+    )
+    return True
+
+
 @login_required
 @role_required(["professor"])
 def professor_evaluation_detail(request, jury_student_id):
@@ -775,11 +808,23 @@ def professor_evaluation_detail(request, jury_student_id):
 
             if action == "submit":
                 evaluation.submit()
+                published = _auto_finalize_result(jury_student)
 
-                messages.success(
-                    request,
-                    "Évaluation envoyée avec succès."
-                )
+                if published is True:
+                    messages.success(
+                        request,
+                        "Évaluation envoyée. Les 3 notes sont là et sans écart : "
+                        "le résultat a été publié automatiquement."
+                    )
+                elif published is False:
+                    messages.warning(
+                        request,
+                        "Évaluation envoyée. Les 3 notes présentent un écart ≥ 3 "
+                        "points : le résultat est en attente de validation du "
+                        "département."
+                    )
+                else:
+                    messages.success(request, "Évaluation envoyée avec succès.")
 
                 return redirect("professor_evaluations")
 
