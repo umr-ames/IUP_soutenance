@@ -187,7 +187,7 @@
                                 <select name="new_professor_id" class="form-select form-select-sm" required>
                                     <option value="">— Choisir un professeur —</option>
                                     {% for p in replacement_candidates %}
-                                        <option value="{{ p.id }}">{{ p.full_name }}{% if p.available == False %} — indisponible à ce créneau{% endif %}</option>
+                                        <option value="{{ p.id }}">{{ p.full_name }}{% if p.status %} — {{ p.status }}{% endif %}</option>
                                     {% endfor %}
                                 </select>
                                 <button type="submit" class="btn btn-sm btn-outline-primary">Remplacer</button>

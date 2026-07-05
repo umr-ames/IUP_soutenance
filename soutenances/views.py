@@ -3425,18 +3425,14 @@ def admin_jury_update(request, pk):
     for p in ProfessorProfile.objects.order_by("full_name"):
         if p.id in current_member_ids:
             continue
-        available = None
-        if has_real_slot:
-            available = (
-                is_professor_available(p, real_slot_date, real_slot_start)
-                and not professor_has_conflict(p, real_slot_date, real_slot_start)
-            )
+        status = professor_slot_status(p, real_slot_date, real_slot_start) if has_real_slot else {"free": None, "label": ""}
         replacement_candidates.append({
             "id": p.id,
             "full_name": p.full_name,
-            "available": available,
+            "available": status["free"],
+            "status": status["label"],
         })
-    # Les disponibles d'abord.
+    # Les libres d'abord, puis "libre l'autre demi-journée", puis les autres.
     replacement_candidates.sort(
         key=lambda r: (0 if r["available"] else 1, r["full_name"].lower())
     )
@@ -4310,9 +4306,39 @@ def admin_jury_add_student(request, pk):
                     defense_date=jury.defense_date,
                 )
 
-                # Calculate the next available 30-min slot for this student
-                next_start = calculate_next_defense_slot_for_jury(jury, members)
+                # Horaire PERSONNALISÉ (hors programme) fourni par l'admin ?
+                custom_raw = (request.POST.get("custom_start") or "").strip()
                 schedule_warning = None
+                next_start = None
+                if custom_raw:
+                    try:
+                        next_start = datetime.strptime(custom_raw, "%H:%M").time()
+                    except ValueError:
+                        messages.error(request, "Heure personnalisée invalide (format HH:MM).")
+                        return redirect("admin_jury_detail", pk=jury.pk)
+                    warn_bits = []
+                    if not (time(9, 0) <= next_start <= time(19, 0)):
+                        warn_bits.append("hors de la plage 9h–19h")
+                    busy = [
+                        m.full_name for m in members
+                        if professor_has_conflict(m, jury.defense_date, next_start)
+                    ]
+                    if busy:
+                        warn_bits.append("membre(s) déjà occupé(s) : " + ", ".join(busy))
+                    if jury.salle and _salle_occupee(
+                        jury.defense_date, next_start,
+                        slot_end_time(jury.defense_date, next_start), jury.salle
+                    ):
+                        warn_bits.append(f"salle {jury.get_salle_display()} occupée")
+                    schedule_warning = (
+                        f"Horaire personnalisé {custom_raw} placé hors programme"
+                        + (" — " + " ; ".join(warn_bits) if warn_bits else "")
+                        + "."
+                    )
+
+                if next_start is None and not custom_raw:
+                    # Calculate the next available 20-min slot for this student
+                    next_start = calculate_next_defense_slot_for_jury(jury, members)
 
                 if next_start is None:
                     # Repli admin : placer à la suite du dernier passage du
@@ -4408,7 +4434,10 @@ def admin_jury_add_student(request, pk):
                             start_time=next_start,
                             duration_minutes=DEFENSE_DURATION_MINUTES,
                         )
-                    recompact_jury_schedule(jury)
+                    # Un horaire PERSONNALISÉ (hors programme) ne doit pas être
+                    # recompacté (sinon il serait ramené à la suite des autres).
+                    if not custom_raw:
+                        recompact_jury_schedule(jury)
                     refresh_jury_name_count(jury)
 
             except ValidationError as exc:
@@ -5174,6 +5203,43 @@ def professor_busy_other_slot(professor, defense_date, current_slot):
         start_time__lt=o_end,
         end_time__gt=o_start,
     ).exists()
+
+
+def professor_slot_status(professor, defense_date, start_time):
+    """Statut d'un professeur pour un créneau donné :
+    - free=True s'il est libre ici (dispo déclarée + pas de conflit + pas déjà
+      en jury l'autre demi-journée) ;
+    - sinon un libellé expliquant pourquoi et s'il est libre l'autre
+      demi-journée (ex. « Pris ce créneau · libre l'après-midi »)."""
+    if not (defense_date and start_time):
+        return {"free": None, "label": ""}
+    label = _slot_label_at(defense_date, start_time)
+    other = (
+        defense_slots.MORNING if label == defense_slots.AFTERNOON
+        else defense_slots.AFTERNOON
+    )
+    other_fr = "le matin" if other == defense_slots.MORNING else "l'après-midi"
+    avail_here = is_professor_available(professor, defense_date, start_time)
+    conflict_here = professor_has_conflict(professor, defense_date, start_time)
+    busy_other = professor_busy_other_slot(professor, defense_date, label)
+
+    if avail_here and not conflict_here and not busy_other:
+        return {"free": True, "label": "Libre à ce créneau"}
+
+    o_start, _ = defense_slots.slot_bounds(defense_date, other)
+    avail_other = is_professor_available(professor, defense_date, o_start)
+
+    if busy_other:
+        return {"free": False, "label": f"Déjà en jury {other_fr}"}
+    if conflict_here:
+        if avail_other:
+            return {"free": False, "label": f"Pris ce créneau · libre {other_fr}"}
+        return {"free": False, "label": "Déjà en jury à ce créneau"}
+    if not avail_here:
+        if avail_other:
+            return {"free": False, "label": f"Dispo {other_fr} seulement"}
+        return {"free": False, "label": "Aucune disponibilité ce jour"}
+    return {"free": False, "label": "Indisponible"}
 
 
 def juries_count_at_slot(defense_date, start_time, duration_minutes=DEFENSE_DURATION_MINUTES):

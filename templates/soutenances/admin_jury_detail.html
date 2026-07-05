@@ -78,6 +78,13 @@
                     {% csrf_token %}
                     {{ form.as_p }}
 
+                    <details style="margin:6px 0;">
+                        <summary style="cursor:pointer; font-size:.86rem; color:var(--muted);">Horaire personnalisé (hors programme, ex. après 19h)</summary>
+                        <label class="form-label mt-2" style="font-size:.82rem;">Heure de passage (HH:MM) — laisser vide pour placement automatique</label>
+                        <input type="time" name="custom_start" class="form-control" placeholder="19:40">
+                        <small class="text-muted">Permet de programmer hors des créneaux standards. Un avertissement s'affiche si l'heure sort de 9h–19h ou si un membre/salle est déjà pris.</small>
+                    </details>
+
                     <button type="submit" class="btn btn-primary">
                         Ajouter au jury
                     </button>
