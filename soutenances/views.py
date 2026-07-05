@@ -3318,6 +3318,66 @@ def admin_jury_quick_create(request):
     return render(request, "soutenances/admin_jury_quick_create.html", context)
 
 
+@login_required
+@role_required(["admin"])
+def admin_jury_conflicts(request):
+    """Outil global : détecte, pour TOUS les professeurs, les jurys dont les
+    créneaux se chevauchent (membre doublement réservé). Affiche les jurys
+    concernés, sans avoir à ouvrir chaque prof un par un."""
+    from collections import defaultdict
+
+    # Bloc horaire de chaque jury (min début → max fin) + date.
+    sched = defaultdict(list)
+    for s in DefenseSchedule.objects.values(
+        "jury_student__jury_id", "start_time", "end_time"
+    ):
+        sched[s["jury_student__jury_id"]].append(
+            (s["start_time"], s["end_time"] or s["start_time"])
+        )
+    jury_by_id = {j.id: j for j in Jury.objects.all()}
+    blocks = {}
+    for jid, lst in sched.items():
+        jury = jury_by_id.get(jid)
+        if not jury or not jury.defense_date:
+            continue
+        blocks[jid] = {
+            "date": jury.defense_date,
+            "start": min(a for a, _ in lst),
+            "end": max(b for _, b in lst),
+            "jury": jury,
+        }
+
+    prof_juries = defaultdict(list)
+    for jm in JuryMember.objects.select_related("professor"):
+        if jm.jury_id in blocks:
+            prof_juries[jm.professor].append(jm.jury_id)
+
+    conflicts = []
+    for prof, jids in prof_juries.items():
+        items = sorted(
+            (blocks[j] for j in jids), key=lambda b: (b["date"], b["start"])
+        )
+        for i in range(len(items)):
+            a = items[i]
+            for k in range(i + 1, len(items)):
+                b = items[k]
+                if a["date"] != b["date"]:
+                    break  # trié par date : plus rien ne peut chevaucher
+                if b["start"] < a["end"]:  # chevauchement
+                    conflicts.append({
+                        "professor": prof,
+                        "date": a["date"],
+                        "jury_a": a["jury"], "a_start": a["start"], "a_end": a["end"],
+                        "jury_b": b["jury"], "b_start": b["start"], "b_end": b["end"],
+                    })
+
+    conflicts.sort(key=lambda c: (c["date"], c["professor"].full_name.lower()))
+    return render(request, "soutenances/admin_jury_conflicts.html", {
+        "conflicts": conflicts,
+        "professors_checked": len(prof_juries),
+    })
+
+
 def _mergeable_juries_for(jury, current_members):
     """Autres jurys ayant EXACTEMENT les mêmes membres et la même date —
     candidats à la fusion (coller deux jurys du même jour, mêmes membres)."""

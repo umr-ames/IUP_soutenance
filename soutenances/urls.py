@@ -19,6 +19,7 @@ urlpatterns = [
     path("admin/jurys/profs-prioritaires/", views.admin_priority_professors_report, name="admin_priority_professors_report"),
     path("admin/jurys/dernier-rapport/", views.admin_last_generation_report, name="admin_last_generation_report"),
     path("admin/jurys/diagnostic/", views.admin_scheduling_diagnostic, name="admin_scheduling_diagnostic"),
+    path("admin/jurys/conflits/", views.admin_jury_conflicts, name="admin_jury_conflicts"),
     path("admin/jurys/placer-sans-jury/", views.admin_fill_unassigned_into_juries, name="admin_fill_unassigned_into_juries"),
     path("admin/jurys/ajouter-manuel/", views.admin_jury_add_manual, name="admin_jury_add_manual"),
     path("admin/jurys/generer-par-filiere/", views.admin_generate_by_filiere, name="admin_generate_by_filiere"),

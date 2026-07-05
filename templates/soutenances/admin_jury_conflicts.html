@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Conflits d'horaire{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Conflits d'horaire des membres</h1>
+        <p class="text-muted" style="font-size:.9rem;">
+            Vérification automatique : professeurs membres de <strong>deux jurys qui se chevauchent</strong>
+            (double réservation). {{ professors_checked }} professeur(s) analysé(s).
+        </p>
+    </div>
+    <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">Retour aux jurys</a>
+</div>
+
+{% if not conflicts %}
+    <section class="content-panel">
+        <div class="empty-state">✅ Aucun conflit détecté : aucun professeur n'est dans deux jurys qui se chevauchent.</div>
+    </section>
+{% else %}
+    <section class="content-panel" style="border-left:5px solid #dc2626;">
+        <strong style="color:#b91c1c;">{{ conflicts|length }} conflit(s) détecté(s)</strong>
+        <p class="text-muted" style="font-size:.88rem;">Corrigez chaque conflit : remplacez/échangez le membre, reprogrammez ou fusionnez l'un des jurys.</p>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Professeur</th>
+                        <th>Date</th>
+                        <th>Jury A</th>
+                        <th>Jury B</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in conflicts %}
+                    <tr>
+                        <td><strong>{{ c.professor.full_name }}</strong></td>
+                        <td>{{ c.date|date:"D d/m/Y" }}</td>
+                        <td>
+                            <a href="{% url 'admin_jury_update' c.jury_a.id %}" class="status-pill danger" style="text-decoration:none;">
+                                {{ c.jury_a.name }} · {{ c.a_start|time:"H:i" }}–{{ c.a_end|time:"H:i" }}{% if c.jury_a.salle %} · {{ c.jury_a.get_salle_display }}{% endif %}
+                            </a>
+                        </td>
+                        <td>
+                            <a href="{% url 'admin_jury_update' c.jury_b.id %}" class="status-pill danger" style="text-decoration:none;">
+                                {{ c.jury_b.name }} · {{ c.b_start|time:"H:i" }}–{{ c.b_end|time:"H:i" }}{% if c.jury_b.salle %} · {{ c.jury_b.get_salle_display }}{% endif %}
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endif %}
+{% endblock %}

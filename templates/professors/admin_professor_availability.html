@@ -19,6 +19,9 @@
         <a href="{% url 'admin_professor_availability_edit' %}{% if filtered_professor %}?professor={{ filtered_professor.id }}{% endif %}" class="btn btn-primary">
             Remplir des disponibilités
         </a>
+        <a href="{% url 'admin_jury_conflicts' %}" class="btn btn-outline-danger">
+            Vérifier les conflits d'horaire
+        </a>
         {% if filtered_professor %}
             <a href="{% url 'admin_professor_availability' %}" class="btn btn-outline-secondary">
                 Voir tous les professeurs
