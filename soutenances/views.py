@@ -2102,10 +2102,9 @@ def generate_smart_juries(start_date=None, end_date=None, max_simultaneous=None)
         key=lambda e: (e["defense_date"], e["slot_start"])
     )
 
-    # 11. On NE renumérote PAS les brouillons existants : la génération ne
-    #     touche jamais aux jurys déjà créés. Les nouveaux jurys ont déjà un
-    #     numéro par jour attribué à leur création (après les jurys existants).
-    #     On rafraîchit seulement les noms dans le rapport.
+    # 11. Renumérotation PAR JOUR (matin puis après-midi) de tous les jurys,
+    #     puis rafraîchissement des noms dans le rapport.
+    renumber_all_juries()
     pk_list = [
         e.get("jury_pk") for e in result["report"]["juries"] if e.get("jury_pk")
     ]
@@ -2831,34 +2830,48 @@ def refresh_jury_name_count(jury):
         jury.name = new_name
 
 
-def renumber_draft_juries():
-    """Renomme les jurys BROUILLONS : numérotation PAR JOUR (Jury 1..n) dans
-    l'ordre chronologique des passages. Les jurys publiés ne sont pas touchés ;
-    la numérotation des brouillons démarre après eux."""
+def renumber_all_juries():
+    """Renumérote TOUS les jurys, PAR JOUR : d'abord les jurys du MATIN, puis
+    ceux de l'APRÈS-MIDI, chacun dans l'ordre croissant des horaires. Le numéro
+    se met donc à jour automatiquement à chaque ajout / suppression de jury."""
     from collections import defaultdict
     from datetime import time as _time
 
-    drafts_by_date = defaultdict(list)
-    for jury in Jury.objects.filter(is_validated=False).prefetch_related("students"):
-        starts = list(
-            DefenseSchedule.objects.filter(jury_student__jury=jury)
-            .values_list("start_time", flat=True)
-        )
-        first = min(starts) if starts else None
-        drafts_by_date[jury.defense_date].append(
-            (first is None, first or _time(23, 59), jury.salle or "", jury.pk, jury)
+    first_start = {}
+    for row in (
+        DefenseSchedule.objects.order_by("start_time")
+        .values("jury_student__jury_id", "start_time")
+    ):
+        jid = row["jury_student__jury_id"]
+        if jid not in first_start:
+            first_start[jid] = row["start_time"]
+
+    by_date = defaultdict(list)
+    for jury in Jury.objects.prefetch_related("students"):
+        if not jury.defense_date:
+            continue
+        st = first_start.get(jury.pk)
+        label = _slot_label_at(jury.defense_date, st) if st else None
+        # Matin = 0, Après-midi = 1, non planifié = 2 (à la fin).
+        half = 0 if label == defense_slots.MORNING else (1 if label == defense_slots.AFTERNOON else 2)
+        by_date[jury.defense_date].append(
+            (half, st or _time(23, 59), jury.pk, jury)
         )
 
-    for defense_date, rows in drafts_by_date.items():
-        published = Jury.objects.filter(
-            defense_date=defense_date, is_validated=True
-        ).count()
-        rows.sort(key=lambda r: (r[0], r[1], r[2], r[3]))
-        for i, (_, _, _, _, jury) in enumerate(rows, start=published + 1):
+    for defense_date, rows in by_date.items():
+        rows.sort(key=lambda r: (r[0], r[1], r[2]))
+        for i, (_, _, _, jury) in enumerate(rows, start=1):
             n = jury.students.count()
-            new_name = f"Jury {i} - {n} étudiant{'s' if n > 1 else ''}"
+            new_name = (
+                f"Jury {i} - {n} étudiant{'s' if n > 1 else ''}" if n else f"Jury {i}"
+            )
             if jury.name != new_name:
                 Jury.objects.filter(pk=jury.pk).update(name=new_name)
+
+
+# Rétrocompat : anciens appels.
+def renumber_draft_juries():
+    renumber_all_juries()
 
 
 def choose_president_for_student(student, members, defense_date):
@@ -3092,6 +3105,7 @@ def admin_jury_add_manual(request):
                         warnings.append(f"{student.full_name} (encadrant {enc})")
                 recompact_jury_schedule(jury)
                 refresh_jury_name_count(jury)
+                renumber_all_juries()
                 jury.refresh_from_db()
 
             messages.success(
@@ -3126,6 +3140,7 @@ def admin_jury_create(request):
 
         if form.is_valid():
             jury = save_jury_with_members(form)
+            renumber_all_juries()
             messages.success(request, "Le jury a été créé avec succès.")
             return redirect("admin_jury_detail", pk=jury.pk)
     else:
@@ -3318,6 +3333,139 @@ def admin_jury_quick_create(request):
     return render(request, "soutenances/admin_jury_quick_create.html", context)
 
 
+def _timetable_data():
+    """Programme (emploi du temps) : jurys planifiés groupés par jour, triés
+    matin puis après-midi, avec pour chaque jury son numéro, sa salle, ses
+    membres, le nombre d'étudiants et le détail des passages (heure, nom,
+    matricule, président, encadrant)."""
+    from collections import defaultdict
+
+    juries = Jury.objects.prefetch_related(
+        "members__professor",
+        "students__student__encadrant",
+        "students__president",
+        "students__schedule",
+    )
+    by_day = defaultdict(list)
+    for j in juries:
+        rows = []
+        for js in j.students.all():
+            sch = getattr(js, "schedule", None)
+            if not sch:
+                continue
+            rows.append({
+                "start": sch.start_time,
+                "end": sch.end_time or slot_end_time(j.defense_date, sch.start_time),
+                "name": js.student.full_name or "(nom absent)",
+                "matricule": js.student.matricule,
+                "president": js.president.full_name if js.president else "—",
+                "encadrant": js.student.encadrant.full_name if js.student.encadrant else "—",
+            })
+        if not rows:
+            continue
+        rows.sort(key=lambda r: r["start"])
+        starts = [r["start"] for r in rows]
+        ends = [r["end"] for r in rows]
+        by_day[j.defense_date].append({
+            "jury": j,
+            "start": min(starts),
+            "end": max(ends),
+            "members": [m.professor.full_name for m in j.members.all()],
+            "count": len(rows),
+            "students": rows,
+        })
+    for d in by_day:
+        by_day[d].sort(key=lambda e: (
+            0 if _slot_label_at(d, e["start"]) == defense_slots.MORNING else 1,
+            e["start"],
+        ))
+    return sorted(by_day.items())
+
+
+@login_required
+@role_required(["admin"])
+def admin_timetable(request):
+    """Emploi du temps résumé (par jour, créneaux 9h–19h) + export PDF/Excel
+    avec le détail de chaque jury (horaires, nom, matricule, président,
+    encadrant, membres)."""
+    days = _timetable_data()
+    fmt = (request.GET.get("format") or "").strip()
+
+    def fmt_t(t):
+        return t.strftime("%H:%M") if hasattr(t, "strftime") else str(t)
+
+    def fmt_d(d):
+        return d.strftime("%A %d/%m/%Y") if hasattr(d, "strftime") else str(d)
+
+    if fmt == "xlsx":
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Résumé"
+        ws.append(["Institut Supérieur de Génie Industriel (ISGI) — Département de l'IUP"])
+        ws.append(["Emploi du temps des soutenances"])
+        ws.append([])
+        for d, entries in days:
+            ws.append([fmt_d(d)])
+            ws.append(["Horaire", "Jury", "Salle", "Nb étudiants", "Membres"])
+            for e in entries:
+                ws.append([
+                    f"{fmt_t(e['start'])}-{fmt_t(e['end'])}",
+                    e["jury"].name,
+                    e["jury"].get_salle_display() if e["jury"].salle else "",
+                    e["count"],
+                    " / ".join(e["members"]),
+                ])
+            ws.append([])
+        wd = wb.create_sheet("Détail")
+        wd.append(["Jour", "Jury", "Salle", "Horaire", "Nom & Prénom", "Matricule", "Président", "Encadrant"])
+        for d, entries in days:
+            for e in entries:
+                for r in e["students"]:
+                    wd.append([
+                        fmt_d(d), e["jury"].name,
+                        e["jury"].get_salle_display() if e["jury"].salle else "",
+                        f"{fmt_t(r['start'])}-{fmt_t(r['end'])}",
+                        r["name"], r["matricule"], r["president"], r["encadrant"],
+                    ])
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="emploi_du_temps.xlsx"'
+        wb.save(response)
+        return response
+
+    if fmt == "pdf":
+        lines = [
+            "Institut Supérieur de Génie Industriel (ISGI)",
+            "Département de l'IUP",
+            "", "Emploi du temps des soutenances", "",
+        ]
+        for d, entries in days:
+            lines.append(f"=== {fmt_d(d)} ===")
+            for e in entries:
+                lines.append(
+                    f"{e['jury'].name} · {fmt_t(e['start'])}-{fmt_t(e['end'])}"
+                    + (f" · {e['jury'].get_salle_display()}" if e['jury'].salle else "")
+                    + f" · {e['count']} etudiant(s)"
+                )
+                lines.append("   Membres : " + " / ".join(e["members"]))
+                for r in e["students"]:
+                    lines.append(
+                        f"   {fmt_t(r['start'])}-{fmt_t(r['end'])}  {r['matricule']}  "
+                        f"{r['name']}  (Pres. {r['president']} · Enc. {r['encadrant']})"
+                    )
+                lines.append("")
+        if not days:
+            lines.append("Aucune soutenance planifiee.")
+        return simple_pdf_response("Emploi du temps", lines, "emploi_du_temps.pdf")
+
+    return render(request, "soutenances/admin_timetable.html", {
+        "days": days,
+        "total_juries": sum(len(e) for _, e in days),
+    })
+
+
 @login_required
 @role_required(["admin"])
 def admin_jury_conflicts(request):
@@ -3379,27 +3527,33 @@ def admin_jury_conflicts(request):
 
 
 def _mergeable_juries_for(jury, current_members):
-    """Autres jurys ayant EXACTEMENT les mêmes membres et la même date —
-    candidats à la fusion (coller deux jurys du même jour, mêmes membres)."""
-    member_ids = sorted(m.professor_id for m in current_members)
-    if len(member_ids) < 1:
-        return []
-    result = []
+    """Autres jurys du MÊME JOUR. Sépare ceux qui ont EXACTEMENT les mêmes
+    membres (fusionnables) de ceux dont les membres diffèrent (non fusionnables,
+    affichés pour expliquer)."""
+    member_ids = set(m.professor_id for m in current_members)
+    my_names = {m.professor.full_name for m in current_members}
+    matching, others = [], []
     for other in Jury.objects.filter(
         defense_date=jury.defense_date
-    ).exclude(pk=jury.pk).prefetch_related("members"):
-        ids = sorted(m.professor_id for m in other.members.all())
+    ).exclude(pk=jury.pk).prefetch_related("members__professor"):
+        ids = set(m.professor_id for m in other.members.all())
+        first = DefenseSchedule.objects.filter(
+            jury_student__jury=other
+        ).order_by("start_time").first()
+        row = {
+            "jury": other,
+            "start": first.start_time if first else None,
+            "students": other.students.count(),
+        }
         if ids == member_ids:
-            first = DefenseSchedule.objects.filter(
-                jury_student__jury=other
-            ).order_by("start_time").first()
-            result.append({
-                "jury": other,
-                "start": first.start_time if first else None,
-                "students": other.students.count(),
-            })
-    result.sort(key=lambda r: (r["start"] is None, r["start"] or time(0, 0)))
-    return result
+            matching.append(row)
+        else:
+            other_names = {m.professor.full_name for m in other.members.all()}
+            row["diff"] = ", ".join(sorted(other_names ^ my_names)) or "composition différente"
+            others.append(row)
+    matching.sort(key=lambda r: (r["start"] is None, r["start"] or time(0, 0)))
+    others.sort(key=lambda r: (r["start"] is None, r["start"] or time(0, 0)))
+    return {"matching": matching, "others": others}
 
 
 @login_required
@@ -4090,6 +4244,7 @@ def admin_jury_update(request, pk):
                 Jury.objects.filter(pk=other.pk).delete()
                 recompact_jury_schedule(jury)
                 refresh_jury_name_count(jury)
+                renumber_all_juries()
             messages.success(
                 request,
                 f"« {other_name} » a été fusionné dans ce jury ({moved} étudiant(s) "
@@ -4307,7 +4462,8 @@ def admin_jury_delete(request, pk):
         # Aucune note → suppression complète (comportement classique).
         jury_name = jury.name
         jury.delete()
-        messages.success(request, f"Le jury « {jury_name} » a été supprimé.")
+        renumber_all_juries()
+        messages.success(request, f"Le jury « {jury_name} » a été supprimé (numéros mis à jour).")
         return redirect("admin_jury_list")
 
     # Il reste des notes → on libère les non notés et on garde le jury pour les
@@ -4352,7 +4508,8 @@ def admin_delete_draft_juries(request):
         deleted += 1
 
     if deleted:
-        messages.success(request, f"{deleted} jury(s) brouillon supprimé(s).")
+        renumber_all_juries()
+        messages.success(request, f"{deleted} jury(s) brouillon supprimé(s) (numéros mis à jour).")
     if kept:
         messages.warning(
             request,

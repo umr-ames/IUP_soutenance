@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Emploi du temps{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media print { .no-print { display:none !important; } .page-shell{padding:0 !important;} }
+    .day-block { margin-bottom:22px; }
+    .tt-jury { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px; }
+    .tt-time { font-weight:800; color:#0f5e59; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Emploi du temps des soutenances</h1>
+        <p class="text-muted" style="font-size:.9rem;">{{ total_juries }} jury(s) planifié(s). Par jour, du matin (9h) à l'après-midi (19h).</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="button" onclick="window.print()" class="btn btn-primary">Imprimer</button>
+        <a href="?format=pdf" class="btn btn-outline-primary">Télécharger PDF</a>
+        <a href="?format=xlsx" class="btn btn-outline-primary">Télécharger Excel</a>
+        <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">Retour aux jurys</a>
+    </div>
+</div>
+
+{% if not days %}
+    <section class="content-panel"><div class="empty-state">Aucune soutenance planifiée.</div></section>
+{% else %}
+    {% for d, entries in days %}
+    <section class="content-panel day-block">
+        <h2 style="text-transform:capitalize;">{{ d|date:"l d/m/Y" }}</h2>
+        {% for e in entries %}
+        <div class="tt-jury">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div>
+                    <span class="tt-time">{{ e.start|time:"H:i" }}–{{ e.end|time:"H:i" }}</span>
+                    · <strong>{{ e.jury.name }}</strong>
+                    {% if e.jury.salle %} · {{ e.jury.get_salle_display }}{% endif %}
+                    · {{ e.count }} étudiant(s)
+                    {% if e.jury.is_validated %}<span class="status-pill success">publié</span>{% else %}<span class="status-pill warning">brouillon</span>{% endif %}
+                </div>
+                <div class="text-muted" style="font-size:.85rem;">Membres : {{ e.members|join:" / " }}</div>
+            </div>
+            <div class="table-responsive mt-2">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr><th>Horaire</th><th>Nom &amp; Prénom</th><th>Matricule</th><th>Président</th><th>Encadrant</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for r in e.students %}
+                        <tr>
+                            <td>{{ r.start|time:"H:i" }}–{{ r.end|time:"H:i" }}</td>
+                            <td>{{ r.name }}</td>
+                            <td>{{ r.matricule }}</td>
+                            <td>{{ r.president }}</td>
+                            <td>{{ r.encadrant }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endfor %}
+{% endif %}
+{% endblock %}
