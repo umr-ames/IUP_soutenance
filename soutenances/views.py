@@ -5738,6 +5738,79 @@ def admin_publish_all_results(request):
 
 @login_required
 @role_required(["admin"])
+def admin_grade_sheet(request):
+    """Fiche de notes : TOUS les étudiants notés depuis le début (résultat
+    calculé, publié ou non), triés par MATRICULE croissant. Vue HTML
+    imprimable, export PDF et Excel. En-tête ISGI — Département de l'IUP."""
+    header_l1 = "Institut Supérieur de Génie Industriel (ISGI)"
+    header_l2 = "Département de l'IUP"
+
+    results = (
+        Result.objects.filter(average__isnull=False)
+        .select_related("jury_student__student")
+    )
+    rows = []
+    for r in results:
+        s = r.jury_student.student
+        rows.append({
+            "matricule": s.matricule or "",
+            "name": s.full_name or "(nom absent)",
+            "filiere": s.filiere or "—",
+            "average": r.average,
+            "mention": mention_for_average(r.average),
+            "published": r.is_published,
+        })
+    rows.sort(key=lambda x: (x["matricule"] or "").upper())
+
+    fmt = (request.GET.get("format") or "").strip()
+
+    if fmt == "xlsx":
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Fiche de notes"
+        ws.append([header_l1])
+        ws.append([header_l2])
+        ws.append([f"Fiche de notes — {len(rows)} étudiant(s) noté(s)"])
+        ws.append([])
+        ws.append(["Matricule", "Nom & Prénom", "Filière", "Note finale", "Mention", "Statut"])
+        for row in rows:
+            ws.append([
+                row["matricule"], row["name"], row["filiere"],
+                float(row["average"]) if row["average"] is not None else "",
+                row["mention"], "Publié" if row["published"] else "Non publié",
+            ])
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="fiche_de_notes.xlsx"'
+        wb.save(response)
+        return response
+
+    if fmt == "pdf":
+        lines = [header_l1, header_l2, "",
+                 f"Fiche de notes ({len(rows)} etudiant(s) note(s)) — par matricule", ""]
+        for row in rows:
+            note = f"{row['average']}" if row["average"] is not None else "—"
+            statut = "" if row["published"] else "  [non publie]"
+            lines.append(
+                f"{row['matricule']}  {row['name']}  ({row['filiere']})  :  "
+                f"{note}  ({row['mention']}){statut}"
+            )
+        if not rows:
+            lines.append("Aucun etudiant note pour le moment.")
+        return simple_pdf_response("Fiche de notes", lines, "fiche_de_notes.pdf")
+
+    return render(request, "soutenances/admin_grade_sheet.html", {
+        "rows": rows,
+        "header_l1": header_l1,
+        "header_l2": header_l2,
+        "total": len(rows),
+    })
+
+
+@login_required
+@role_required(["admin"])
 def admin_results_by_filiere(request):
     """Rapport des notes par filière (résultats PUBLIÉS uniquement).
     Se remplit au fur et à mesure des publications. Vue HTML imprimable,

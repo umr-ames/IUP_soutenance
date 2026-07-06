@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Fiche de notes{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media print { .no-print{display:none !important;} .page-shell{padding:0 !important;} }
+    .isgi-head { text-align:center; margin-bottom:18px; }
+    .isgi-head h2 { margin:0; font-size:1.15rem; }
+    .isgi-head p { margin:2px 0 0; font-weight:700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Fiche de notes</h1>
+        <p class="text-muted" style="font-size:.9rem;">Tous les étudiants notés depuis le début ({{ total }}), triés par matricule croissant. Publiés et non publiés.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="button" onclick="window.print()" class="btn btn-primary">Imprimer</button>
+        <a href="?format=pdf" class="btn btn-outline-primary">Télécharger PDF</a>
+        <a href="?format=xlsx" class="btn btn-outline-primary">Télécharger Excel</a>
+    </div>
+</div>
+
+<section class="content-panel">
+    <div class="isgi-head">
+        <h2>{{ header_l1 }}</h2>
+        <p>{{ header_l2 }}</p>
+    </div>
+
+    {% if not rows %}
+        <div class="empty-state">Aucun étudiant noté pour le moment.</div>
+    {% else %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Matricule</th>
+                        <th>Nom &amp; Prénom</th>
+                        <th>Filière</th>
+                        <th class="text-center">Note finale</th>
+                        <th>Mention</th>
+                        <th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td>{{ row.matricule }}</td>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.filiere }}</td>
+                        <td class="text-center"><strong>{{ row.average|default:"—" }}</strong></td>
+                        <td>{{ row.mention }}</td>
+                        <td>{% if row.published %}<span class="status-pill success">Publié</span>{% else %}<span class="status-pill warning">Non publié</span>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

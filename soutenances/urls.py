@@ -44,6 +44,7 @@ urlpatterns = [
     path("admin/evaluations/<int:pk>/unlock/", views.admin_unlock_evaluation, name="admin_unlock_evaluation"),
     path("admin/results/publish-all/", views.admin_publish_all_results, name="admin_publish_all_results"),
     path("admin/results/par-filiere/", views.admin_results_by_filiere, name="admin_results_by_filiere"),
+    path("admin/results/fiche-de-notes/", views.admin_grade_sheet, name="admin_grade_sheet"),
     path("admin/exports/jurys.pdf", views.export_juries_pdf, name="export_juries_pdf"),
     path("admin/exports/planning.pdf", views.export_planning_pdf, name="export_planning_pdf"),
     path("admin/exports/results.pdf", views.export_results_pdf, name="export_results_pdf"),
