@@ -194,6 +194,15 @@ def professor_dashboard(request):
         .count()
     )
 
+    # Étudiants où ce prof a été membre de jury ET les a NOTÉS (compte réel :
+    # s'il a été remplacé avant de noter certains, ceux-là ne comptent pas).
+    jury_graded_count = (
+        Evaluation.objects.filter(professor=professor, is_submitted=True)
+        .values_list("jury_student__student_id", flat=True)
+        .distinct()
+        .count()
+    )
+
     return render(request, "core/professor_dashboard.html", {
         "professor": professor,
         "supervised_students_count": supervised_students.count(),
@@ -205,6 +214,7 @@ def professor_dashboard(request):
         "availability_count": availability_count,
         "to_start_count": to_start_count,
         "supervised_students": supervised_students[:6],
+        "jury_graded_count": jury_graded_count,
         # Compteurs par statut des étudiants encadrés
         "students_official_total": official_total,
         "students_inscrits_count": inscrits_count,
@@ -578,6 +588,18 @@ def admin_professor_list(request):
         jury_count=Count("jury_memberships__jury", distinct=True),
         availability_count=Count("availabilities", distinct=True),
     ).order_by("full_name")
+
+    # Nombre d'étudiants réellement NOTÉS par chaque prof (membre de jury qui a
+    # évalué) — s'il a été remplacé avant de noter, ceux-là ne comptent pas.
+    graded_counts = {}
+    for row in (
+        Evaluation.objects.filter(is_submitted=True)
+        .values("professor_id")
+        .annotate(c=Count("jury_student__student_id", distinct=True))
+    ):
+        graded_counts[row["professor_id"]] = row["c"]
+    for p in professors:
+        p.graded_count = graded_counts.get(p.id, 0)
 
     return render(request, "core/admin_professors.html", {
         "professors": professors,

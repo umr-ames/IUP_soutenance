@@ -45,19 +45,17 @@
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Nom &amp; Prénom</th>
                                 <th>Matricule</th>
+                                <th>Nom &amp; Prénom</th>
                                 <th class="text-center">Note finale</th>
-                                <th>Mention</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for row in rows %}
                             <tr>
-                                <td>{{ row.name }}</td>
                                 <td>{{ row.matricule }}</td>
+                                <td>{{ row.name }}</td>
                                 <td class="text-center"><strong>{{ row.average|default:"—" }}</strong></td>
-                                <td>{{ row.mention }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

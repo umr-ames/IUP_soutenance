@@ -5865,7 +5865,7 @@ def admin_results_by_filiere(request):
     results = (
         Result.objects.filter(is_published=True)
         .select_related("jury_student__student")
-        .order_by("jury_student__student__filiere", "jury_student__student__full_name")
+        .order_by("jury_student__student__filiere", "jury_student__student__matricule")
     )
     groups = OrderedDict()
     for r in results:
@@ -5875,8 +5875,10 @@ def admin_results_by_filiere(request):
             "name": s.full_name or "(nom absent)",
             "matricule": s.matricule,
             "average": r.average,
-            "mention": mention_for_average(r.average),
         })
+    # Tri par matricule dans chaque filière.
+    for fil in groups:
+        groups[fil].sort(key=lambda x: (x["matricule"] or "").upper())
 
     fmt = (request.GET.get("format") or "").strip()
 
@@ -5892,11 +5894,10 @@ def admin_results_by_filiere(request):
             ws.append([header_l2])
             ws.append([f"Résultats — Filière {fil}"])
             ws.append([])
-            ws.append(["Nom & Prénom", "Matricule", "Note finale", "Mention"])
+            ws.append(["Matricule", "Nom & Prénom", "Note finale"])
             for row in rows:
-                ws.append([row["name"], row["matricule"],
-                           float(row["average"]) if row["average"] is not None else "",
-                           row["mention"]])
+                ws.append([row["matricule"], row["name"],
+                           float(row["average"]) if row["average"] is not None else ""])
         if first:  # aucun résultat
             wb.active.append([header_l1]); wb.active.append([header_l2])
             wb.active.append(["Aucun résultat publié pour le moment."])
@@ -5913,7 +5914,7 @@ def admin_results_by_filiere(request):
             lines.append(f"— Filière {fil} ({len(rows)}) —")
             for row in rows:
                 note = f"{row['average']}" if row["average"] is not None else "—"
-                lines.append(f"{row['matricule']}  {row['name']}  :  {note}  ({row['mention']})")
+                lines.append(f"{row['matricule']}  {row['name']}  :  {note}")
             lines.append("")
         if not groups:
             lines.append("Aucun résultat publié pour le moment.")

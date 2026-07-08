@@ -192,6 +192,26 @@
     <section class="glass-card">
         <div class="card-header-flex">
             <div>
+                <span class="eyebrow">Récapitulatif</span>
+                <h3>Mon activité</h3>
+            </div>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'professor_supervised_students' %}">Fiche détaillée (mes étudiants)</a>
+        </div>
+        <div class="status-counter-grid mt-2" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+            <div class="status-counter">
+                <div class="sc-value" style="color:#0f766e;">{{ supervised_students_count }}</div>
+                <div class="sc-label">Étudiants encadrés</div>
+            </div>
+            <div class="status-counter">
+                <div class="sc-value" style="color:#5b21b6;">{{ jury_graded_count }}</div>
+                <div class="sc-label">Étudiants notés (membre de jury)</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="glass-card">
+        <div class="card-header-flex">
+            <div>
                 <span class="eyebrow">Mes étudiants</span>
                 <h3>Suivi de mes {{ students_official_total }} étudiant(s) (liste officielle)</h3>
                 <p class="text-muted mb-0" style="font-size:.85rem;">Répartition par statut d'avancement de la demande de soutenance.</p>
