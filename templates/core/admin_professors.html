@@ -33,6 +33,15 @@
                             <a href="{% url 'admin_professor_students' %}?name={{ professor.full_name|urlencode }}"><strong>{{ professor.full_name }}</strong></a>
                             {% if professor.user %}
                                 <br><small class="text-muted">Identifiant : <span style="user-select:all;">{{ professor.user.email|default:professor.user.username|default:"-" }}</span></small>
+                                <div class="mt-1">
+                                    <form method="post" action="{% url 'admin_reset_professor_password' professor.id %}" style="display:inline; margin:0;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                                data-confirm="Réinitialiser le mot de passe de {{ professor.full_name }} ? Un mot de passe temporaire sera généré.">
+                                            Réinitialiser MDP
+                                        </button>
+                                    </form>
+                                </div>
                             {% else %}
                                 <br><small class="text-muted">Pas de compte</small>
                             {% endif %}
