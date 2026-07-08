@@ -59,6 +59,14 @@
                 Emploi du temps
             </a>
 
+            <form method="post" action="{% url 'admin_reorder_all_schedules' %}" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-light"
+                        data-confirm="Réordonner et resserrer les horaires de TOUS les jurys (passages contigus, sans trou) ? Les étudiants des jurys publiés concernés seront prévenus.">
+                    Réordonner les horaires
+                </button>
+            </form>
+
             <a href="{% url 'admin_jury_create' %}" class="btn btn-light">
                 Créer manuellement
             </a>

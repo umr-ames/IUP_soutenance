@@ -114,9 +114,9 @@
             </span>
         </div>
 
-        {% if jury.students.all %}
+        {% if ordered_students %}
             <div class="student-table-like">
-                {% for item in jury.students.all %}
+                {% for item in ordered_students %}
                     <div class="student-detail-row">
                         <div>
                             <strong>{{ item.student.full_name|default:"(nom absent)" }}</strong>

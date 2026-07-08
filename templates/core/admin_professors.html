@@ -17,6 +17,7 @@
             <thead>
                 <tr>
                     <th>Nom complet</th>
+                    <th>Identifiant (email)</th>
                     <th>Téléphone</th>
                     <th>Compte</th>
                     <th>Prioritaire</th>
@@ -30,6 +31,16 @@
                 {% for professor in professors %}
                     <tr>
                         <td><a href="{% url 'admin_professor_students' %}?name={{ professor.full_name|urlencode }}"><strong>{{ professor.full_name }}</strong></a></td>
+                        <td>
+                            {% if professor.user %}
+                                <span style="user-select:all;">{{ professor.user.email|default:professor.user.username|default:"-" }}</span>
+                                {% if professor.user.username and professor.user.username != professor.user.email %}
+                                    <br><small class="text-muted">login : <span style="user-select:all;">{{ professor.user.username }}</span></small>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">Pas de compte</span>
+                            {% endif %}
+                        </td>
                         <td>{{ professor.user.phone_number|default:professor.phone|default:"-" }}</td>
                         <td>
                             {% if professor.user %}
@@ -78,7 +89,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="8"><div class="empty-state">Aucun professeur.</div></td></tr>
+                    <tr><td colspan="9"><div class="empty-state">Aucun professeur.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>

@@ -2874,6 +2874,42 @@ def renumber_draft_juries():
     renumber_all_juries()
 
 
+def recompact_all_juries():
+    """Recompacte les horaires de TOUS les jurys (passages contigus, ordre
+    croissant, sans trou). Renvoie le nombre de jurys dont l'horaire a changé."""
+    changed = 0
+    jury_ids = set(
+        DefenseSchedule.objects.values_list("jury_student__jury_id", flat=True)
+    )
+    for jury in Jury.objects.filter(id__in=jury_ids):
+        before = list(
+            DefenseSchedule.objects.filter(jury_student__jury=jury)
+            .order_by("start_time").values_list("pk", "start_time")
+        )
+        recompact_jury_schedule(jury)
+        after = list(
+            DefenseSchedule.objects.filter(jury_student__jury=jury)
+            .order_by("start_time").values_list("pk", "start_time")
+        )
+        if before != after:
+            changed += 1
+    return changed
+
+
+@login_required
+@role_required(["admin"])
+def admin_reorder_all_schedules(request):
+    """Bouton : réordonne et resserre les horaires de TOUS les jurys."""
+    if request.method == "POST":
+        changed = recompact_all_juries()
+        messages.success(
+            request,
+            f"Horaires réordonnés et resserrés pour {changed} jury(s) "
+            f"(passages contigus, sans trou)."
+        )
+    return redirect("admin_jury_list")
+
+
 def choose_president_for_student(student, members, defense_date):
     candidates = [
         professor for professor in members
@@ -3571,6 +3607,7 @@ def admin_jury_update(request, pk):
 
     jury_students = list(
         jury.students.select_related("student__encadrant", "schedule")
+        .order_by("schedule__start_time", "id")
     )
 
     # ── 1. Détection automatique du créneau réel (premier slot planifié) ──
@@ -4576,10 +4613,15 @@ def admin_jury_detail(request, pk):
             "is_priority": prof.is_priority,
         })
 
+    ordered_students = list(
+        jury.students.select_related("student__encadrant", "president", "schedule")
+        .order_by("schedule__start_time", "id")
+    )
     return render(request, "soutenances/admin_jury_detail.html", {
         "jury": jury,
         "form": form,
         "member_roles": member_roles,
+        "ordered_students": ordered_students,
     })
 
 
