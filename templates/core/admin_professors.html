@@ -52,6 +52,7 @@
                             <div class="d-flex flex-wrap gap-1 mt-2">
                                 <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_professor_availability' %}?professor={{ professor.id }}">Disponibilités</a>
                                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professor_availability_edit' %}?professor={{ professor.id }}">Remplir</a>
+                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professor_fiche' professor.id %}">Fiche (Word)</a>
                                 {% if professor.user %}
                                     <form method="post" action="{% url 'admin_reset_professor_password' professor.id %}" style="display:inline; margin:0;">
                                         {% csrf_token %}

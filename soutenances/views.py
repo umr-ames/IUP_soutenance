@@ -683,6 +683,13 @@ def admin_jury_list(request):
         for d in sorted(day_map.keys())
     ]
 
+    # Ordonner les jurys par date puis par HORAIRE de début (ordre croissant) —
+    # et non par nom (qui trierait « Jury 10 » avant « Jury 2 »).
+    juries.sort(key=lambda j: (
+        j.defense_date or date_cls.max,
+        first_start.get(j.pk) or time(23, 59),
+    ))
+
     return render(request, "soutenances/admin_jury_list.html", {
         "juries": juries,
         "generation_form": JuryGenerationForm(),
@@ -5858,6 +5865,11 @@ def admin_results(request):
         # Une alerte est conservée dans l'historique même après publication.
         is_alert = bool(result.has_note_gap_alert) if result else bool(computed_gap_alert)
 
+        # Récence : dernière note envoyée (sinon publication) — pour trier de la
+        # note la plus récente à la plus ancienne.
+        sub_times = [e.submitted_at for e in avgs["submitted"] if e.submitted_at]
+        recency = max(sub_times) if sub_times else (result.published_at if result else None)
+
         items.append({
             "assignment": assignment,
             "evaluations": avgs["submitted"],
@@ -5872,8 +5884,13 @@ def admin_results(request):
             "raw_average": avgs["raw_avg_finale"] if ready else None,
             "breakdown": avgs["breakdown"] if ready else None,
             "is_alert": is_alert,
+            "recency": recency,
             "mention": mention,
         })
+
+    # Ordre : de la note la plus récente à la plus ancienne (les alertes aussi).
+    items.sort(key=lambda it: it["recency"].timestamp() if it["recency"] else 0.0,
+               reverse=True)
 
     alert_count = sum(1 for it in items if it["is_alert"])
 

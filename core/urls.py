@@ -15,6 +15,7 @@ urlpatterns = [
     path("admin-dashboard/professors/", views.admin_professor_list, name="admin_professor_list"),
     path("admin-dashboard/professors/recap/", views.admin_professors_recap, name="admin_professors_recap"),
     path("admin-dashboard/professors/details/", views.admin_professors_details, name="admin_professors_details"),
+    path("admin-dashboard/professors/<int:pk>/fiche/", views.admin_professor_fiche, name="admin_professor_fiche"),
     path("professor-dashboard/ma-fiche/", views.professor_my_recap, name="professor_my_recap"),
     path("admin-dashboard/professors/<int:pk>/rename/", views.admin_rename_professor, name="admin_rename_professor"),
     path("admin-dashboard/professors/<int:pk>/toggle-priority/", views.admin_toggle_priority_professor, name="admin_toggle_priority_professor"),

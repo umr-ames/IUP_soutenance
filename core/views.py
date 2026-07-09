@@ -742,6 +742,46 @@ def admin_professors_details(request):
     return resp
 
 
+def _professor_fiche_word_response(professor, filename, students_title="Étudiants encadrés"):
+    """Fiche Word d'un professeur : nom, tél, email, nombre de jury (étudiants
+    notés), puis la liste de ses encadrements (matricule, nom, filière)."""
+    encadres = list(
+        StudentProfile.objects.filter(encadrant=professor).order_by("filiere", "full_name")
+    )
+    jury_graded = (
+        Evaluation.objects.filter(professor=professor, is_submitted=True)
+        .values_list("jury_student__student_id", flat=True).distinct().count()
+    )
+    tel = (getattr(professor.user, "phone_number", None) if professor.user else None) or professor.phone or ""
+    email = (professor.user.email if professor.user else "") or ""
+    body = [
+        f"<p><b>Nom :</b> {professor.full_name}<br>"
+        f"<b>Téléphone :</b> {tel}<br><b>Email :</b> {email}<br>"
+        f"<b>Étudiants encadrés :</b> {len(encadres)}<br>"
+        f"<b>Nombre de jury (étudiants notés) :</b> {jury_graded}</p>",
+        f"<h4>{students_title}</h4>",
+        "<table border='1' cellspacing='0' cellpadding='4'>"
+        "<tr><th>Matricule</th><th>Nom & Prénom</th><th>Filière</th></tr>",
+    ]
+    for s in encadres:
+        body.append(f"<tr><td>{s.matricule}</td><td>{s.full_name}</td><td>{s.filiere or ''}</td></tr>")
+    body.append("</table>")
+    return _word_response(f"Fiche — {professor.full_name}", "".join(body), filename)
+
+
+@login_required
+@role_required(["admin"])
+def admin_professor_fiche(request, pk):
+    """Fiche Word d'UN professeur (téléchargeable par l'admin) : ses encadrements
+    (nom, matricule, filière) et le nombre de jury où il a noté."""
+    professor = ProfessorProfile.objects.filter(pk=pk).select_related("user").first()
+    if not professor:
+        messages.error(request, "Professeur introuvable.")
+        return redirect("admin_professor_list")
+    safe = "".join(ch if ch.isalnum() else "_" for ch in professor.full_name) or "prof"
+    return _professor_fiche_word_response(professor, f"fiche_{safe}.doc")
+
+
 @login_required
 @role_required(["professor"])
 def professor_my_recap(request):
@@ -761,19 +801,8 @@ def professor_my_recap(request):
     fmt = (request.GET.get("format") or "xlsx").strip()
 
     if fmt == "word":
-        body = [
-            f"<p><b>Nom :</b> {professor.full_name}<br>"
-            f"<b>Téléphone :</b> {tel}<br><b>Email :</b> {email}<br>"
-            f"<b>Étudiants encadrés :</b> {len(encadres)}<br>"
-            f"<b>Nombre de jury (étudiants notés) :</b> {jury_graded}</p>",
-            "<h4>Mes étudiants encadrés</h4>",
-            "<table border='1' cellspacing='0' cellpadding='4'>"
-            "<tr><th>Matricule</th><th>Nom & Prénom</th><th>Filière</th></tr>",
-        ]
-        for s in encadres:
-            body.append(f"<tr><td>{s.matricule}</td><td>{s.full_name}</td><td>{s.filiere or ''}</td></tr>")
-        body.append("</table>")
-        return _word_response(f"Fiche — {professor.full_name}", "".join(body), "ma_fiche.doc")
+        return _professor_fiche_word_response(professor, "ma_fiche.doc",
+                                              students_title="Mes étudiants encadrés")
 
     from openpyxl import Workbook
     wb = Workbook()
