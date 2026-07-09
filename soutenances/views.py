@@ -4399,6 +4399,59 @@ def admin_jury_update(request, pk):
         )
         return redirect("admin_jury_update", pk=jury.pk)
 
+    # ── 6quinquies-ter. POST : changer l'HEURE DE DÉBUT du jury (même jour) ──
+    #     Décale TOUS les passages à partir de la nouvelle heure, contigus.
+    if request.method == "POST" and request.POST.get("action") == "set_start_time":
+        raw = (request.POST.get("start_time") or "").strip()
+        try:
+            new_begin = datetime.strptime(raw, "%H:%M").time()
+        except (ValueError, TypeError):
+            messages.error(request, "Heure de début invalide (format HH:MM).")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        scheds = list(
+            DefenseSchedule.objects.filter(jury_student__jury=jury)
+            .select_related("jury_student__student__user")
+            .order_by("start_time", "id")
+        )
+        if not scheds:
+            messages.error(request, "Ce jury n'a pas encore de passage planifié.")
+            return redirect("admin_jury_update", pk=jury.pk)
+
+        old_begin = scheds[0].start_time
+        cursor = datetime.combine(jury.defense_date, new_begin)
+        changed = []
+        for sched in scheds:
+            minutes = sched.duration_minutes or DEFENSE_DURATION_MINUTES
+            new_start = cursor.time()
+            new_end = (cursor + timedelta(minutes=minutes)).time()
+            if sched.start_time != new_start or sched.end_time != new_end:
+                DefenseSchedule.objects.filter(pk=sched.pk).update(
+                    start_time=new_start, end_time=new_end,
+                )
+                changed.append((sched.jury_student, new_start, new_end))
+            cursor += timedelta(minutes=minutes)
+
+        # Prévenir les étudiants si le jury est déjà publié.
+        if jury.is_validated and changed:
+            for js, ns, ne in changed:
+                notify(
+                    getattr(js.student, "user", None),
+                    "Horaire de soutenance modifié",
+                    f"Votre passage est désormais prévu à "
+                    f"{ns.strftime('%H:%M')}–{ne.strftime('%H:%M')} le "
+                    f"{jury.defense_date.strftime('%d/%m/%Y')} "
+                    f"(jury « {jury.name} »).",
+                    "/student-dashboard/",
+                    category=Notification.CATEGORY_JURY,
+                )
+        messages.success(
+            request,
+            f"Heure de début changée de {old_begin.strftime('%H:%M')} à "
+            f"{new_begin.strftime('%H:%M')} : les passages ont été décalés."
+        )
+        return redirect("admin_jury_update", pk=jury.pk)
+
     # ── 6quinquies-bis. POST : FUSIONNER un autre jury (mêmes membres) dans
     #     celui-ci et coller les passages (supprime le vide).
     if request.method == "POST" and request.POST.get("action") == "merge_jury":

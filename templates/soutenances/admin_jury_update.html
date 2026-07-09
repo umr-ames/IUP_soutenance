@@ -164,6 +164,17 @@
                     <input type="hidden" name="action" value="recompact">
                     <button type="submit" class="btn btn-sm btn-outline-primary">Resserrer les horaires</button>
                 </form>
+                <form method="post" class="d-flex align-items-end gap-2"
+                      onsubmit="return confirm('Changer l\'heure de début de ce jury ?{% if jury.is_validated %} Le jury est publié : les étudiants seront prévenus de leur nouvel horaire.{% endif %}');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="set_start_time">
+                    <div>
+                        <label class="form-label mb-0" style="font-size:.78rem;">Heure de début</label>
+                        <input type="time" name="start_time" value="{{ real_slot_start|time:'H:i' }}"
+                               step="300" class="form-control form-control-sm" style="width:120px;" required>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Décaler le jury</button>
+                </form>
             {% endif %}
         </div>
     </div>
