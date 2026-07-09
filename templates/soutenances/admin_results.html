@@ -578,7 +578,7 @@
 
 <section class="results-board" id="resultsBoard">
     {% for item in items %}
-        {% with gap_alert=item.result.has_note_gap_alert|default:item.computed_gap_alert %}
+        {% with gap_alert=item.is_alert %}
         <article
             class="result-card{% if gap_alert %} has-gap-alert{% endif %}{% if item.assignment.pfe_soutenable_status == 'non_soutenable' %} non-soutenable-card{% endif %}"
             data-status="{% if item.result and item.result.is_published %}published{% elif item.ready %}ready{% elif item.assignment.pfe_soutenable_status == 'non_soutenable' %}non_soutenable{% else %}waiting{% endif %}"
