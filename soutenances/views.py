@@ -3122,17 +3122,16 @@ def admin_jury_add_manual(request):
         elif not salle or _salle_occupee(defense_date, begin, end, salle):
             messages.error(request, "Choisissez une salle libre sur ce créneau.")
         else:
-            # Créneaux de 20 min à partir de l'horaire de début choisi.
-            cap_slots = []
+            # Un créneau de 20 min par étudiant, à partir de l'horaire de début.
+            # TOUS les étudiants sélectionnés passent, même au-delà de la fin de
+            # la demi-journée (décision de l'admin).
+            placed = students
+            start_times = []
             cur = datetime.combine(defense_date, begin)
-            limit = datetime.combine(defense_date, end)
-            while cur + timedelta(minutes=DEFENSE_DURATION_MINUTES) <= limit:
-                cap_slots.append(cur.time())
+            for _ in placed:
+                start_times.append(cur.time())
                 cur += timedelta(minutes=DEFENSE_DURATION_MINUTES)
-
-            placed = students[:len(cap_slots)]
-            overflow = students[len(cap_slots):]
-            start_times = cap_slots[:len(placed)]
+            last_end = cur.time()  # fin du dernier passage
 
             president_pool = members
             warnings = []
@@ -3145,6 +3144,7 @@ def admin_jury_add_manual(request):
                 )
                 for p in members:
                     JuryMember.objects.create(jury=jury, professor=p)
+                schedules = []
                 for student, t in zip(placed, start_times):
                     enc_in = any(m.id == student.encadrant_id for m in members)
                     president = choose_president_for_student(
@@ -3155,13 +3155,17 @@ def admin_jury_add_manual(request):
                         jury=jury, student=student, president=president,
                         encadrant_absent=not enc_in,
                     )
-                    DefenseSchedule.objects.create(
+                    schedules.append(DefenseSchedule(
                         jury_student=js, start_time=t,
+                        end_time=slot_end_time(defense_date, t, DEFENSE_DURATION_MINUTES),
                         duration_minutes=DEFENSE_DURATION_MINUTES,
-                    )
+                    ))
                     if not enc_in:
                         enc = student.encadrant.full_name if student.encadrant else "?"
                         warnings.append(f"{student.full_name} (encadrant {enc})")
+                # bulk_create : ne rejoue pas la validation de disponibilité des
+                # membres — autorise les passages au-delà de la fin de créneau.
+                DefenseSchedule.objects.bulk_create(schedules)
                 recompact_jury_schedule(jury)
                 refresh_jury_name_count(jury)
                 renumber_all_juries()
@@ -3179,12 +3183,11 @@ def admin_jury_add_manual(request):
                     "Encadrant hors jury (marqué « encadrant absent ») pour : "
                     + "; ".join(warnings)
                 )
-            if overflow:
+            if last_end > end:
                 messages.warning(
                     request,
-                    f"{len(overflow)} étudiant(s) non placé(s) (demi-journée pleine) : "
-                    + ", ".join(s.full_name for s in overflow)
-                    + ". Créez un second jury sur un autre créneau."
+                    f"Certains passages dépassent la fin de la demi-journée "
+                    f"({end.strftime('%H:%M')}) — tous les étudiants ont été placés."
                 )
             return redirect("admin_jury_detail", pk=jury.pk)
 
@@ -4853,22 +4856,25 @@ def admin_jury_add_student(request, pk):
                         candidate = slot_end_time(jury.defense_date, candidate)
 
                     if not _fits(candidate):
+                        # Demi-journée pleine : sur décision de l'admin, on place
+                        # quand même l'étudiant à la suite du dernier passage, au-delà
+                        # de l'heure de fin du créneau (avertissement, pas de blocage).
                         fin = defense_slots.slot_bounds(
                             jury.defense_date, jury_label
                         )[1] if jury_label else None
-                        messages.error(
-                            request,
-                            "Impossible d'ajouter cet étudiant : la demi-journée "
-                            "du jury est complète"
-                            + (f" (fin à {fin.strftime('%H:%M')})." if fin else ".")
+                        schedule_warning = (
+                            "Passage placé à la suite du dernier, au-delà de la fin "
+                            "de la demi-journée"
+                            + (f" ({fin.strftime('%H:%M')})" if fin else "")
+                            + " — à vérifier."
                         )
-                        return redirect("admin_jury_detail", pk=jury.pk)
+                    else:
+                        schedule_warning = (
+                            "Horaire placé sans disponibilité déclarée de tous les "
+                            "membres — à vérifier."
+                        )
 
                     next_start = candidate
-                    schedule_warning = (
-                        "Horaire placé sans disponibilité déclarée de tous les "
-                        "membres — à vérifier."
-                    )
 
                 with transaction.atomic():
                     assignment = JuryStudent.objects.create(
