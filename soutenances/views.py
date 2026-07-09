@@ -684,8 +684,10 @@ def admin_jury_list(request):
             continue
         available_days.add(j.defense_date)
         st = first_start.get(j.pk)
-        label = _slot_label_at(j.defense_date, st) if st else None
-        if label == defense_slots.AFTERNOON:
+        # Matin / après-midi robuste : basé sur l'heure de début (>= 14:00 =
+        # après-midi). Reste correct même hors des bornes strictes du créneau
+        # (ex. vendredi après-midi commençant à 15:20, dans le « trou » 12h–16h).
+        if st and st >= time(14, 0):
             day_map[j.defense_date]["afternoon"] += 1
         else:
             day_map[j.defense_date]["morning"] += 1
