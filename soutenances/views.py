@@ -65,6 +65,17 @@ from professors import slots as defense_slots
 from professors.slots import slots_for as defense_slots_for
 
 
+def _has_real_grades(js):
+    """Vrai si l'étudiant a de VRAIES notes : au moins une évaluation ENVOYÉE,
+    ou un résultat publié / calculé (moyenne renseignée). Un objet Result vide
+    (créé par erreur lors d'une tentative de publication prématurée, sans note)
+    ne compte PAS — l'étudiant reste retirable et reprogrammable."""
+    if js.evaluations.filter(is_submitted=True).exists():
+        return True
+    res = getattr(js, "result", None)
+    return bool(res and (res.is_published or res.average is not None))
+
+
 def _slot_label_at(date, start_time):
     """'morning'/'afternoon'/None selon le créneau contenant start_time."""
     touched = defense_slots.slots_touched(
@@ -2160,7 +2171,7 @@ def _window_published_target(start_date, end_date):
     for j in juries:
         jss = list(j.students.all())
         has_graded = any(
-            js.evaluations.exists() or hasattr(js, "result") for js in jss
+            _has_real_grades(js) for js in jss
         )
         if has_graded:
             skipped += 1
@@ -3883,12 +3894,12 @@ def admin_jury_update(request, pk):
             [m.professor for m in current_members],
             sum(
                 1 for js in jury_students
-                if not (js.evaluations.exists() or hasattr(js, "result"))
+                if not (_has_real_grades(js))
             ),
         ) if len(current_members) >= 3 else [],
         "graded_count": sum(
             1 for js in jury_students
-            if js.evaluations.exists() or hasattr(js, "result")
+            if _has_real_grades(js)
         ),
         # Jurys fusionnables : MÊMES membres + MÊME date (pour coller deux
         # jurys du même jury et supprimer le vide).
@@ -4250,7 +4261,7 @@ def admin_jury_update(request, pk):
         ).first()
         if not js:
             messages.error(request, "Étudiant introuvable dans ce jury.")
-        elif js.evaluations.exists() or hasattr(js, "result"):
+        elif _has_real_grades(js):
             messages.error(
                 request,
                 f"Impossible de retirer {js.student.full_name} : des notes ou un "
@@ -4287,7 +4298,7 @@ def admin_jury_update(request, pk):
             messages.error(request, "Étudiant ou jury cible introuvable.")
         elif target.pk == jury.pk:
             messages.error(request, "Choisissez un AUTRE jury.")
-        elif js.evaluations.exists() or hasattr(js, "result"):
+        elif _has_real_grades(js):
             messages.error(
                 request,
                 f"Impossible de déplacer {js.student.full_name} : des notes ou "
@@ -4468,10 +4479,10 @@ def admin_jury_update(request, pk):
         my_ids = sorted(m.professor_id for m in current_members)
         other_ids = sorted(m.professor_id for m in other.members.all()) if other else []
         graded_here = any(
-            js.evaluations.exists() or hasattr(js, "result") for js in jury_students
+            _has_real_grades(js) for js in jury_students
         )
         graded_other = other and any(
-            js.evaluations.exists() or hasattr(js, "result")
+            _has_real_grades(js)
             for js in other.students.all()
         )
         if not other or other.pk == jury.pk:
@@ -4518,7 +4529,7 @@ def admin_jury_update(request, pk):
         # date d'origine : on ne reprogramme QUE les non notés.
         graded = [
             js for js in js_list
-            if js.evaluations.exists() or hasattr(js, "result")
+            if _has_real_grades(js)
         ]
         to_move = [js for js in js_list if js not in graded]
         n = len(to_move)
@@ -4703,7 +4714,7 @@ def admin_jury_delete(request, pk):
     js_list = list(JuryStudent.objects.filter(jury=jury).select_related("student"))
     graded = [
         js for js in js_list
-        if js.evaluations.exists() or hasattr(js, "result")
+        if _has_real_grades(js)
     ]
     ungraded = [js for js in js_list if js not in graded]
 
@@ -5051,7 +5062,7 @@ def admin_jury_remove_student(request, pk, assignment_pk):
     )
 
     if request.method == "POST":
-        if assignment.evaluations.exists() or hasattr(assignment, "result"):
+        if _has_real_grades(assignment):
             messages.error(
                 request,
                 "Impossible de retirer cet étudiant : des notes ou un résultat "
@@ -5963,6 +5974,12 @@ def admin_publish_result(request, pk):
     assignment = get_object_or_404(JuryStudent, pk=pk)
 
     if request.method == "POST":
+        # Ne pas créer de Result vide tant que les 3 notes ne sont pas là
+        # (un Result vide bloquerait ensuite le retrait de l'étudiant).
+        if assignment.evaluations.filter(is_submitted=True).count() != 3:
+            messages.error(request, "Les 3 évaluations ne sont pas encore saisies.")
+            return redirect("admin_results")
+
         result, _ = Result.objects.get_or_create(
             jury_student=assignment,
         )
@@ -5970,8 +5987,7 @@ def admin_publish_result(request, pk):
         try:
             # On (re)calcule avec la règle en vigueur (note corrigée critère par
             # critère en cas d'écart >= 3) avant de publier.
-            if assignment.evaluations.filter(is_submitted=True).count() == 3:
-                result.calculate_average()
+            result.calculate_average()
             result.publish()
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))
