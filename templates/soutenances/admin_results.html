@@ -162,6 +162,64 @@
         animation: gap-pulse 2s ease-in-out infinite;
     }
 
+    .alert-count-badge {
+        display: inline-block;
+        min-width: 18px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 900;
+        color: #ffffff;
+        background: #dc2626;
+    }
+
+    .gap-alert-detail {
+        margin-top: 10px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(220, 38, 38, 0.28);
+        background: rgba(220, 38, 38, 0.05);
+    }
+
+    .gap-alert-detail-head {
+        font-weight: 900;
+        color: #7d1f1f;
+        font-size: 0.86rem;
+        margin-bottom: 8px;
+    }
+
+    .gap-alert-detail-sub {
+        display: block;
+        margin-top: 3px;
+        font-weight: 700;
+        color: var(--text);
+        font-size: 0.82rem;
+    }
+
+    .gap-alert-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+    }
+
+    .gap-alert-table th,
+    .gap-alert-table td {
+        padding: 5px 8px;
+        text-align: center;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .gap-alert-table th:first-child,
+    .gap-alert-table td:first-child {
+        text-align: left;
+    }
+
+    .gap-alert-table td.excluded {
+        color: #b91c1c;
+        text-decoration: line-through;
+        background: rgba(220, 38, 38, 0.08);
+    }
+
     @keyframes gap-pulse {
         0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
         50%       { box-shadow: 0 0 0 5px rgba(220, 38, 38, 0); }
@@ -512,7 +570,7 @@
             <button class="filter-tab" type="button" data-filter="ready">Prêts</button>
             <button class="filter-tab" type="button" data-filter="published">Publiés</button>
             <button class="filter-tab" type="button" data-filter="waiting">En attente</button>
-            <button class="filter-tab" type="button" data-filter="alert">Alertes</button>
+            <button class="filter-tab" type="button" data-filter="alert">Alertes{% if alert_count %} <span class="alert-count-badge">{{ alert_count }}</span>{% endif %}</button>
             <button class="filter-tab" type="button" data-filter="non_soutenable">Non soutenable</button>
         </div>
     </aside>
@@ -612,7 +670,7 @@
 
             {% if item.ready and not item.assignment.pfe_soutenable_status == 'non_soutenable' %}
                 <div class="criteria-averages">
-                    <span class="criteria-label">Moyennes du jury (3 membres) :</span>
+                    <span class="criteria-label">Moyennes retenues du jury{% if item.is_alert %} (après correction d'écart){% endif %} :</span>
                     <span class="criteria-chip">Rapport <strong>{{ item.avg_rapport }}/20</strong> <small>·&nbsp;coef 0,30</small></span>
                     <span class="criteria-chip">Présentation <strong>{{ item.avg_presentation }}/20</strong> <small>·&nbsp;coef 0,30</small></span>
                     <span class="criteria-chip">Questions <strong>{{ item.avg_questions }}/20</strong> <small>·&nbsp;coef 0,40</small></span>
@@ -620,6 +678,46 @@
                     {% if item.mention %}
                         <span class="criteria-chip mention">Mention <strong>{{ item.mention }}</strong></span>
                     {% endif %}
+                </div>
+            {% endif %}
+
+            {% if item.is_alert and item.breakdown %}
+                <div class="gap-alert-detail">
+                    <div class="gap-alert-detail-head">
+                        &#9888; Alerte écart &ge; 3 — note recalculée (historique conservé)
+                        <span class="gap-alert-detail-sub">
+                            Note d'origine (moyenne des 3 membres) :
+                            <strong>{{ item.raw_average }}/20</strong> &rarr;
+                            note corrigée :
+                            <strong>{% if item.result and item.result.average %}{{ item.result.average }}{% else %}{{ item.computed_average }}{% endif %}/20</strong>
+                        </span>
+                    </div>
+                    <table class="gap-alert-table">
+                        <thead>
+                            <tr>
+                                <th>Critère</th>
+                                {% for pair in item.breakdown.criteria.0.notes %}
+                                    <th>{{ pair.0.full_name }}</th>
+                                {% endfor %}
+                                <th>Écart</th>
+                                <th>Retenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for crit in item.breakdown.criteria %}
+                                <tr>
+                                    <td><strong>{{ crit.label }}</strong></td>
+                                    {% for pair in crit.notes %}
+                                        <td{% if crit.excluded and crit.excluded.id == pair.0.id %} class="excluded"{% endif %}>
+                                            {{ pair.1 }}{% if crit.excluded and crit.excluded.id == pair.0.id %} <small>(écartée)</small>{% endif %}
+                                        </td>
+                                    {% endfor %}
+                                    <td>{{ crit.spread }}</td>
+                                    <td><strong>{{ crit.adjusted }}/20</strong>{% if crit.corrected %} <small>(2 membres)</small>{% else %} <small>(3 membres)</small>{% endif %}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             {% endif %}
 
@@ -699,8 +797,8 @@ function resultMatchesFilter(card) {
     }
 
     if (activeFilter === 'alert') {
-        // Alertes = écart >= 3 ET pas encore publié.
-        return alertState === 'alert' && status !== 'published';
+        // Alertes = écart >= 3 (historique conservé, même après publication).
+        return alertState === 'alert';
     }
 
     return status === activeFilter;

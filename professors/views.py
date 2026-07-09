@@ -719,20 +719,21 @@ def professor_evaluations(request):
 
 
 def _auto_finalize_result(jury_student):
-    """Dès que les 3 membres ont noté : calcule le résultat et le PUBLIE
-    automatiquement s'il n'y a pas d'écart (< 3 pts). En cas d'écart (≥ 3),
-    le résultat reste NON publié (bloqué pour le département).
+    """Dès que les 3 membres ont noté : calcule le résultat (note corrigée
+    critère par critère en cas d'écart >= 3) et le PUBLIE automatiquement.
 
-    Renvoie True si publié auto, False si bloqué (écart), None si pas encore
-    3 notes."""
+    En cas d'écart, la note aberrante est écartée et la note recalculée : le
+    résultat est publié quand même, et l'alerte est CONSERVÉE (has_note_gap_alert)
+    pour l'historique côté admin.
+
+    Renvoie True si publié auto (avec écart corrigé le cas échéant),
+    None si pas encore 3 notes."""
     if jury_student.evaluations.filter(is_submitted=True).count() != 3:
         return None
     result, _ = Result.objects.get_or_create(jury_student=jury_student)
     if result.is_published:
         return True
-    result.calculate_average()  # renseigne average, note_gap_value, has_note_gap_alert
-    if result.has_note_gap_alert:
-        return False
+    result.calculate_average()  # renseigne average (corrigée), note_gap_value, has_note_gap_alert
     result.publish()
     notify(
         getattr(jury_student.student, "user", None),
@@ -741,13 +742,23 @@ def _auto_finalize_result(jury_student):
         "/student-dashboard/",
         category=Notification.CATEGORY_RESULT,
     )
-    notify_admins(
-        "Résultat publié automatiquement",
-        f"{jury_student.student.full_name} — moyenne {result.average} "
-        f"(sans écart).",
-        "/admin-dashboard/results/",
-        category=Notification.CATEGORY_RESULT,
-    )
+    if result.has_note_gap_alert:
+        notify_admins(
+            "Résultat publié — écart corrigé",
+            f"{jury_student.student.full_name} — note corrigée {result.average} "
+            f"(écart {result.note_gap_value}, membre aberrant écarté par critère). "
+            f"Alerte conservée dans Résultats > Alertes.",
+            "/admin-dashboard/results/",
+            category=Notification.CATEGORY_RESULT,
+        )
+    else:
+        notify_admins(
+            "Résultat publié automatiquement",
+            f"{jury_student.student.full_name} — moyenne {result.average} "
+            f"(sans écart).",
+            "/admin-dashboard/results/",
+            category=Notification.CATEGORY_RESULT,
+        )
     return True
 
 
@@ -828,15 +839,9 @@ def professor_evaluation_detail(request, jury_student_id):
                 if published is True:
                     messages.success(
                         request,
-                        "Évaluation envoyée. Les 3 notes sont là et sans écart : "
-                        "le résultat a été publié automatiquement."
-                    )
-                elif published is False:
-                    messages.warning(
-                        request,
-                        "Évaluation envoyée. Les 3 notes présentent un écart ≥ 3 "
-                        "points : le résultat est en attente de validation du "
-                        "département."
+                        "Évaluation envoyée. Les 3 notes sont là : le résultat a "
+                        "été publié automatiquement (note corrigée si un écart ≥ 3 "
+                        "a été détecté)."
                     )
                 else:
                     messages.success(request, "Évaluation envoyée avec succès.")

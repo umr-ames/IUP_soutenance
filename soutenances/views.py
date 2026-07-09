@@ -42,6 +42,7 @@ from .models import (
     FiliereExpert,
     GenerationReport,
     mention_for_average,
+    corrected_breakdown,
 )
 
 from .pdf import simple_pdf_response
@@ -5743,28 +5744,26 @@ def compute_criteria_averages(assignment):
         "avg_presentation": None,
         "avg_questions": None,
         "avg_finale": None,
+        "raw_avg_finale": None,
         "gap": None,
         "gap_alert": False,
         "submitted": submitted,
+        "breakdown": None,
     }
 
     if n == 0:
         return data
 
-    div = Decimal(n)
-
-    def avg(field):
-        total = sum((getattr(e, field) for e in submitted), Decimal("0"))
-        return (total / div).quantize(Decimal("0.01"))
-
-    data["avg_rapport"] = avg("rapport_note")
-    data["avg_presentation"] = avg("presentation_note")
-    data["avg_questions"] = avg("questions_note")
-    data["avg_finale"] = avg("final_note")
-
-    finals = [e.final_note for e in submitted]
-    data["gap"] = (max(finals) - min(finals)).quantize(Decimal("0.01"))
-    data["gap_alert"] = data["gap"] >= Decimal("3.00")
+    # Note corrigée critère par critère (écart >= 3 -> membre aberrant écarté).
+    bd = corrected_breakdown(submitted)
+    data["avg_rapport"] = bd["avg_rapport"]
+    data["avg_presentation"] = bd["avg_presentation"]
+    data["avg_questions"] = bd["avg_questions"]
+    data["avg_finale"] = bd["avg_finale"]
+    data["raw_avg_finale"] = bd["raw_avg_finale"]
+    data["gap"] = bd["gap"]
+    data["gap_alert"] = bd["gap_alert"]
+    data["breakdown"] = bd
     return data
 
 
@@ -5798,6 +5797,9 @@ def admin_results(request):
         mention_average = result.average if (result and result.average is not None) else computed_average
         mention = mention_for_average(mention_average) if mention_average is not None else None
 
+        # Une alerte est conservée dans l'historique même après publication.
+        is_alert = bool(result.has_note_gap_alert) if result else bool(computed_gap_alert)
+
         items.append({
             "assignment": assignment,
             "evaluations": avgs["submitted"],
@@ -5809,11 +5811,17 @@ def admin_results(request):
             "avg_rapport": avgs["avg_rapport"] if ready else None,
             "avg_presentation": avgs["avg_presentation"] if ready else None,
             "avg_questions": avgs["avg_questions"] if ready else None,
+            "raw_average": avgs["raw_avg_finale"] if ready else None,
+            "breakdown": avgs["breakdown"] if ready else None,
+            "is_alert": is_alert,
             "mention": mention,
         })
 
+    alert_count = sum(1 for it in items if it["is_alert"])
+
     return render(request, "soutenances/admin_results.html", {
         "items": items,
+        "alert_count": alert_count,
     })
 
 
@@ -6275,9 +6283,27 @@ def export_student_pv_pdf(request, pk):
 
     lines.append("RÉSULTAT FINAL :")
     if result:
+        avgs = compute_criteria_averages(assignment)
+        bd = avgs.get("breakdown")
+        if bd and bd.get("any_correction"):
+            lines.append(
+                "Écart >= 3 détecté : note recalculée critère par critère "
+                "(membre aberrant écarté)."
+            )
+            lines.append(
+                f"Note d'origine (moyenne des 3 membres) : "
+                f"{decimal_text(bd.get('raw_avg_finale'))} /20"
+            )
+            for crit in bd["criteria"]:
+                suffix = ""
+                if crit["excluded"] is not None:
+                    suffix = f" (note de {crit['excluded'].full_name} écartée, écart {decimal_text(crit['spread'])})"
+                lines.append(
+                    f"  {crit['label']} retenu : {decimal_text(crit['adjusted'])} /20{suffix}"
+                )
         lines.append(f"Moyenne finale : {decimal_text(result.average)} /20")
         lines.append(f"Écart entre notes : {decimal_text(result.note_gap_value)}")
-        lines.append(f"Alerte écart >= 3 : {yes_no(result.has_note_gap_alert)}")
+        lines.append(f"Note recalculée (écart >= 3) : {yes_no(result.has_note_gap_alert)}")
         lines.append(f"Résultat publié : {yes_no(result.is_published)}")
         lines.append(f"Date de publication : {format_datetime(result.published_at)}")
     else:

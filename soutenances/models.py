@@ -768,6 +768,106 @@ class Evaluation(models.Model):
         )
 
 
+# Seuil d'écart (max - min entre les membres) au-delà duquel on écarte la note
+# aberrante d'un critère.
+NOTE_GAP_THRESHOLD = Decimal("3.00")
+
+# (champ, libellé, coefficient) — mêmes coefficients que calculate_final_note.
+CRITERIA_FIELDS = [
+    ("rapport_note", "Rapport", Decimal("0.30")),
+    ("presentation_note", "Présentation", Decimal("0.30")),
+    ("questions_note", "Questions", Decimal("0.40")),
+]
+
+
+def corrected_breakdown(evaluations):
+    """Note finale « corrigée » critère par critère.
+
+    Pour CHAQUE critère (rapport, présentation, questions) pris séparément, on
+    regarde les notes des membres du jury :
+      - si l'écart max − min >= 3, on écarte la note aberrante (on garde les
+        deux plus proches ; en cas d'égalité on écarte la plus basse) et le
+        critère devient la moyenne des deux notes retenues ;
+      - sinon, moyenne de toutes les notes.
+    Le membre écarté peut différer d'un critère à l'autre. La note finale
+    corrigée applique ensuite les coefficients 0,30 / 0,30 / 0,40.
+
+    Renvoie un dict : moyennes ajustées par critère (avg_rapport,
+    avg_presentation, avg_questions), note finale corrigée (avg_finale), note
+    d'origine sans correction (raw_avg_finale), écart max déclencheur (gap),
+    indicateur de correction (gap_alert / any_correction) et le détail par
+    critère (criteria) pour l'historique des alertes.
+    """
+    evs = list(evaluations)
+    n = len(evs)
+    info = {
+        "n": n,
+        "criteria": [],
+        "avg_rapport": None,
+        "avg_presentation": None,
+        "avg_questions": None,
+        "avg_finale": None,
+        "raw_avg_finale": None,
+        "gap": None,
+        "gap_alert": False,
+        "any_correction": False,
+    }
+    if n == 0:
+        return info
+
+    field_to_key = {
+        "rapport_note": "avg_rapport",
+        "presentation_note": "avg_presentation",
+        "questions_note": "avg_questions",
+    }
+    max_spread = Decimal("0")
+    corrected_final = Decimal("0")
+
+    for field, label, weight in CRITERIA_FIELDS:
+        pairs = [(e.professor, getattr(e, field)) for e in evs]
+        vals = [v for _, v in pairs]
+        spread = max(vals) - min(vals)
+        excluded = None
+        if n >= 3 and spread >= NOTE_GAP_THRESHOLD:
+            ordered = sorted(pairs, key=lambda p: p[1])
+            low, mid, high = ordered[0], ordered[1], ordered[2]
+            d_low = mid[1] - low[1]
+            d_high = high[1] - mid[1]
+            if d_low < d_high:
+                # La paire basse est la plus resserrée : on écarte la plus haute.
+                excluded, kept = high[0], [low[1], mid[1]]
+            else:
+                # Paire haute plus resserrée, ou égalité : on écarte la plus basse.
+                excluded, kept = low[0], [mid[1], high[1]]
+            adjusted = (kept[0] + kept[1]) / Decimal("2")
+        else:
+            adjusted = sum(vals, Decimal("0")) / Decimal(n)
+        adjusted = adjusted.quantize(Decimal("0.01"))
+
+        info[field_to_key[field]] = adjusted
+        corrected_final += adjusted * weight
+        if spread > max_spread:
+            max_spread = spread
+        if excluded is not None:
+            info["any_correction"] = True
+        info["criteria"].append({
+            "key": field,
+            "label": label,
+            "notes": pairs,
+            "adjusted": adjusted,
+            "excluded": excluded,
+            "spread": spread.quantize(Decimal("0.01")),
+            "corrected": excluded is not None,
+        })
+
+    info["avg_finale"] = corrected_final.quantize(Decimal("0.01"))
+    raw = sum((e.final_note for e in evs), Decimal("0")) / Decimal(n)
+    info["raw_avg_finale"] = raw.quantize(Decimal("0.01"))
+    info["gap"] = max_spread.quantize(Decimal("0.01"))
+    info["gap_alert"] = info["any_correction"]
+    return info
+
+
 class Result(models.Model):
     jury_student = models.OneToOneField(
         JuryStudent,
@@ -795,19 +895,18 @@ class Result(models.Model):
     published_at = models.DateTimeField(blank=True, null=True)
 
     def calculate_average(self):
-        evaluations = self.jury_student.evaluations.filter(is_submitted=True)
+        evaluations = list(self.jury_student.evaluations.filter(is_submitted=True))
 
-        if evaluations.count() != 3:
+        if len(evaluations) != 3:
             raise ValidationError(
                 "La moyenne ne peut être calculée qu'après les 3 évaluations."
             )
 
-        notes = [evaluation.final_note for evaluation in evaluations]
-        total = sum(notes, Decimal("0"))
-
-        self.average = (total / Decimal("3")).quantize(Decimal("0.01"))
-        self.note_gap_value = (max(notes) - min(notes)).quantize(Decimal("0.01"))
-        self.has_note_gap_alert = self.note_gap_value >= Decimal("3.00")
+        # Note corrigée critère par critère (écart >= 3 -> membre aberrant écarté).
+        breakdown = corrected_breakdown(evaluations)
+        self.average = breakdown["avg_finale"]
+        self.note_gap_value = breakdown["gap"]
+        self.has_note_gap_alert = breakdown["gap_alert"]
 
         self.save()
         return self.average
