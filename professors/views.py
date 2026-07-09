@@ -655,13 +655,20 @@ def professor_my_juries(request):
         messages.error(request, "Votre profil professeur n'est pas encore configuré.")
         return redirect("professor_dashboard")
 
+    from django.db.models import Prefetch
+
+    # Étudiants préchargés DANS L'ORDRE des passages (horaire croissant).
+    students_ordered = (
+        JuryStudent.objects
+        .select_related("student", "student__encadrant", "president", "schedule")
+        .order_by("schedule__start_time", "id")
+    )
     juries = Jury.objects.filter(
         members__professor=professor,
         is_validated=True,
     ).prefetch_related(
         "members__professor",
-        "students__student",
-        "students__student__encadrant",
+        Prefetch("students", queryset=students_ordered),
     ).distinct().order_by(
         "-defense_date",
         "name",

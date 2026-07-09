@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -573,12 +573,16 @@ def admin_expert_groups(request):
 @login_required
 @role_required(["admin"])
 def admin_jury_list(request):
+    # Les étudiants de chaque jury sont préchargés DANS L'ORDRE des passages
+    # (horaire croissant) pour que le template les affiche 9:00, 9:20, …
+    students_ordered = (
+        JuryStudent.objects
+        .select_related("student", "student__encadrant", "president", "schedule")
+        .order_by("schedule__start_time", "id")
+    )
     juries = Jury.objects.prefetch_related(
         "members__professor",
-        "students__student",
-        "students__student__encadrant",
-        "students__president",
-        "students__schedule",
+        Prefetch("students", queryset=students_ordered),
     ).order_by("defense_date", "name")
 
     # Filtre par jour (optionnel).
