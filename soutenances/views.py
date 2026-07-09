@@ -4088,11 +4088,15 @@ def admin_jury_update(request, pk):
             ).first() if other_jury else None
         )
 
-        def _encadre_dans(prof_id, jury_obj):
-            return JuryStudent.objects.filter(
-                jury=jury_obj, student__encadrant_id=prof_id,
-                encadrant_absent=False,
-            ).exists()
+        def _encadres_dans(prof_id, jury_obj):
+            """Étudiants de jury_obj encadrés par prof_id qui comptaient sur sa
+            présence (encadrant_absent=False)."""
+            return list(
+                JuryStudent.objects.filter(
+                    jury=jury_obj, student__encadrant_id=prof_id,
+                    encadrant_absent=False,
+                ).select_related("student")
+            )
 
         if not old_member or not other_jury or not other_member:
             messages.error(request, "Membre ou jury cible introuvable.")
@@ -4108,21 +4112,17 @@ def admin_jury_update(request, pk):
                 request,
                 f"{old_member.professor.full_name} est déjà membre du jury cible."
             )
-        elif _encadre_dans(old_id, jury):
-            messages.error(
-                request,
-                f"Impossible : {old_member.professor.full_name} est l'encadrant "
-                f"d'étudiants de ce jury."
-            )
-        elif _encadre_dans(target_prof_id, other_jury):
-            messages.error(
-                request,
-                f"Impossible : {other_member.professor.full_name} est l'encadrant "
-                f"d'étudiants du jury « {other_jury.name} »."
-            )
         else:
             prof_a = old_member.professor      # part vers l'autre jury
             prof_b = other_member.professor    # arrive dans ce jury
+
+            # Étudiants qui vont soutenir SANS leur encadrant après l'échange
+            # (leur encadrant quitte leur jury). Collectés AVANT le swap.
+            affected = (
+                [(prof_a, js) for js in _encadres_dans(old_id, jury)]
+                + [(prof_b, js) for js in _encadres_dans(target_prof_id, other_jury)]
+            )
+
             with transaction.atomic():
                 # Retirer les deux, puis recréer croisés (max 3 respecté).
                 old_member.delete()
@@ -4155,12 +4155,42 @@ def admin_jury_update(request, pk):
                 _reassign(jury, old_id, prof_b)
                 _reassign(other_jury, target_prof_id, prof_a)
 
+                # Recalcule « encadrant absent » selon la nouvelle composition :
+                # un encadrant qui part -> ses étudiants passent sans lui ; un
+                # encadrant qui arrive -> ses étudiants le retrouvent.
+                def _normalize_encadrant_absent(jury_obj):
+                    member_ids = set(
+                        jury_obj.members.values_list("professor_id", flat=True)
+                    )
+                    for js in JuryStudent.objects.filter(
+                        jury=jury_obj
+                    ).select_related("student"):
+                        absent = js.student.encadrant_id not in member_ids
+                        if js.encadrant_absent != absent:
+                            JuryStudent.objects.filter(pk=js.pk).update(
+                                encadrant_absent=absent
+                            )
+
+                _normalize_encadrant_absent(jury)
+                _normalize_encadrant_absent(other_jury)
+
             messages.success(
                 request,
                 f"Échange effectué : {prof_b.full_name} rejoint ce jury ; "
                 f"{prof_a.full_name} rejoint « {other_jury.name} » du "
                 f"{other_jury.defense_date.strftime('%d/%m/%Y')}."
             )
+            if affected:
+                details = " ; ".join(
+                    f"{js.student.full_name} ({js.student.matricule}) — encadrant "
+                    f"{prof.full_name}"
+                    for prof, js in affected
+                )
+                messages.warning(
+                    request,
+                    "Ces étudiants soutiendront SANS leur encadrant (désormais "
+                    f"marqués « encadrant absent ») suite à l'échange : {details}."
+                )
             # Avertissements de disponibilité (l'échange reste possible).
             if has_real_slot and not (
                 is_professor_available(prof_b, real_slot_date, real_slot_start)
