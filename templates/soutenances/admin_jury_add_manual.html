@@ -49,6 +49,21 @@
             {{ slot_display }} du {{ defense_date }} · {{ slot_start|time:"H:i" }}–{{ slot_end|time:"H:i" }}
         </h2>
 
+        <div class="row g-2 align-items-end" style="max-width:520px;">
+            <div class="col-md-7">
+                <label class="form-label">Horaire de début du jury</label>
+                <input type="time" name="start_time" value="{{ start_time }}"
+                       min="{{ slot_start|time:'H:i' }}" max="{{ slot_end|time:'H:i' }}"
+                       step="300" class="form-control">
+            </div>
+            <div class="col-md-5">
+                <small class="text-muted d-block">
+                    Laissez vide pour démarrer à {{ slot_start|time:"H:i" }} (début de la demi-journée).
+                    Les passages s'enchaînent ensuite toutes les 20 min.
+                </small>
+            </div>
+        </div>
+
         <!-- Étudiants sans jury -->
         <h3>Étudiants sans jury</h3>
         {% if students %}

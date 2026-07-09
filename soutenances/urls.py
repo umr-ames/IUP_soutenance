@@ -43,6 +43,7 @@ urlpatterns = [
     path("admin/planning/generate/", views.admin_generate_planning, name="admin_generate_planning"),
     path("admin/results/", views.admin_results, name="admin_results"),
     path("admin/results/<int:pk>/publish/", views.admin_publish_result, name="admin_publish_result"),
+    path("admin/results/<int:pk>/appliquer-regle/", views.admin_apply_gap_rule, name="admin_apply_gap_rule"),
     path("admin/evaluations/<int:pk>/unlock/", views.admin_unlock_evaluation, name="admin_unlock_evaluation"),
     path("admin/results/publish-all/", views.admin_publish_all_results, name="admin_publish_all_results"),
     path("admin/results/par-filiere/", views.admin_results_by_filiere, name="admin_results_by_filiere"),

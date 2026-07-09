@@ -3037,10 +3037,13 @@ def admin_jury_add_manual(request):
     if slot_label not in (defense_slots.MORNING, defense_slots.AFTERNOON):
         slot_label = ""
 
+    start_time_raw = (request.POST.get("start_time") or request.GET.get("start_time") or "").strip()
+
     context = {
         "today": today.isoformat(),
         "defense_date": date_raw,
         "slot": slot_label,
+        "start_time": start_time_raw,
         "slot_choices": [
             (defense_slots.MORNING, "Matin"),
             (defense_slots.AFTERNOON, "Après-midi"),
@@ -3070,6 +3073,19 @@ def admin_jury_add_manual(request):
 
         start, end = defense_slots.slot_bounds(defense_date, slot_label)
 
+        # Horaire de début choisi par l'admin (optionnel). Par défaut : début de
+        # la demi-journée. Doit rester dans les bornes du créneau.
+        begin = start
+        begin_invalid = False
+        if start_time_raw:
+            try:
+                hh, mm = start_time_raw.split(":")
+                begin = time(int(hh), int(mm))
+            except (ValueError, TypeError):
+                begin_invalid = True
+        if not begin_invalid and not (start <= begin < end):
+            begin_invalid = True
+
         student_ids = [int(x) for x in request.POST.getlist("students") if x.isdigit()]
         prof_ids = [int(x) for x in request.POST.getlist("professors") if x.isdigit()]
         salle = request.POST.get("salle") or ""
@@ -3097,12 +3113,18 @@ def admin_jury_add_manual(request):
             )
         elif not students:
             messages.error(request, "Sélectionnez au moins un étudiant.")
-        elif not salle or _salle_occupee(defense_date, start, end, salle):
+        elif begin_invalid:
+            messages.error(
+                request,
+                f"L'horaire de début doit être compris entre "
+                f"{start.strftime('%H:%M')} et {end.strftime('%H:%M')}."
+            )
+        elif not salle or _salle_occupee(defense_date, begin, end, salle):
             messages.error(request, "Choisissez une salle libre sur ce créneau.")
         else:
-            # Créneaux de 20 min de la demi-journée.
+            # Créneaux de 20 min à partir de l'horaire de début choisi.
             cap_slots = []
-            cur = datetime.combine(defense_date, start)
+            cur = datetime.combine(defense_date, begin)
             limit = datetime.combine(defense_date, end)
             while cur + timedelta(minutes=DEFENSE_DURATION_MINUTES) <= limit:
                 cap_slots.append(cur.time())
@@ -3148,8 +3170,8 @@ def admin_jury_add_manual(request):
             messages.success(
                 request,
                 f"Jury créé : {jury.name} — {defense_date.strftime('%d/%m/%Y')} "
-                f"({context.get('slot_display', slot_label)}) en {salle}, "
-                f"{len(placed)} étudiant(s)."
+                f"({context.get('slot_display', slot_label)}) à partir de "
+                f"{begin.strftime('%H:%M')} en {salle}, {len(placed)} étudiant(s)."
             )
             if warnings:
                 messages.warning(
@@ -5836,6 +5858,10 @@ def admin_publish_result(request, pk):
         )
 
         try:
+            # On (re)calcule avec la règle en vigueur (note corrigée critère par
+            # critère en cas d'écart >= 3) avant de publier.
+            if assignment.evaluations.filter(is_submitted=True).count() == 3:
+                result.calculate_average()
             result.publish()
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))
@@ -5854,6 +5880,52 @@ def admin_publish_result(request, pk):
 
 @login_required
 @role_required(["admin"])
+def admin_apply_gap_rule(request, pk):
+    """Applique la règle de correction d'écart à UN étudiant (cas par cas) :
+    recalcule la note en écartant, critère par critère, la note aberrante
+    (écart >= 3), puis publie le résultat. Sert notamment aux résultats en
+    alerte restés non publiés."""
+    assignment = get_object_or_404(JuryStudent, pk=pk)
+
+    if request.method == "POST":
+        if assignment.evaluations.filter(is_submitted=True).count() != 3:
+            messages.error(request, "Les 3 évaluations ne sont pas encore saisies.")
+            return redirect("admin_results")
+
+        result, _ = Result.objects.get_or_create(jury_student=assignment)
+        try:
+            result.calculate_average()  # force la règle par critère
+            result.publish()
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+            return redirect("admin_results")
+
+        notify(
+            getattr(assignment.student, "user", None),
+            "Résultat de soutenance publié",
+            "Votre note finale est disponible dans votre espace.",
+            "/student-dashboard/",
+            category=Notification.CATEGORY_RESULT,
+        )
+        if result.has_note_gap_alert:
+            messages.success(
+                request,
+                f"Règle appliquée : {assignment.student.full_name} — note corrigée "
+                f"{result.average}/20 (écart {result.note_gap_value}, membre aberrant "
+                f"écarté par critère). Résultat publié."
+            )
+        else:
+            messages.success(
+                request,
+                f"Résultat publié : {assignment.student.full_name} — moyenne "
+                f"{result.average}/20 (aucun écart)."
+            )
+
+    return redirect("admin_results")
+
+
+@login_required
+@role_required(["admin"])
 def admin_publish_all_results(request):
     if request.method == "POST":
         count = 0
@@ -5863,6 +5935,7 @@ def admin_publish_all_results(request):
                 result, _ = Result.objects.get_or_create(
                     jury_student=assignment,
                 )
+                result.calculate_average()  # applique la règle par critère
                 result.publish()
                 notify(
                     getattr(assignment.student, "user", None),

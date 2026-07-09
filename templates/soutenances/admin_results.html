@@ -654,6 +654,14 @@
                     {% elif item.ready %}
                         {% if item.result and item.result.is_published %}
                             <span class="soft-pill success">Publié</span>
+                        {% elif item.is_alert %}
+                            <form method="post" action="{% url 'admin_apply_gap_rule' item.assignment.id %}">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-primary" type="submit"
+                                        data-confirm="Appliquer la règle d'écart (écarter la note aberrante critère par critère) et publier le résultat de {{ item.assignment.student.full_name }} ?">
+                                    Appliquer la règle &amp; publier
+                                </button>
+                            </form>
                         {% else %}
                             <form method="post" action="{% url 'admin_publish_result' item.assignment.id %}">
                                 {% csrf_token %}
