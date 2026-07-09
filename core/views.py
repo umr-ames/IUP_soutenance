@@ -246,25 +246,24 @@ def student_dashboard(request):
             if candidate_result and candidate_result.is_published:
                 result = candidate_result
 
-                # Répartition de la note (moyenne des membres du jury) :
-                # l'étudiant voit le détail Rapport / Présentation / Questions.
+                # Répartition de la note APRÈS correction d'écart : l'étudiant
+                # voit le détail Rapport / Présentation / Questions tel qu'utilisé
+                # pour sa note finale (note aberrante écartée par critère si un
+                # écart >= 3 a été détecté).
+                from soutenances.models import corrected_breakdown
+
                 evaluations = list(
                     jury_assignment.evaluations.filter(is_submitted=True)
                 )
                 if evaluations:
-                    count = Decimal(len(evaluations))
-
-                    def _component_average(field):
-                        total = sum(
-                            (getattr(ev, field) for ev in evaluations),
-                            Decimal("0"),
-                        )
-                        return (total / count).quantize(Decimal("0.01"))
-
+                    bd = corrected_breakdown(evaluations)
                     result_breakdown = {
-                        "rapport": _component_average("rapport_note"),
-                        "presentation": _component_average("presentation_note"),
-                        "questions": _component_average("questions_note"),
+                        "rapport": bd["avg_rapport"],
+                        "presentation": bd["avg_presentation"],
+                        "questions": bd["avg_questions"],
+                        "final": bd["avg_finale"],
+                        "raw_final": bd["raw_avg_finale"],
+                        "corrected": bd["any_correction"],
                     }
 
     # Dossier incomplet : pièces obligatoires manquantes sur une demande déjà

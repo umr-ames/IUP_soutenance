@@ -200,6 +200,17 @@
         color: var(--muted);
     }
 
+    .note-corrected-info {
+        margin-top: 12px;
+        padding: 10px 14px;
+        border-radius: var(--radius-md);
+        background: rgba(220, 38, 38, 0.06);
+        border: 1px solid rgba(220, 38, 38, 0.22);
+        color: #7d1f1f;
+        font-size: 0.84rem;
+        line-height: 1.45;
+    }
+
     @media (max-width: 560px) {
         .note-breakdown { grid-template-columns: 1fr; }
     }
@@ -464,6 +475,14 @@
                             <span class="nb-value">{{ result_breakdown.questions }}<small>/20</small></span>
                         </div>
                     </div>
+                    {% if result_breakdown.corrected %}
+                        <p class="note-corrected-info">
+                            &#9888; Un écart important entre les membres du jury a été détecté :
+                            votre note a été <strong>recalculée</strong> en écartant, pour chaque
+                            critère concerné, la note la plus éloignée. Les valeurs ci-dessus sont
+                            celles retenues pour votre note finale.
+                        </p>
+                    {% endif %}
                 {% endif %}
             </section>
         {% endif %}
