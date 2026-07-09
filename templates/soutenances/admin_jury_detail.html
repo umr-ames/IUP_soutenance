@@ -22,6 +22,13 @@
                 Modifier le jury
             </a>
 
+            <a href="{% url 'admin_jury_export' jury.pk %}?format=pdf" class="btn btn-light">
+                Télécharger PDF
+            </a>
+            <a href="{% url 'admin_jury_export' jury.pk %}?format=word" class="btn btn-light">
+                Word
+            </a>
+
             {% if jury.is_validated %}
                 <span class="status-pill success">Publié</span>
             {% else %}

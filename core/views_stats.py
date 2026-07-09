@@ -200,6 +200,17 @@ def _compute_global():
     prof_restants = max(prof_total - prof_inscrits, 0)
     prof_taux = round(prof_inscrits / prof_total * 100, 1) if prof_total else 0
 
+    # Soutenus / restants parmi les étudiants inscrits (pourcentage sur les
+    # inscrits). "Soutenu" = étudiant avec un résultat publié.
+    soutenus_count = len(set(
+        Result.objects.filter(is_published=True)
+        .values_list('jury_student__student_id', flat=True)
+    ))
+    restants_count = max(total_profiles - soutenus_count, 0)
+    base_ins = total_profiles if total_profiles > 0 else 1
+    soutenus_pct = round(soutenus_count / base_ins * 100, 1)
+    restants_pct = round(restants_count / base_ins * 100, 1)
+
     return {
         'total_ref': total_ref,
         'total_profiles': total_profiles,
@@ -207,6 +218,10 @@ def _compute_global():
         'total_demandes': total_demandes,
         'total_acceptees': total_acceptees,
         'acceptes_sans_jury_count': acceptes_sans_jury_count,
+        'soutenus_count': soutenus_count,
+        'soutenus_pct': soutenus_pct,
+        'restants_count': restants_count,
+        'restants_pct': restants_pct,
         'prof_total': prof_total,
         'prof_inscrits': prof_inscrits,
         'prof_restants': prof_restants,

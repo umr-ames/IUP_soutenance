@@ -20,11 +20,26 @@
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <button type="button" onclick="window.print()" class="btn btn-primary">Imprimer</button>
-        <a href="?format=pdf" class="btn btn-outline-primary">Télécharger PDF</a>
-        <a href="?format=xlsx" class="btn btn-outline-primary">Télécharger Excel</a>
+        <a href="?format=pdf{% if selected_day %}&day={{ selected_day|date:'Y-m-d' }}{% endif %}" class="btn btn-outline-primary">Télécharger PDF</a>
+        <a href="?format=xlsx{% if selected_day %}&day={{ selected_day|date:'Y-m-d' }}{% endif %}" class="btn btn-outline-primary">Télécharger Excel</a>
         <a href="{% url 'admin_jury_list' %}" class="btn btn-outline-secondary">Retour aux jurys</a>
     </div>
 </div>
+
+<section class="content-panel no-print" style="margin-bottom:14px;">
+    <form method="get" class="d-flex gap-2 align-items-end flex-wrap">
+        <div>
+            <label class="form-label">Voir les jurys d'un jour</label>
+            <select name="day" class="form-select" onchange="this.form.submit()" style="min-width:240px;">
+                <option value="">— Tous les jours —</option>
+                {% for d in available_days %}
+                    <option value="{{ d|date:'Y-m-d' }}" {% if selected_day and selected_day == d %}selected{% endif %}>{{ d|date:"l d/m/Y" }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% if selected_day %}<a href="{% url 'admin_timetable' %}" class="btn btn-outline-secondary">Tous les jours</a>{% endif %}
+    </form>
+</section>
 
 {% if not days %}
     <section class="content-panel"><div class="empty-state">Aucune soutenance planifiée.</div></section>
@@ -42,7 +57,14 @@
                     · {{ e.count }} étudiant(s)
                     {% if e.jury.is_validated %}<span class="status-pill success">publié</span>{% else %}<span class="status-pill warning">brouillon</span>{% endif %}
                 </div>
-                <div class="text-muted" style="font-size:.85rem;">Membres : {{ e.members|join:" / " }}</div>
+                <div class="d-flex flex-column align-items-end gap-1">
+                    <div class="text-muted" style="font-size:.85rem;">Membres : {{ e.members|join:" / " }}</div>
+                    <div class="d-flex gap-1 no-print">
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_jury_export' e.jury.id %}?format=pdf">Télécharger PDF</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_jury_export' e.jury.id %}?format=word">Word</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_jury_update' e.jury.id %}">Modifier</a>
+                    </div>
+                </div>
             </div>
             <div class="table-responsive mt-2">
                 <table class="table table-sm mb-0">

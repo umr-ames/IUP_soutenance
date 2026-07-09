@@ -8,32 +8,51 @@
         <h1>Professeurs</h1>
         <p>Encadrants et membres de jury, un seul professeur par ligne.</p>
     </div>
-    <a class="btn btn-primary" href="{% url 'admin_import_people' %}">Importer</a>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-primary" href="{% url 'admin_import_people' %}">Importer</a>
+    </div>
 </div>
+
+<section class="content-panel" style="margin-bottom:14px;">
+    <strong>Exports</strong>
+    <div class="d-flex gap-2 flex-wrap mt-2">
+        <span class="text-muted" style="align-self:center; font-size:.85rem;">Récapitulatif (nom, tél, email, encadrés, nb de jury) :</span>
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_professors_recap' %}?format=xlsx">Excel</a>
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_professors_recap' %}?format=word">Word</a>
+        <span class="text-muted" style="align-self:center; font-size:.85rem; margin-left:10px;">Détails (profs + étudiants : nom, matricule, filière) :</span>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professors_details' %}?format=xlsx">Excel</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professors_details' %}?format=word">Word</a>
+    </div>
+</section>
 
 <section class="content-panel">
     <div class="table-responsive">
         <table class="table table-hover mb-0">
             <thead>
                 <tr>
-                    <th>Nom complet / Identifiant</th>
+                    <th>Nom / Identifiant / Actions</th>
                     <th>Téléphone</th>
                     <th>Compte</th>
                     <th>Prioritaire</th>
                     <th>Étudiants encadrés</th>
                     <th>Étudiants notés (jury)</th>
                     <th>Disponibilités</th>
-                    <th></th>
                 </tr>
             </thead>
             <tbody>
                 {% for professor in professors %}
                     <tr>
-                        <td>
+                        <td style="min-width:320px;">
                             <a href="{% url 'admin_professor_students' %}?name={{ professor.full_name|urlencode }}"><strong>{{ professor.full_name }}</strong></a>
                             {% if professor.user %}
                                 <br><small class="text-muted">Identifiant : <span style="user-select:all;">{{ professor.user.email|default:professor.user.username|default:"-" }}</span></small>
-                                <div class="mt-1">
+                            {% else %}
+                                <br><small class="text-muted">Pas de compte</small>
+                            {% endif %}
+                            <div class="d-flex flex-wrap gap-1 mt-2">
+                                <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_professor_availability' %}?professor={{ professor.id }}">Disponibilités</a>
+                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professor_availability_edit' %}?professor={{ professor.id }}">Remplir</a>
+                                {% if professor.user %}
                                     <form method="post" action="{% url 'admin_reset_professor_password' professor.id %}" style="display:inline; margin:0;">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-sm btn-outline-secondary"
@@ -41,10 +60,16 @@
                                             Réinitialiser MDP
                                         </button>
                                     </form>
-                                </div>
-                            {% else %}
-                                <br><small class="text-muted">Pas de compte</small>
-                            {% endif %}
+                                {% endif %}
+                                <details style="display:inline-block;">
+                                    <summary class="btn btn-sm btn-outline-secondary" style="list-style:none; cursor:pointer;">Corriger le nom</summary>
+                                    <form method="post" action="{% url 'admin_rename_professor' professor.id %}" class="d-flex gap-1 mt-2" style="min-width:280px;">
+                                        {% csrf_token %}
+                                        <input type="text" name="full_name" class="form-control form-control-sm" value="{{ professor.full_name }}" required>
+                                        <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
+                                    </form>
+                                </details>
+                            </div>
                         </td>
                         <td>{{ professor.user.phone_number|default:professor.phone|default:"-" }}</td>
                         <td>
@@ -67,34 +92,9 @@
                         <td><a href="{% url 'admin_professor_students' %}?name={{ professor.full_name|urlencode }}">{{ professor.supervised_count }}</a></td>
                         <td>{{ professor.graded_count }}</td>
                         <td>{{ professor.availability_count }}</td>
-                        <td>
-                            <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_professor_availability' %}?professor={{ professor.id }}">
-                                Voir disponibilités
-                            </a>
-                            <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professor_availability_edit' %}?professor={{ professor.id }}">
-                                Remplir
-                            </a>
-                            {% if professor.user %}
-                                <form method="post" action="{% url 'admin_reset_professor_password' professor.id %}" style="display:inline; margin:0;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-secondary"
-                                            data-confirm="Réinitialiser le mot de passe de {{ professor.full_name }} ? Un mot de passe temporaire sera généré.">
-                                        Réinitialiser MDP
-                                    </button>
-                                </form>
-                            {% endif %}
-                            <details style="display:inline-block; margin-left:4px;">
-                                <summary class="btn btn-sm btn-outline-secondary" style="list-style:none; cursor:pointer;">Corriger le nom</summary>
-                                <form method="post" action="{% url 'admin_rename_professor' professor.id %}" class="d-flex gap-1 mt-2" style="min-width:280px;">
-                                    {% csrf_token %}
-                                    <input type="text" name="full_name" class="form-control form-control-sm" value="{{ professor.full_name }}" required>
-                                    <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
-                                </form>
-                            </details>
-                        </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="8"><div class="empty-state">Aucun professeur.</div></td></tr>
+                    <tr><td colspan="7"><div class="empty-state">Aucun professeur.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>

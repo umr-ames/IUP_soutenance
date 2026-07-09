@@ -195,7 +195,11 @@
                 <span class="eyebrow">Récapitulatif</span>
                 <h3>Mon activité</h3>
             </div>
-            <a class="btn btn-sm btn-outline-primary" href="{% url 'professor_supervised_students' %}">Fiche détaillée (mes étudiants)</a>
+            <div class="d-flex gap-2 flex-wrap">
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'professor_supervised_students' %}">Fiche détaillée</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'professor_my_recap' %}?format=xlsx">Ma fiche (Excel)</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'professor_my_recap' %}?format=word">Ma fiche (Word)</a>
+            </div>
         </div>
         <div class="status-counter-grid mt-2" style="grid-template-columns:repeat(2,minmax(0,1fr));">
             <div class="status-counter">

@@ -699,7 +699,8 @@ function resultMatchesFilter(card) {
     }
 
     if (activeFilter === 'alert') {
-        return alertState === 'alert';
+        // Alertes = écart >= 3 ET pas encore publié.
+        return alertState === 'alert' && status !== 'published';
     }
 
     return status === activeFilter;

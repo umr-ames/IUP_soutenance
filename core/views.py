@@ -606,6 +606,197 @@ def admin_professor_list(request):
     })
 
 
+ISGI_L1 = "Institut Supérieur de Génie Industriel (ISGI)"
+ISGI_L2 = "Département de l'IUP"
+
+
+def _word_response(title, body_html, filename):
+    """Génère un document ouvrable dans Word (HTML servi en application/msword),
+    sans dépendance externe. En-tête ISGI inclus."""
+    from django.http import HttpResponse
+    html = (
+        "<html><head><meta charset='utf-8'></head><body>"
+        f"<div style='text-align:center;'><h2>{ISGI_L1}</h2>"
+        f"<p><b>{ISGI_L2}</b></p><h3>{title}</h3></div>"
+        f"{body_html}</body></html>"
+    )
+    resp = HttpResponse(html, content_type="application/msword")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
+
+
+def _professors_recap_rows():
+    """Une ligne par prof : nom, tél, email, nb encadrés, nb de jury (= nombre
+    d'étudiants réellement notés par le prof dans un jury)."""
+    profs = list(ProfessorProfile.objects.select_related("user").order_by("full_name"))
+    graded = {
+        r["professor_id"]: r["c"]
+        for r in Evaluation.objects.filter(is_submitted=True)
+        .values("professor_id")
+        .annotate(c=Count("jury_student__student_id", distinct=True))
+    }
+    enc = {
+        r["encadrant_id"]: r["c"]
+        for r in StudentProfile.objects.filter(encadrant__isnull=False)
+        .values("encadrant_id").annotate(c=Count("id", distinct=True))
+    }
+    rows = []
+    for p in profs:
+        rows.append({
+            "prof": p,
+            "nom": p.full_name,
+            "tel": (getattr(p.user, "phone_number", None) if p.user else None) or p.phone or "",
+            "email": (p.user.email if p.user else "") or (p.user.username if p.user else ""),
+            "encadres": enc.get(p.id, 0),
+            "jury": graded.get(p.id, 0),
+        })
+    return rows
+
+
+def _professors_details():
+    """Chaque prof avec la liste de SES étudiants encadrés (nom, matricule,
+    filière). Pour la comptabilité de la direction."""
+    profs = list(ProfessorProfile.objects.select_related("user").order_by("full_name"))
+    students_by_enc = {}
+    for s in StudentProfile.objects.filter(encadrant__isnull=False).order_by("filiere", "full_name"):
+        students_by_enc.setdefault(s.encadrant_id, []).append(s)
+    result = []
+    for p in profs:
+        result.append({"prof": p, "students": students_by_enc.get(p.id, [])})
+    return result
+
+
+@login_required
+@role_required(["admin"])
+def admin_professors_recap(request):
+    """Récapitulatif des profs (nom, tél, email, nb encadrés, nb de jury) en
+    Excel ou Word."""
+    rows = _professors_recap_rows()
+    fmt = (request.GET.get("format") or "xlsx").strip()
+
+    if fmt == "word":
+        body = ["<table border='1' cellspacing='0' cellpadding='4'>",
+                "<tr><th>Nom</th><th>Téléphone</th><th>Email</th>"
+                "<th>Étudiants encadrés</th><th>Nombre de jury</th></tr>"]
+        for r in rows:
+            body.append(
+                f"<tr><td>{r['nom']}</td><td>{r['tel']}</td><td>{r['email']}</td>"
+                f"<td>{r['encadres']}</td><td>{r['jury']}</td></tr>"
+            )
+        body.append("</table>")
+        return _word_response("Récapitulatif des professeurs", "".join(body),
+                              "recap_professeurs.doc")
+
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Récap professeurs"
+    ws.append([ISGI_L1]); ws.append([ISGI_L2]); ws.append(["Récapitulatif des professeurs"]); ws.append([])
+    ws.append(["Nom", "Téléphone", "Email", "Étudiants encadrés", "Nombre de jury"])
+    for r in rows:
+        ws.append([r["nom"], r["tel"], r["email"], r["encadres"], r["jury"]])
+    from django.http import HttpResponse
+    resp = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = 'attachment; filename="recap_professeurs.xlsx"'
+    wb.save(resp)
+    return resp
+
+
+@login_required
+@role_required(["admin"])
+def admin_professors_details(request):
+    """Détails : tous les profs et leurs étudiants (nom, matricule, filière),
+    en Excel ou Word — pour la comptabilité de la direction."""
+    data = _professors_details()
+    fmt = (request.GET.get("format") or "xlsx").strip()
+
+    if fmt == "word":
+        body = []
+        for entry in data:
+            p = entry["prof"]
+            body.append(f"<h4>{p.full_name} — {len(entry['students'])} étudiant(s)</h4>")
+            body.append("<table border='1' cellspacing='0' cellpadding='4'>"
+                        "<tr><th>Matricule</th><th>Nom & Prénom</th><th>Filière</th></tr>")
+            for s in entry["students"]:
+                body.append(f"<tr><td>{s.matricule}</td><td>{s.full_name}</td><td>{s.filiere or ''}</td></tr>")
+            body.append("</table><br>")
+        return _word_response("Professeurs et leurs étudiants", "".join(body),
+                              "professeurs_details.doc")
+
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Profs et étudiants"
+    ws.append([ISGI_L1]); ws.append([ISGI_L2]); ws.append(["Professeurs et leurs étudiants encadrés"]); ws.append([])
+    ws.append(["Professeur", "Matricule", "Nom & Prénom étudiant", "Filière"])
+    for entry in data:
+        p = entry["prof"]
+        if not entry["students"]:
+            ws.append([p.full_name, "—", "(aucun étudiant encadré)", ""])
+            continue
+        for s in entry["students"]:
+            ws.append([p.full_name, s.matricule, s.full_name, s.filiere or ""])
+    from django.http import HttpResponse
+    resp = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = 'attachment; filename="professeurs_details.xlsx"'
+    wb.save(resp)
+    return resp
+
+
+@login_required
+@role_required(["professor"])
+def professor_my_recap(request):
+    """Fiche du prof connecté (Excel/Word) : son récap + ses étudiants."""
+    professor = getattr(request.user, "professor_profile", None)
+    if not professor:
+        return redirect("professor_dashboard")
+    encadres = list(
+        StudentProfile.objects.filter(encadrant=professor).order_by("filiere", "full_name")
+    )
+    jury_graded = (
+        Evaluation.objects.filter(professor=professor, is_submitted=True)
+        .values_list("jury_student__student_id", flat=True).distinct().count()
+    )
+    tel = (getattr(professor.user, "phone_number", None) if professor.user else None) or professor.phone or ""
+    email = (professor.user.email if professor.user else "") or ""
+    fmt = (request.GET.get("format") or "xlsx").strip()
+
+    if fmt == "word":
+        body = [
+            f"<p><b>Nom :</b> {professor.full_name}<br>"
+            f"<b>Téléphone :</b> {tel}<br><b>Email :</b> {email}<br>"
+            f"<b>Étudiants encadrés :</b> {len(encadres)}<br>"
+            f"<b>Nombre de jury (étudiants notés) :</b> {jury_graded}</p>",
+            "<h4>Mes étudiants encadrés</h4>",
+            "<table border='1' cellspacing='0' cellpadding='4'>"
+            "<tr><th>Matricule</th><th>Nom & Prénom</th><th>Filière</th></tr>",
+        ]
+        for s in encadres:
+            body.append(f"<tr><td>{s.matricule}</td><td>{s.full_name}</td><td>{s.filiere or ''}</td></tr>")
+        body.append("</table>")
+        return _word_response(f"Fiche — {professor.full_name}", "".join(body), "ma_fiche.doc")
+
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Ma fiche"
+    ws.append([ISGI_L1]); ws.append([ISGI_L2]); ws.append([f"Fiche — {professor.full_name}"]); ws.append([])
+    ws.append(["Nom", professor.full_name])
+    ws.append(["Téléphone", tel])
+    ws.append(["Email", email])
+    ws.append(["Étudiants encadrés", len(encadres)])
+    ws.append(["Nombre de jury (étudiants notés)", jury_graded])
+    ws.append([])
+    ws.append(["Matricule", "Nom & Prénom", "Filière"])
+    for s in encadres:
+        ws.append([s.matricule, s.full_name, s.filiere or ""])
+    from django.http import HttpResponse
+    resp = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = 'attachment; filename="ma_fiche.xlsx"'
+    wb.save(resp)
+    return resp
+
+
 @login_required
 @role_required(["admin"])
 def admin_toggle_priority_professor(request, pk):

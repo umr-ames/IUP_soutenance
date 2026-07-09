@@ -199,14 +199,14 @@ if (typeof Chart === 'undefined') {
             <div class="kpi-sub">Toutes les demandes reçues</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Demandes validées</div>
-            <div class="kpi-value" style="color:#16a34a">{{ total_acceptees }}</div>
-            <div class="kpi-sub">Validées par le département de l'IUP</div>
+            <div class="kpi-eyebrow">Étudiants soutenus</div>
+            <div class="kpi-value" style="color:#16a34a">{{ soutenus_count }}</div>
+            <div class="kpi-sub">{{ soutenus_pct }} % des inscrits</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-eyebrow">Validées sans jury</div>
-            <div class="kpi-value" style="color:#f59e0b">{{ acceptes_sans_jury_count }}</div>
-            <div class="kpi-sub">Validées par le département, jury pas encore attribué</div>
+            <div class="kpi-eyebrow">Restants à soutenir</div>
+            <div class="kpi-value" style="color:#f59e0b">{{ restants_count }}</div>
+            <div class="kpi-sub">{{ restants_pct }} % des inscrits pas encore soutenus</div>
         </div>
     </div>
 

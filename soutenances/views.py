@@ -3425,6 +3425,18 @@ def admin_timetable(request):
     avec le détail de chaque jury (horaires, nom, matricule, président,
     encadrant, membres)."""
     days = _timetable_data()
+    all_days = [d for d, _ in days]
+
+    # Filtre par date (optionnel).
+    day_raw = (request.GET.get("day") or "").strip()
+    selected_day = None
+    if day_raw:
+        try:
+            selected_day = date_cls.fromisoformat(day_raw)
+            days = [(d, e) for d, e in days if d == selected_day]
+        except ValueError:
+            selected_day = None
+
     fmt = (request.GET.get("format") or "").strip()
 
     def fmt_t(t):
@@ -3499,7 +3511,87 @@ def admin_timetable(request):
     return render(request, "soutenances/admin_timetable.html", {
         "days": days,
         "total_juries": sum(len(e) for _, e in days),
+        "available_days": all_days,
+        "selected_day": selected_day,
     })
+
+
+@login_required
+@role_required(["admin"])
+def admin_jury_export(request, pk):
+    """Télécharge le détail d'UN jury (salle, membres, étudiants avec matricule,
+    horaires de passage, président, encadrant) en PDF ou Word."""
+    jury = get_object_or_404(
+        Jury.objects.prefetch_related(
+            "members__professor", "students__student__encadrant",
+            "students__president", "students__schedule",
+        ), pk=pk,
+    )
+    rows = []
+    for js in jury.students.all():
+        sch = getattr(js, "schedule", None)
+        rows.append({
+            "start": sch.start_time if sch else None,
+            "end": (sch.end_time or slot_end_time(jury.defense_date, sch.start_time)) if sch else None,
+            "name": js.student.full_name or "(nom absent)",
+            "matricule": js.student.matricule,
+            "president": js.president.full_name if js.president else "—",
+            "encadrant": js.student.encadrant.full_name if js.student.encadrant else "—",
+        })
+    rows.sort(key=lambda r: (r["start"] is None, r["start"] or time(23, 59)))
+    members = [m.professor.full_name for m in jury.members.all()]
+    salle = jury.get_salle_display() if jury.salle else "—"
+    d = jury.defense_date.strftime("%d/%m/%Y") if jury.defense_date else "—"
+
+    def ft(t):
+        return t.strftime("%H:%M") if t else "—"
+
+    fmt = (request.GET.get("format") or "pdf").strip()
+
+    if fmt == "word":
+        body = [
+            f"<p><b>Date :</b> {d} &nbsp; <b>Salle :</b> {salle}<br>"
+            f"<b>Membres :</b> {' / '.join(members)}</p>",
+            "<table border='1' cellspacing='0' cellpadding='4'>"
+            "<tr><th>Horaire</th><th>Matricule</th><th>Nom & Prénom</th>"
+            "<th>Président</th><th>Encadrant</th></tr>",
+        ]
+        for r in rows:
+            body.append(
+                f"<tr><td>{ft(r['start'])}–{ft(r['end'])}</td><td>{r['matricule']}</td>"
+                f"<td>{r['name']}</td><td>{r['president']}</td><td>{r['encadrant']}</td></tr>"
+            )
+        body.append("</table>")
+        return _word_response_soutenances(
+            f"{jury.name} — {d}", "".join(body),
+            f"jury_{jury.pk}.doc",
+        )
+
+    lines = [
+        "Institut Supérieur de Génie Industriel (ISGI)", "Département de l'IUP", "",
+        f"{jury.name}", f"Date : {d}    Salle : {salle}",
+        "Membres : " + " / ".join(members), "",
+        "Passages :",
+    ]
+    for r in rows:
+        lines.append(
+            f"  {ft(r['start'])}-{ft(r['end'])}  {r['matricule']}  {r['name']}  "
+            f"(Pres. {r['president']} · Enc. {r['encadrant']})"
+        )
+    return simple_pdf_response(jury.name, lines, f"jury_{jury.pk}.pdf")
+
+
+def _word_response_soutenances(title, body_html, filename):
+    html = (
+        "<html><head><meta charset='utf-8'></head><body>"
+        "<div style='text-align:center;'>"
+        "<h2>Institut Supérieur de Génie Industriel (ISGI)</h2>"
+        "<p><b>Département de l'IUP</b></p>"
+        f"<h3>{title}</h3></div>{body_html}</body></html>"
+    )
+    resp = HttpResponse(html, content_type="application/msword")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
 
 
 @login_required
@@ -5876,9 +5968,13 @@ def admin_results_by_filiere(request):
             "matricule": s.matricule,
             "average": r.average,
         })
-    # Tri par matricule dans chaque filière.
+    # Tri par matricule, puis nom, puis note dans chaque filière.
     for fil in groups:
-        groups[fil].sort(key=lambda x: (x["matricule"] or "").upper())
+        groups[fil].sort(key=lambda x: (
+            (x["matricule"] or "").upper(),
+            (x["name"] or "").upper(),
+            x["average"] if x["average"] is not None else Decimal("0"),
+        ))
 
     fmt = (request.GET.get("format") or "").strip()
 
