@@ -246,10 +246,9 @@ def student_dashboard(request):
             if candidate_result and candidate_result.is_published:
                 result = candidate_result
 
-                # Répartition de la note APRÈS correction d'écart : l'étudiant
-                # voit le détail Rapport / Présentation / Questions tel qu'utilisé
-                # pour sa note finale (note aberrante écartée par critère si un
-                # écart >= 3 a été détecté).
+                # Répartition de la note : on affiche CE QUI A ÉTÉ CALCULÉ, cohérent
+                # avec la note stockée. Résultat corrigé par critère -> détail
+                # corrigé ; ancien résultat (moyenne simple) -> détail brut.
                 from soutenances.models import corrected_breakdown
 
                 evaluations = list(
@@ -257,14 +256,32 @@ def student_dashboard(request):
                 )
                 if evaluations:
                     bd = corrected_breakdown(evaluations)
-                    result_breakdown = {
-                        "rapport": bd["avg_rapport"],
-                        "presentation": bd["avg_presentation"],
-                        "questions": bd["avg_questions"],
-                        "final": bd["avg_finale"],
-                        "raw_final": bd["raw_avg_finale"],
-                        "corrected": bd["any_correction"],
-                    }
+                    n_ev = len(evaluations)
+
+                    def _mean(field):
+                        total = sum(
+                            (getattr(e, field) for e in evaluations), Decimal("0")
+                        )
+                        return (total / Decimal(n_ev)).quantize(Decimal("0.01"))
+
+                    stored = result.average
+                    use_raw = (
+                        stored is not None
+                        and abs(stored - bd["raw_avg_finale"]) <= Decimal("0.01")
+                        and abs(stored - bd["avg_finale"]) > Decimal("0.01")
+                    )
+                    if use_raw:
+                        result_breakdown = {
+                            "rapport": _mean("rapport_note"),
+                            "presentation": _mean("presentation_note"),
+                            "questions": _mean("questions_note"),
+                        }
+                    else:
+                        result_breakdown = {
+                            "rapport": bd["avg_rapport"],
+                            "presentation": bd["avg_presentation"],
+                            "questions": bd["avg_questions"],
+                        }
 
     # Dossier incomplet : pièces obligatoires manquantes sur une demande déjà
     # déposée (ex. rapport non joint). L'étudiant pourra la compléter.

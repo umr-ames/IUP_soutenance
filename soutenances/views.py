@@ -5889,16 +5889,42 @@ def compute_criteria_averages(assignment):
     if n == 0:
         return data
 
-    # Note corrigée critère par critère (écart >= 3 -> membre aberrant écarté).
+    # Note corrigée critère par critère (écart >= 3 -> membre aberrant écarté)
+    # ET moyennes BRUTES (simple moyenne des membres).
     bd = corrected_breakdown(submitted)
-    data["avg_rapport"] = bd["avg_rapport"]
-    data["avg_presentation"] = bd["avg_presentation"]
-    data["avg_questions"] = bd["avg_questions"]
-    data["avg_finale"] = bd["avg_finale"]
+
+    def _mean(field):
+        total = sum((getattr(e, field) for e in submitted), Decimal("0"))
+        return (total / Decimal(n)).quantize(Decimal("0.01"))
+
+    # On affiche CE QUI A ÉTÉ CALCULÉ : l'affichage doit correspondre à la note
+    # STOCKÉE. Un résultat publié AVANT la règle de correction (moyenne simple)
+    # s'affiche en BRUT ; un résultat corrigé par critère s'affiche corrigé.
+    result = getattr(assignment, "result", None)
+    stored = result.average if result else None
+    use_raw = (
+        stored is not None
+        and abs(stored - bd["raw_avg_finale"]) <= Decimal("0.01")
+        and abs(stored - bd["avg_finale"]) > Decimal("0.01")
+    )
+
+    if use_raw:
+        data["avg_rapport"] = _mean("rapport_note")
+        data["avg_presentation"] = _mean("presentation_note")
+        data["avg_questions"] = _mean("questions_note")
+        data["avg_finale"] = bd["raw_avg_finale"]
+        data["gap"] = bd["gap"]
+        data["gap_alert"] = False
+        data["breakdown"] = None
+    else:
+        data["avg_rapport"] = bd["avg_rapport"]
+        data["avg_presentation"] = bd["avg_presentation"]
+        data["avg_questions"] = bd["avg_questions"]
+        data["avg_finale"] = bd["avg_finale"]
+        data["gap"] = bd["gap"]
+        data["gap_alert"] = bd["gap_alert"]
+        data["breakdown"] = bd
     data["raw_avg_finale"] = bd["raw_avg_finale"]
-    data["gap"] = bd["gap"]
-    data["gap_alert"] = bd["gap_alert"]
-    data["breakdown"] = bd
     return data
 
 
