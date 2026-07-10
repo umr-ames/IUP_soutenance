@@ -188,11 +188,11 @@ if (typeof Chart === 'undefined') {
             <div class="kpi-value" style="color:var(--orange)">{{ total_profiles }}</div>
             <div class="kpi-sub">{{ total_profiles }} inscrits sur {{ total_ref }}</div>
         </div>
-        <div class="kpi-card">
+        <a class="kpi-card" href="{% url 'admin_stat_non_inscrits' %}" style="text-decoration:none;">
             <div class="kpi-eyebrow">Pas encore inscrits</div>
             <div class="kpi-value" style="color:#dc2626">{{ total_sans_compte }}</div>
-            <div class="kpi-sub">Étudiants sans compte</div>
-        </div>
+            <div class="kpi-sub">Voir la liste · télécharger (Word)</div>
+        </a>
         <div class="kpi-card">
             <div class="kpi-eyebrow">Demandes de soutenance</div>
             <div class="kpi-value">{{ total_demandes }}</div>
@@ -203,11 +203,16 @@ if (typeof Chart === 'undefined') {
             <div class="kpi-value" style="color:#16a34a">{{ soutenus_count }}</div>
             <div class="kpi-sub">{{ soutenus_pct }} % des inscrits</div>
         </div>
-        <div class="kpi-card">
+        <a class="kpi-card" href="{% url 'admin_stat_restants' %}" style="text-decoration:none;">
             <div class="kpi-eyebrow">Restants à soutenir</div>
             <div class="kpi-value" style="color:#f59e0b">{{ restants_count }}</div>
-            <div class="kpi-sub">{{ restants_pct }} % des inscrits pas encore soutenus</div>
-        </div>
+            <div class="kpi-sub">{{ restants_pct }} % des inscrits · voir les acceptés (Word)</div>
+        </a>
+        <a class="kpi-card" href="{% url 'admin_stat_non_notes' %}" style="text-decoration:none;">
+            <div class="kpi-eyebrow">Programmés, pas notés</div>
+            <div class="kpi-value" style="color:#2563eb">{{ non_notes_count }}</div>
+            <div class="kpi-sub">Moins de 3 notes · voir la liste (Word)</div>
+        </a>
     </div>
 
     <!-- KPI professeurs -->

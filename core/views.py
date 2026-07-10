@@ -641,6 +641,119 @@ def _word_response(title, body_html, filename):
     return resp
 
 
+def _stat_word(title, headers, rows, filename):
+    """Document Word (en-tête ISGI) à partir d'un tableau (entêtes + lignes)."""
+    body = ["<table border='1' cellspacing='0' cellpadding='4'><tr>"]
+    body += [f"<th>{h}</th>" for h in headers]
+    body.append("</tr>")
+    for row in rows:
+        body.append("<tr>" + "".join(f"<td>{c}</td>" for c in row) + "</tr>")
+    body.append("</table>")
+    return _word_response(title, "".join(body), filename)
+
+
+@login_required
+@role_required(["admin"])
+def admin_stat_restants(request):
+    """Étudiants ACCEPTÉS par le département restant à soutenir (sans résultat
+    publié) : nom, filière, encadrant. Vue HTML + export Word."""
+    accepted_ids = set(
+        PFERequest.objects.filter(status=PFERequest.STATUS_ACCEPTED)
+        .values_list("student_id", flat=True)
+    )
+    published_ids = set(
+        Result.objects.filter(is_published=True)
+        .values_list("jury_student__student_id", flat=True)
+    )
+    qs = (
+        StudentProfile.objects.filter(id__in=accepted_ids)
+        .exclude(id__in=published_ids)
+        .select_related("encadrant").order_by("filiere", "full_name")
+    )
+    headers = ["Matricule", "Nom & Prénom", "Filière", "Encadrant"]
+    rows = [
+        [s.matricule, s.full_name, s.filiere or "",
+         s.encadrant.full_name if s.encadrant else "-"]
+        for s in qs
+    ]
+    title = "Étudiants acceptés restant à soutenir"
+    if (request.GET.get("format") or "").strip() == "word":
+        return _stat_word(title, headers, rows, "restants_a_soutenir.doc")
+    return render(request, "core/admin_stat_list.html", {
+        "title": title,
+        "subtitle": f"{len(rows)} étudiant(s) accepté(s) par le département, "
+                    "sans résultat publié.",
+        "headers": headers, "rows": rows,
+        "download_url_name": "admin_stat_restants",
+    })
+
+
+@login_required
+@role_required(["admin"])
+def admin_stat_non_inscrits(request):
+    """Étudiants de la liste officielle SANS compte (pas encore inscrits) :
+    matricule, nom, filière, encadrant. Vue HTML + export Word."""
+    profile_mats = {
+        normalize_matricule(m)
+        for m in StudentProfile.objects.values_list("matricule", flat=True)
+    }
+    refs = [
+        r for r in StudentReference.objects.all().order_by("filiere", "full_name")
+        if normalize_matricule(r.matricule) not in profile_mats
+    ]
+    headers = ["Matricule", "Nom & Prénom", "Filière", "Encadrant"]
+    rows = [
+        [r.matricule, r.full_name, r.filiere or "", r.encadrant_name or "-"]
+        for r in refs
+    ]
+    title = "Étudiants pas encore inscrits"
+    if (request.GET.get("format") or "").strip() == "word":
+        return _stat_word(title, headers, rows, "non_inscrits.doc")
+    return render(request, "core/admin_stat_list.html", {
+        "title": title,
+        "subtitle": f"{len(rows)} étudiant(s) de la liste officielle sans compte "
+                    "sur la plateforme.",
+        "headers": headers, "rows": rows,
+        "download_url_name": "admin_stat_non_inscrits",
+    })
+
+
+@login_required
+@role_required(["admin"])
+def admin_stat_non_notes(request):
+    """Étudiants PROGRAMMÉS (affectés à un jury) mais pas notés par les 3 membres
+    (0, 1 ou 2 notes). La colonne « Notes reçues » (x/3) distingue les cas."""
+    jss = (
+        JuryStudent.objects.select_related("student", "student__encadrant", "jury")
+        .annotate(n_sub=Count("evaluations", filter=Q(evaluations__is_submitted=True)))
+        .filter(n_sub__lt=3)
+        .order_by("jury__defense_date", "jury__name", "student__full_name")
+    )
+    headers = ["Matricule", "Nom & Prénom", "Filière", "Encadrant", "Jury",
+               "Date", "Notes reçues"]
+    rows = []
+    for js in jss:
+        s = js.student
+        rows.append([
+            s.matricule, s.full_name, s.filiere or "",
+            s.encadrant.full_name if s.encadrant else "-",
+            js.jury.name,
+            js.jury.defense_date.strftime("%d/%m/%Y") if js.jury.defense_date else "-",
+            f"{js.n_sub}/3",
+        ])
+    title = "Étudiants programmés mais pas (complètement) notés"
+    if (request.GET.get("format") or "").strip() == "word":
+        return _stat_word(title, headers, rows, "programmes_non_notes.doc")
+    return render(request, "core/admin_stat_list.html", {
+        "title": title,
+        "subtitle": f"{len(rows)} étudiant(s) affecté(s) à un jury avec moins de "
+                    "3 notes envoyées (0/3 = pas encore noté ; 1–2/3 = pas noté "
+                    "par tous les membres).",
+        "headers": headers, "rows": rows,
+        "download_url_name": "admin_stat_non_notes",
+    })
+
+
 def _professors_recap_rows():
     """Une ligne par prof : nom, tél, email, nb encadrés, nb de jury (= nombre
     d'étudiants réellement notés par le prof dans un jury)."""

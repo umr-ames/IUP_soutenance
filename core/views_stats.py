@@ -211,6 +211,13 @@ def _compute_global():
     soutenus_pct = round(soutenus_count / base_ins * 100, 1)
     restants_pct = round(restants_count / base_ins * 100, 1)
 
+    # Étudiants programmés (dans un jury) mais pas notés par les 3 membres.
+    non_notes_count = (
+        JuryStudent.objects
+        .annotate(n_sub=Count("evaluations", filter=Q(evaluations__is_submitted=True)))
+        .filter(n_sub__lt=3).count()
+    )
+
     return {
         'total_ref': total_ref,
         'total_profiles': total_profiles,
@@ -222,6 +229,7 @@ def _compute_global():
         'soutenus_pct': soutenus_pct,
         'restants_count': restants_count,
         'restants_pct': restants_pct,
+        'non_notes_count': non_notes_count,
         'prof_total': prof_total,
         'prof_inscrits': prof_inscrits,
         'prof_restants': prof_restants,
