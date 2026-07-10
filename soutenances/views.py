@@ -6253,6 +6253,36 @@ def admin_results_by_filiere(request):
             "Notes par filière", lines, "notes_par_filiere.pdf"
         )
 
+    if fmt == "word":
+        # En-tête identique à celui de l'AUTORISATION DE SOUTENANCE.
+        head_l1 = "Institut Supérieur de Génie Industriel"
+        head_l2 = "Département des Formations IUP"
+        body = [
+            "<html><head><meta charset='utf-8'></head><body>",
+            "<div style='text-align:center;'>",
+            f"<h2>{head_l1}</h2><p><b>{head_l2}</b></p>",
+            "<h3>Résultats de soutenance par filière</h3></div>",
+        ]
+        if not groups:
+            body.append("<p>Aucun résultat publié pour le moment.</p>")
+        for fil, rows in groups.items():
+            body.append(f"<h4>Filière {fil} — {len(rows)} étudiant(s)</h4>")
+            body.append(
+                "<table border='1' cellspacing='0' cellpadding='4'>"
+                "<tr><th>Matricule</th><th>Nom &amp; Prénom</th><th>Note finale</th></tr>"
+            )
+            for row in rows:
+                note = f"{row['average']}" if row["average"] is not None else "—"
+                body.append(
+                    f"<tr><td>{row['matricule']}</td><td>{row['name']}</td>"
+                    f"<td>{note}</td></tr>"
+                )
+            body.append("</table><br>")
+        body.append("</body></html>")
+        resp = HttpResponse("".join(body), content_type="application/msword")
+        resp["Content-Disposition"] = 'attachment; filename="notes_par_filiere.doc"'
+        return resp
+
     return render(request, "soutenances/admin_results_by_filiere.html", {
         "groups": groups,
         "header_l1": header_l1,
