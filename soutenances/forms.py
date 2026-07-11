@@ -36,9 +36,9 @@ class HistoricalDefenseForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     member = forms.ModelChoiceField(
-        label="Autre membre du jury",
+        label="3ᵉ membre du jury",
         queryset=ProfessorProfile.objects.order_by("full_name"),
-        required=False,
+        required=True,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     final_note = forms.DecimalField(

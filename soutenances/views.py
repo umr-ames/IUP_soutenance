@@ -331,6 +331,23 @@ def admin_add_historical_defense(request):
                 student=student, jury=jury, president=president
             )
 
+            # Créditer CHAQUE membre : une évaluation « envoyée » (verrouillée)
+            # avec la note finale reportée sur les 3 critères (détail non
+            # disponible pour l'historique). Ainsi chaque membre est compté
+            # comme ayant noté l'étudiant (recap prof, espace prof, stats) et la
+            # soutenance apparaît « terminée » dans son espace.
+            for professor in members:
+                Evaluation.objects.create(
+                    jury_student=js,
+                    professor=professor,
+                    rapport_note=final_note,
+                    presentation_note=final_note,
+                    questions_note=final_note,
+                    is_submitted=True,
+                    is_locked=True,
+                    submitted_at=_tz.now(),
+                )
+
             Result.objects.create(
                 jury_student=js,
                 average=final_note,
@@ -6197,13 +6214,16 @@ def admin_results_by_filiere(request):
     groups = OrderedDict()
     for r in results:
         s = r.jury_student.student
-        fil = s.filiere or "(filière non renseignée)"
+        # Regroupement INSENSIBLE À LA CASSE : « FinTech » et « FINTECH » sont la
+        # même filière (on normalise en majuscules).
+        fil = (s.filiere or "").strip().upper() or "(FILIÈRE NON RENSEIGNÉE)"
         groups.setdefault(fil, []).append({
             "name": s.full_name or "(nom absent)",
             "matricule": s.matricule,
             "average": r.average,
         })
-    # Tri par matricule, puis nom, puis note dans chaque filière.
+    # Filières triées alphabétiquement ; dans chaque filière : matricule, nom, note.
+    groups = OrderedDict(sorted(groups.items(), key=lambda kv: kv[0]))
     for fil in groups:
         groups[fil].sort(key=lambda x: (
             (x["matricule"] or "").upper(),
