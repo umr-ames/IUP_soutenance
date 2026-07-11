@@ -200,22 +200,31 @@ def _compute_global():
     prof_restants = max(prof_total - prof_inscrits, 0)
     prof_taux = round(prof_inscrits / prof_total * 100, 1) if prof_total else 0
 
-    # Soutenus / restants parmi les étudiants inscrits (pourcentage sur les
-    # inscrits). "Soutenu" = étudiant avec un résultat publié.
-    soutenus_count = len(set(
+    # "Soutenu" = étudiant avec un résultat publié.
+    soutenus_ids = set(
         Result.objects.filter(is_published=True)
         .values_list('jury_student__student_id', flat=True)
-    ))
-    restants_count = max(total_profiles - soutenus_count, 0)
+    )
+    soutenus_count = len(soutenus_ids)
+    # "Restant à soutenir" = étudiant ACCEPTÉ par le département mais pas encore
+    # soutenu (identique à la liste ouverte depuis la carte).
+    accepted_ids = set(
+        PFERequest.objects.filter(status=PFERequest.STATUS_ACCEPTED)
+        .values_list('student_id', flat=True)
+    )
+    restants_count = len(accepted_ids - soutenus_ids)
     base_ins = total_profiles if total_profiles > 0 else 1
     soutenus_pct = round(soutenus_count / base_ins * 100, 1)
     restants_pct = round(restants_count / base_ins * 100, 1)
 
-    # Étudiants programmés (dans un jury) mais pas notés par les 3 membres.
+    # Étudiants programmés (dans un jury) mais pas notés par les 3 membres,
+    # en excluant ceux déjà soutenus (résultat publié, dont historiques).
     non_notes_count = (
         JuryStudent.objects
         .annotate(n_sub=Count("evaluations", filter=Q(evaluations__is_submitted=True)))
-        .filter(n_sub__lt=3).count()
+        .filter(n_sub__lt=3)
+        .exclude(result__is_published=True)
+        .count()
     )
 
     return {

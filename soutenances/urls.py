@@ -11,6 +11,7 @@ urlpatterns = [
     path("admin/demandes/accepter-tout/", views.admin_pfe_accept_all, name="admin_pfe_accept_all"),
     path("admin/demandes/accepter-bloquees/", views.admin_pfe_accept_blocked, name="admin_pfe_accept_blocked"),
     path("admin/soutenance-historique/", views.admin_add_historical_defense, name="admin_add_historical_defense"),
+    path("admin/soutenance-historique/regulariser/", views.admin_regularize_historical, name="admin_regularize_historical"),
     path("admin/deadline/", views.admin_deadline, name="admin_deadline"),
     path("admin/jurys/", views.admin_jury_list, name="admin_jury_list"),
     path("admin/jurys/generate/", views.admin_generate_juries, name="admin_generate_juries"),

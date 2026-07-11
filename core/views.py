@@ -727,6 +727,7 @@ def admin_stat_non_notes(request):
         JuryStudent.objects.select_related("student", "student__encadrant", "jury")
         .annotate(n_sub=Count("evaluations", filter=Q(evaluations__is_submitted=True)))
         .filter(n_sub__lt=3)
+        .exclude(result__is_published=True)  # exclure les déjà soutenus (dont historiques)
         .order_by("jury__defense_date", "jury__name", "student__full_name")
     )
     headers = ["Matricule", "Nom & Prénom", "Filière", "Encadrant", "Jury",

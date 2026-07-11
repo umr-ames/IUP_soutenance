@@ -11,6 +11,11 @@
     <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-outline-secondary" href="{% url 'admin_student_list' %}">Comptes inscrits</a>
         <a class="btn btn-outline-primary" href="{% url 'admin_add_historical_defense' %}">+ Soutenance historique</a>
+        <form method="post" action="{% url 'admin_regularize_historical' %}" style="display:inline; margin:0;"
+              onsubmit="return confirm('Régulariser les soutenances historiques sans évaluations (créditer les membres et encadrants) ? Aucune note n\'est modifiée.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-secondary">Régulariser les soutenances historiques</button>
+        </form>
         <a class="btn btn-primary" href="{% url 'admin_students_overview_export' %}{% if querystring %}?{{ querystring }}{% endif %}">
             Télécharger Excel
         </a>

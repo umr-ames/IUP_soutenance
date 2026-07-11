@@ -371,6 +371,68 @@ def admin_add_historical_defense(request):
 
 @login_required
 @role_required(["admin"])
+def admin_regularize_historical(request):
+    """Régularise les soutenances historiques enregistrées AVANT le crédit
+    automatique des membres : pour chaque résultat PUBLIÉ dont l'étudiant n'a
+    AUCUNE évaluation envoyée, crée une évaluation « envoyée » (verrouillée) par
+    membre du jury — encadrant compris — avec la note finale reportée sur les 3
+    critères. Les notes publiées ne sont PAS modifiées."""
+    if request.method != "POST":
+        return redirect("admin_students_overview")
+
+    from django.utils import timezone as _tz
+
+    juries_done = 0
+    evals_created = 0
+    results = (
+        Result.objects.filter(is_published=True, average__isnull=False)
+        .select_related("jury_student__jury")
+        .prefetch_related(
+            "jury_student__jury__members__professor",
+            "jury_student__evaluations",
+        )
+    )
+    for res in results:
+        js = res.jury_student
+        # Défense normale déjà notée -> on ne touche pas.
+        if js.evaluations.filter(is_submitted=True).exists():
+            continue
+        members = [m.professor for m in js.jury.members.all()]
+        if not members:
+            continue
+        created_here = 0
+        for prof in members:
+            if Evaluation.objects.filter(jury_student=js, professor=prof).exists():
+                continue
+            Evaluation.objects.create(
+                jury_student=js,
+                professor=prof,
+                rapport_note=res.average,
+                presentation_note=res.average,
+                questions_note=res.average,
+                is_submitted=True,
+                is_locked=True,
+                submitted_at=_tz.now(),
+            )
+            created_here += 1
+        if created_here:
+            juries_done += 1
+            evals_created += created_here
+
+    if juries_done:
+        messages.success(
+            request,
+            f"{juries_done} soutenance(s) historique(s) régularisée(s) — "
+            f"{evals_created} évaluation(s) créée(s). Les membres du jury et les "
+            f"encadrants sont désormais crédités."
+        )
+    else:
+        messages.info(request, "Aucune soutenance historique à régulariser.")
+    return redirect("admin_students_overview")
+
+
+@login_required
+@role_required(["admin"])
 def admin_pfe_accept_all(request):
     """Accepte toutes les demandes déjà validées par les encadrants (en attente
     du département)."""
