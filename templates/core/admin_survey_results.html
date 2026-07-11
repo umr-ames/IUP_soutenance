@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Sondage — résultats{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Sondage de satisfaction — résultats</h1>
+        <p class="text-muted" style="font-size:.9rem;">Résultats <strong>anonymes</strong> agrégés (moyennes /5, taux de satisfaction = notes ≥ 4).</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-outline-primary" href="?format=word">Télécharger Word</a>
+        <a class="btn btn-outline-primary" href="?format=xlsx">Télécharger Excel</a>
+    </div>
+</div>
+
+{% for section in sections %}
+<section class="content-panel" style="margin-bottom:16px;">
+    <div class="card-header-flex">
+        <div>
+            <span class="eyebrow">{{ section.label }}</span>
+            <h3>{{ section.n }} réponse(s) · participation {{ section.part_pct }} % ({{ section.n }}/{{ section.eligible }})</h3>
+        </div>
+        <form method="post" action="{% url 'admin_survey_toggle' %}" style="margin:0;">
+            {% csrf_token %}
+            <input type="hidden" name="which" value="{{ section.role }}">
+            {% if section.open %}
+                <button class="btn btn-sm btn-outline-danger" type="submit">Fermer le sondage</button>
+            {% else %}
+                <button class="btn btn-sm btn-outline-success" type="submit">Ouvrir le sondage</button>
+            {% endif %}
+        </form>
+    </div>
+
+    {% if section.n %}
+        <div class="table-responsive mt-2">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Question</th><th>Moyenne /5</th><th>Satisfaits</th>
+                        <th title="Très insatisfait">1</th><th>2</th><th>3</th><th>4</th><th title="Très satisfait">5</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for q in section.per_q %}
+                        <tr>
+                            <td>{{ q.label }}</td>
+                            <td><strong>{{ q.avg|default:"—" }}</strong></td>
+                            <td>{{ q.sat_pct }} %</td>
+                            {% for c in q.dist %}<td>{{ c }}</td>{% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if section.comments %}
+            <h4 style="margin-top:14px;">Commentaires ({{ section.comments|length }})</h4>
+            <ul>
+                {% for c in section.comments %}<li>{{ c }}</li>{% endfor %}
+            </ul>
+        {% endif %}
+    {% else %}
+        <div class="empty-state mt-2">Aucune réponse pour le moment.</div>
+    {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

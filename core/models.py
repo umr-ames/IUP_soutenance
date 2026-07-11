@@ -56,3 +56,47 @@ def notify_admins(title, message="", url="", category=Notification.CATEGORY_INFO
     for user in CustomUser.objects.filter(role="admin"):
         created.append(notify(user, title, message, url, category))
     return created
+
+
+class SurveyConfig(models.Model):
+    """Interrupteur d'ouverture du sondage de satisfaction (une seule ligne)."""
+    student_open = models.BooleanField(default=True)
+    professor_open = models.BooleanField(default=True)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class SurveyResponse(models.Model):
+    """Réponse (anonyme) au sondage de satisfaction. Le lien à l'utilisateur ne
+    sert qu'à empêcher les doublons et à calculer le taux de participation ;
+    l'admin ne voit que des résultats agrégés + commentaires anonymes.
+
+    5 questions notées de 1 (Très insatisfait) à 5 (Très satisfait) + un
+    commentaire libre. Les libellés dépendent du rôle (voir core.views)."""
+
+    ROLE_STUDENT = "student"
+    ROLE_PROFESSOR = "professor"
+    ROLE_CHOICES = [(ROLE_STUDENT, "Étudiant"), (ROLE_PROFESSOR, "Professeur")]
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="survey_response",
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    q1 = models.PositiveSmallIntegerField()
+    q2 = models.PositiveSmallIntegerField()
+    q3 = models.PositiveSmallIntegerField()
+    q4 = models.PositiveSmallIntegerField()
+    q5 = models.PositiveSmallIntegerField()
+    comment = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Sondage {self.role} #{self.pk}"

@@ -27,6 +27,7 @@ from soutenances.models import (
     Result,
 )
 from .forms import ImportPeopleForm, ImportStudentReferencesForm
+from .models import SurveyConfig, SurveyResponse
 
 
 DEFAULT_IMPORT_PASSWORD = "iup2026"
@@ -222,6 +223,7 @@ def professor_dashboard(request):
         "students_pending_prof_count": pending_requests_count,
         "students_accepted_dept_count": accepted_dept_count,
         "students_soutenu_count": soutenu_count,
+        "show_survey": survey_is_available(request.user),
     })
 
 
@@ -317,6 +319,7 @@ def student_dashboard(request):
         "result": result,
         "result_breakdown": result_breakdown,
         "dossier_missing": dossier_missing,
+        "show_survey": survey_is_available(request.user),
     })
 
 
@@ -1393,3 +1396,188 @@ def notifications_mark_all_read(request):
         ).update(is_read=True)
     next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "dashboard"
     return redirect(next_url)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Sondage de satisfaction (étudiants / professeurs) — anonyme
+# ─────────────────────────────────────────────────────────────────────────────
+SURVEY_QUESTIONS = {
+    "student": [
+        "Facilité d'utilisation de la plateforme (demande, suivi)",
+        "Clarté des informations (jury, salle, horaire de passage)",
+        "Utilité et ponctualité des notifications",
+        "Organisation et déroulement de la soutenance",
+        "Satisfaction globale",
+    ],
+    "professor": [
+        "Facilité de déclaration des disponibilités",
+        "Clarté de l'affectation aux jurys (composition, horaires)",
+        "Facilité de saisie des notes / évaluations",
+        "Utilité des récapitulatifs (encadrés, jurys)",
+        "Satisfaction globale",
+    ],
+}
+
+
+def survey_is_available(user):
+    """True si l'utilisateur (étudiant/professeur) peut encore répondre :
+    sondage ouvert pour son rôle ET pas déjà répondu."""
+    role = getattr(user, "role", None)
+    if role not in ("student", "professor"):
+        return False
+    cfg = SurveyConfig.get()
+    is_open = cfg.student_open if role == "student" else cfg.professor_open
+    if not is_open:
+        return False
+    return not SurveyResponse.objects.filter(user=user).exists()
+
+
+@login_required
+def survey_form(request):
+    role = getattr(request.user, "role", None)
+    if role not in ("student", "professor"):
+        messages.info(request, "Le sondage est réservé aux étudiants et aux professeurs.")
+        return redirect("dashboard")
+    dash = "student_dashboard" if role == "student" else "professor_dashboard"
+
+    if SurveyResponse.objects.filter(user=request.user).exists():
+        messages.info(request, "Vous avez déjà répondu au sondage. Merci !")
+        return redirect(dash)
+
+    cfg = SurveyConfig.get()
+    is_open = cfg.student_open if role == "student" else cfg.professor_open
+    if not is_open:
+        messages.info(request, "Le sondage n'est pas ouvert pour le moment.")
+        return redirect(dash)
+
+    questions = SURVEY_QUESTIONS[role]
+    if request.method == "POST":
+        try:
+            vals = [int(request.POST.get(f"q{i}", "")) for i in range(1, 6)]
+        except (ValueError, TypeError):
+            vals = []
+        if len(vals) != 5 or any(v < 1 or v > 5 for v in vals):
+            messages.error(request, "Merci de noter chaque question de 1 à 5.")
+            return render(request, "core/survey_form.html",
+                          {"questions": questions, "role": role})
+        SurveyResponse.objects.create(
+            user=request.user, role=role,
+            q1=vals[0], q2=vals[1], q3=vals[2], q4=vals[3], q5=vals[4],
+            comment=(request.POST.get("comment") or "").strip(),
+        )
+        messages.success(request, "Merci pour votre retour ! Vos réponses ont bien été enregistrées.")
+        return redirect(dash)
+
+    return render(request, "core/survey_form.html", {"questions": questions, "role": role})
+
+
+def _survey_compute():
+    """Agrégats du sondage par rôle : moyennes, distribution, taux de
+    satisfaction (note >= 4), participation, commentaires anonymes."""
+    role_eligible = {
+        "student": CustomUser.objects.filter(role="student", is_active=True).count(),
+        "professor": CustomUser.objects.filter(role="professor", is_active=True).count(),
+    }
+    data = {}
+    for role in ("student", "professor"):
+        responses = list(SurveyResponse.objects.filter(role=role))
+        n = len(responses)
+        per_q = []
+        for i, label in enumerate(SURVEY_QUESTIONS[role], start=1):
+            vals = [getattr(r, f"q{i}") for r in responses]
+            avg = round(sum(vals) / len(vals), 2) if vals else None
+            dist = [sum(1 for v in vals if v == k) for k in range(1, 6)]
+            sat_pct = round(sum(1 for v in vals if v >= 4) / len(vals) * 100, 1) if vals else 0
+            per_q.append({"label": label, "avg": avg, "dist": dist, "sat_pct": sat_pct})
+        eligible = role_eligible[role]
+        data[role] = {
+            "n": n,
+            "eligible": eligible,
+            "part_pct": round(n / eligible * 100, 1) if eligible else 0,
+            "per_q": per_q,
+            "comments": [r.comment for r in responses if r.comment.strip()],
+        }
+    return data
+
+
+@login_required
+@role_required(["admin"])
+def admin_survey_results(request):
+    data = _survey_compute()
+    fmt = (request.GET.get("format") or "").strip()
+
+    if fmt == "word":
+        labels = {"student": "Étudiants", "professor": "Professeurs"}
+        body = []
+        for role in ("student", "professor"):
+            d = data[role]
+            body.append(f"<h3>{labels[role]} — {d['n']} réponse(s) · "
+                        f"participation {d['part_pct']} %</h3>")
+            body.append("<table border='1' cellspacing='0' cellpadding='4'>"
+                        "<tr><th>Question</th><th>Moyenne /5</th>"
+                        "<th>Satisfaits (%)</th></tr>")
+            for q in d["per_q"]:
+                body.append(
+                    f"<tr><td>{q['label']}</td>"
+                    f"<td>{q['avg'] if q['avg'] is not None else '—'}</td>"
+                    f"<td>{q['sat_pct']}</td></tr>"
+                )
+            body.append("</table>")
+            if d["comments"]:
+                body.append("<h4>Commentaires</h4><ul>")
+                body += [f"<li>{c}</li>" for c in d["comments"]]
+                body.append("</ul>")
+            body.append("<br>")
+        return _word_response("Sondage de satisfaction", "".join(body),
+                              "sondage_satisfaction.doc")
+
+    if fmt == "xlsx":
+        from openpyxl import Workbook
+        from django.http import HttpResponse
+        labels = {"student": "Étudiants", "professor": "Professeurs"}
+        wb = Workbook()
+        first = True
+        for role in ("student", "professor"):
+            d = data[role]
+            ws = wb.active if first else wb.create_sheet()
+            ws.title = labels[role][:28]
+            first = False
+            ws.append([ISGI_L1]); ws.append([ISGI_L2])
+            ws.append([f"Sondage — {labels[role]} : {d['n']} réponse(s), "
+                       f"participation {d['part_pct']} %"])
+            ws.append([])
+            ws.append(["Question", "Moyenne /5", "Satisfaits (%)",
+                       "1", "2", "3", "4", "5"])
+            for q in d["per_q"]:
+                ws.append([q["label"], q["avg"], q["sat_pct"]] + q["dist"])
+            ws.append([])
+            ws.append(["Commentaires"])
+            for c in d["comments"]:
+                ws.append([c])
+        resp = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = 'attachment; filename="sondage_satisfaction.xlsx"'
+        wb.save(resp)
+        return resp
+
+    cfg = SurveyConfig.get()
+    sections = [
+        {"role": "student", "label": "Étudiants", "open": cfg.student_open, **data["student"]},
+        {"role": "professor", "label": "Professeurs", "open": cfg.professor_open, **data["professor"]},
+    ]
+    return render(request, "core/admin_survey_results.html", {"sections": sections})
+
+
+@login_required
+@role_required(["admin"])
+def admin_survey_toggle(request):
+    if request.method == "POST":
+        cfg = SurveyConfig.get()
+        which = request.POST.get("which")
+        if which == "student":
+            cfg.student_open = not cfg.student_open
+            cfg.save(update_fields=["student_open"])
+        elif which == "professor":
+            cfg.professor_open = not cfg.professor_open
+            cfg.save(update_fields=["professor_open"])
+        messages.success(request, "État du sondage mis à jour.")
+    return redirect("admin_survey_results")

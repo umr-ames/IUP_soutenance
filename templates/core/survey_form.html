@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Sondage de satisfaction{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Sondage de satisfaction</h1>
+        <p class="text-muted" style="font-size:.9rem;">
+            Vos réponses sont <strong>anonymes</strong>. Notez chaque point de
+            <strong>1 (Très insatisfait)</strong> à <strong>5 (Très satisfait)</strong>.
+        </p>
+    </div>
+</div>
+
+<section class="content-panel" style="max-width:760px;">
+    <form method="post">
+        {% csrf_token %}
+        {% for q in questions %}
+            <div style="margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid var(--line);">
+                <label class="form-label" style="font-weight:750;">{{ forloop.counter }}. {{ q }}</label>
+                <div class="d-flex gap-3 flex-wrap mt-1" style="align-items:center;">
+                    {% for v in "12345" %}
+                        <label style="display:flex; align-items:center; gap:6px; font-weight:700;">
+                            <input type="radio" name="q{{ forloop.parentloop.counter }}" value="{{ v }}" required>
+                            {{ v }}
+                        </label>
+                    {% endfor %}
+                    <span class="text-muted" style="font-size:.8rem;">1 = Très insatisfait · 5 = Très satisfait</span>
+                </div>
+            </div>
+        {% endfor %}
+
+        <div style="margin-bottom:18px;">
+            <label class="form-label" style="font-weight:750;">Suggestions / commentaire (facultatif)</label>
+            <textarea name="comment" class="form-control" rows="4" maxlength="2000"
+                      placeholder="Votre avis libre…"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Envoyer mes réponses</button>
+    </form>
+</section>
+{% endblock %}
