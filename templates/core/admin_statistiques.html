@@ -264,9 +264,10 @@ if (typeof Chart === 'undefined') {
                 <thead><tr>
                     <th>Filière</th>
                     <th title="Effectif total (liste officielle)">Total</th>
-                    <th title="Étudiants inscrits (compte créé)">Inscrits</th>
+                    <th title="Étudiants inscrits sur la plateforme">Inscrits</th>
+                    <th title="Demandes de soutenance">Demandes</th>
                     <th title="Étudiants soutenus (résultat publié)">Soutenus</th>
-                    <th title="Étudiants pas encore inscrits">Non inscrits</th>
+                    <th title="Non inscrits sur la plateforme (inscription fermée)">Non inscrits</th>
                     <th title="Taux d'inscription">Taux d'inscr.</th>
                 </tr></thead>
                 <tbody>
@@ -275,6 +276,7 @@ if (typeof Chart === 'undefined') {
                     <td><span class="badge-filiere badge-{{ r.filiere }}">{{ r.filiere }}</span></td>
                     <td>{{ r.officiels }}</td>
                     <td>{{ r.inscrits }}</td>
+                    <td>{{ r.demandes }}</td>
                     <td style="font-weight:800;color:#16a34a;">{{ r.soutenus }}</td>
                     <td>{{ r.sans_compte }}</td>
                     <td>

@@ -106,15 +106,23 @@ def _compute_global():
         key = (fil or '').strip().upper()
         soutenu_by_fil[key] = soutenu_by_fil.get(key, 0) + 1
 
+    # Demandes de soutenance par filière (toutes demandes), casse normalisée.
+    demande_by_fil = {}
+    for fil in PFERequest.objects.values_list('student__filiere', flat=True):
+        key = (fil or '').strip().upper()
+        demande_by_fil[key] = demande_by_fil.get(key, 0) + 1
+
     filiere_stats = []
     for f in FILIERES:
         off = StudentReference.objects.filter(filiere__iexact=f).count()
         ins = StudentProfile.objects.filter(filiere__iexact=f).count()
         sout = soutenu_by_fil.get(f.upper(), 0)
+        dem = demande_by_fil.get(f.upper(), 0)
         taux = round(ins / off * 100, 1) if off > 0 else 0
         filiere_stats.append({
             'filiere': f, 'officiels': off, 'inscrits': ins,
-            'soutenus': sout, 'sans_compte': max(off - ins, 0), 'taux': taux,
+            'demandes': dem, 'soutenus': sout,
+            'sans_compte': max(off - ins, 0), 'taux': taux,
         })
 
     non_deposee = max(total_profiles - total_demandes, 0)

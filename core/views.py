@@ -796,35 +796,31 @@ def admin_stats_report(request):
     b.append("<h3>1. Effectifs</h3>")
     b.append("<table border='1' cellspacing='0' cellpadding='4'>")
     b.append(f"<tr><td>Effectif total (liste officielle)</td><td>{g['total_ref']}</td></tr>")
-    b.append(f"<tr><td>Étudiants inscrits (compte créé)</td><td>{g['total_profiles']}</td></tr>")
-    b.append(f"<tr><td>Pas encore inscrits</td><td>{g['total_sans_compte']}</td></tr>")
+    b.append(f"<tr><td>Étudiants inscrits sur la plateforme</td><td>{g['total_profiles']}</td></tr>")
+    b.append(f"<tr><td>Non inscrits sur la plateforme (inscription fermée)</td><td>{g['total_sans_compte']}</td></tr>")
     b.append(f"<tr><td>Inscrits sans demande de soutenance</td><td>{g['sans_demande_count']}</td></tr>")
     b.append("</table>")
 
-    b.append("<h3>2. Demandes de soutenance</h3>")
+    b.append("<h3>2. Soutenances</h3>")
     b.append("<table border='1' cellspacing='0' cellpadding='4'>")
-    b.append(f"<tr><td>Total des demandes</td><td>{g['total_demandes']}</td></tr>")
-    b.append(f"<tr><td>Demandes acceptées</td><td>{g['total_acceptees']}</td></tr>")
-    b.append("</table>")
-
-    b.append("<h3>3. Soutenances</h3>")
-    b.append("<table border='1' cellspacing='0' cellpadding='4'>")
+    b.append(f"<tr><td>Demandes de soutenance</td><td>{g['total_demandes']}</td></tr>")
     b.append(f"<tr><td>Étudiants soutenus</td><td>{g['soutenus_count']} "
              f"({g['soutenus_pct']} % des inscrits)</td></tr>")
     b.append(f"<tr><td>Restants à soutenir (acceptés non soutenus)</td>"
              f"<td>{g['restants_count']}</td></tr>")
-    b.append(f"<tr><td>Programmés, pas notés</td><td>{g['non_notes_count']}</td></tr>")
     b.append("</table>")
 
-    b.append("<h3>4. Répartition par filière</h3>")
+    b.append("<h3>3. Répartition par filière</h3>")
     b.append("<table border='1' cellspacing='0' cellpadding='4'>"
-             "<tr><th>Filière</th><th>Total</th><th>Inscrits</th><th>Soutenus</th></tr>")
+             "<tr><th>Filière</th><th>Total</th><th>Inscrits</th>"
+             "<th>Demandes</th><th>Soutenus</th></tr>")
     for r in g['filiere_stats']:
         b.append(f"<tr><td>{r['filiere']}</td><td>{r['officiels']}</td>"
-                 f"<td>{r['inscrits']}</td><td>{r['soutenus']}</td></tr>")
+                 f"<td>{r['inscrits']}</td><td>{r['demandes']}</td>"
+                 f"<td>{r['soutenus']}</td></tr>")
     b.append("</table>")
 
-    b.append("<h3>5. Professeurs</h3>")
+    b.append("<h3>4. Professeurs</h3>")
     b.append("<table border='1' cellspacing='0' cellpadding='4'>")
     b.append(f"<tr><td>Professeurs (encadrants officiels)</td><td>{g['prof_total']}</td></tr>")
     b.append(f"<tr><td>Professeurs inscrits</td><td>{g['prof_inscrits']}</td></tr>")
