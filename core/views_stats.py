@@ -622,7 +622,8 @@ def _compute_resultats():
     mentions_by_filiere = {k: [] for k in MENTION_KEYS}
 
     for f in FILIERES:
-        f_results = pub_results.filter(jury_student__student__filiere=f)
+        # Insensible à la casse (FinTech = FINTECH).
+        f_results = pub_results.filter(jury_student__student__filiere__iexact=f)
         f_count = f_results.count()
 
         if f_count == 0:
@@ -678,15 +679,16 @@ def _compute_resultats():
                 mc['Insuffisant'] += 1
 
         dom_mention = max(mc, key=mc.get) if any(mc.values()) else '-'
-        mc_pct = {k: round(v / f_count * 100) for k, v in mc.items()}
 
         bar_avgs.append(avg_f)
         bar_rapport.append(avg_rp)
         bar_presentation.append(avg_pr)
         bar_questions.append(avg_qu)
         bar_std.append(std)
+        # EFFECTIFS RÉELS par mention (et non pourcentages) — évite la confusion
+        # « 71 » lu comme un nombre alors que c'était 71 %.
         for k in MENTION_KEYS:
-            mentions_by_filiere[k].append(mc_pct[k])
+            mentions_by_filiere[k].append(mc[k])
 
         filiere_data.append({
             'filiere': f, 'count': f_count, 'avg': avg_f,

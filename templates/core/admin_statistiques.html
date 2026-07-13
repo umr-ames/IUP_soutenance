@@ -712,6 +712,13 @@ if (typeof Chart === 'undefined') {
         </div>
     </div>
 
+    <div class="d-flex gap-2 flex-wrap" style="margin-bottom:14px;">
+        <a class="btn btn-primary" href="{% url 'admin_results_explorer' %}">Explorer les résultats (par filière, mention, note)</a>
+        <a class="btn btn-outline-primary" href="{% url 'admin_results_explorer' %}?op=gte&amp;note_min=10">Voir les admis (≥ 10)</a>
+        <a class="btn btn-outline-danger" href="{% url 'admin_results_explorer' %}?op=lte&amp;note_max=9.99">Voir les échecs (&lt; 10)</a>
+    </div>
+    <p class="text-muted" style="font-size:.8rem;margin-top:-6px;margin-bottom:14px;">💡 Astuce : cliquez sur une barre ou un segment de graphe pour voir la liste des étudiants correspondants.</p>
+
     {% if res_total == 0 %}
     <div class="stat-card" style="text-align:center;padding:32px;">
         <p style="color:var(--muted);">Aucun résultat publié pour le moment.</p>
@@ -781,7 +788,7 @@ if (typeof Chart === 'undefined') {
                 </tr></thead>
                 <tbody>
                 {% for row in res_filiere_data %}
-                <tr>
+                <tr {% if row.count %}onclick="window.location='{% url 'admin_results_explorer' %}?filiere={{ row.filiere }}'" style="cursor:pointer;"{% endif %}>
                     <td><span class="badge-filiere badge-{{ row.filiere }}">{{ row.filiere }}</span></td>
                     <td style="font-weight:900;color:var(--orange)">{% if row.count %}{{ row.avg }}{% else %}—{% endif %}</td>
                     <td>{% if row.count %}{{ row.avg_rapport }}{% else %}—{% endif %}</td>
@@ -1018,6 +1025,15 @@ tabs.forEach(function(tab) {
     });
 })();
 
+// ── Explorateur des résultats : clic sur un graphe -> liste filtrée ───────
+const RES_EXPLORER_URL = "{% url 'admin_results_explorer' %}";
+function goExplorer(params) {
+    const clean = {};
+    Object.keys(params).forEach(function(k){ if (params[k] !== undefined && params[k] !== null && params[k] !== '') clean[k] = params[k]; });
+    const q = new URLSearchParams(clean).toString();
+    window.location = RES_EXPLORER_URL + (q ? '?' + q : '');
+}
+
 // ── Chart: Résultats moyennes finales ────────────────────────────────────
 (function() {
     const el = document.getElementById('chartResMoyennes');
@@ -1030,6 +1046,7 @@ tabs.forEach(function(tab) {
         },
         options: {
             responsive: true, maintainAspectRatio: false,
+            onClick: function(e, els) { if (els.length) goExplorer({ filiere: FILIERES[els[0].index] }); },
             plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
             scales: { y: { beginAtZero: false, min: 8, max: 20, ticks: { stepSize: 2, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
         }
@@ -1058,7 +1075,7 @@ tabs.forEach(function(tab) {
     });
 })();
 
-// ── Chart: Mentions par spécialité (barres horiz. empilées 100%) ─────────
+// ── Chart: Mentions par spécialité (effectifs empilés) ───────────────────
 (function() {
     const el = document.getElementById('chartResMentions');
     if (!el) return;
@@ -1068,9 +1085,17 @@ tabs.forEach(function(tab) {
         data: { labels: FILIERES, datasets: datasets },
         options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { font: { size: 9 }, boxWidth: 10 } } },
+            onClick: function(e, els) {
+                if (els.length) goExplorer({ filiere: FILIERES[els[0].index], mention: datasets[els[0].datasetIndex].label });
+            },
+            plugins: {
+                legend: { position: 'bottom', labels: { font: { size: 9 }, boxWidth: 10 } },
+                tooltip: { callbacks: { label: function(ctx) {
+                    return ctx.dataset.label + ' : ' + ctx.parsed.x + ' étudiant(s)';
+                } } }
+            },
             scales: {
-                x: { stacked: true, max: 100, ticks: { callback: function(v) { return v + '%'; }, font: { size: 9 } } },
+                x: { stacked: true, ticks: { precision: 0, font: { size: 9 } }, title: { display: true, text: 'Nombre d’étudiants', font: { size: 9 } } },
                 y: { stacked: true, ticks: { font: { size: 10 } } }
             }
         }
@@ -1094,6 +1119,7 @@ tabs.forEach(function(tab) {
         data: { labels: labels, datasets: [{ data: counts, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
         options: {
             responsive: true, maintainAspectRatio: false, cutout: '55%',
+            onClick: function(e, els) { if (els.length) goExplorer({ mention: labels[els[0].index] }); },
             plugins: {
                 legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } },
                 tooltip: { callbacks: { label: function(ctx) {

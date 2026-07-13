@@ -832,6 +832,91 @@ def admin_stats_report(request):
 
 @login_required
 @role_required(["admin"])
+def admin_results_explorer(request):
+    """Explorateur des résultats publiés : filtre par FILIÈRE, MENTION et NOTE
+    (≥, ≤, ou entre deux valeurs). Affiche la liste des étudiants, le total et
+    le nombre par filière ; export Word/Excel de la sélection."""
+    from decimal import Decimal, InvalidOperation
+    from collections import Counter
+    from .views_stats import _mention, FILIERES
+
+    MENTIONS = ['Félicitations', 'Très bien', 'Bien', 'Assez bien', 'Passable', 'Insuffisant']
+
+    filiere = (request.GET.get("filiere") or "").strip()
+    mention = (request.GET.get("mention") or "").strip()
+    op = (request.GET.get("op") or "").strip()
+
+    def _dec(name):
+        raw = (request.GET.get(name) or "").strip().replace(",", ".")
+        if not raw:
+            return None
+        try:
+            return Decimal(raw)
+        except InvalidOperation:
+            return None
+    nmin, nmax = _dec("note_min"), _dec("note_max")
+
+    qs = (
+        Result.objects.filter(is_published=True, average__isnull=False)
+        .exclude(jury_student__pfe_soutenable_status='non_soutenable')
+        .select_related("jury_student__student")
+    )
+    if filiere:
+        qs = qs.filter(jury_student__student__filiere__iexact=filiere)
+    if op == "gte" and nmin is not None:
+        qs = qs.filter(average__gte=nmin)
+    elif op == "lte" and nmax is not None:
+        qs = qs.filter(average__lte=nmax)
+    elif op == "between" and nmin is not None and nmax is not None:
+        qs = qs.filter(average__gte=nmin, average__lte=nmax)
+
+    rows = []
+    for r in qs.order_by("jury_student__student__filiere", "-average"):
+        s = r.jury_student.student
+        m = _mention(r.average)
+        if mention and m != mention:
+            continue
+        rows.append({
+            "matricule": s.matricule, "name": s.full_name,
+            "filiere": (s.filiere or "").upper() or "—",
+            "note": r.average, "mention": m,
+        })
+    total = len(rows)
+    par_filiere = sorted(Counter(x["filiere"] for x in rows).items())
+
+    fmt = (request.GET.get("format") or "").strip()
+    if fmt in ("word", "xlsx"):
+        headers = ["Matricule", "Nom & Prénom", "Filière", "Note /20", "Mention"]
+        data_rows = [[x["matricule"], x["name"], x["filiere"], x["note"], x["mention"]]
+                     for x in rows]
+        if fmt == "word":
+            return _stat_word("Résultats — sélection", headers, data_rows,
+                              "resultats_selection.doc")
+        from openpyxl import Workbook
+        from django.http import HttpResponse
+        wb = Workbook(); ws = wb.active; ws.title = "Résultats"
+        ws.append([ISGI_L1]); ws.append([ISGI_L2])
+        ws.append([f"Résultats — sélection ({total} étudiant(s))"]); ws.append([])
+        ws.append(headers)
+        for x in rows:
+            ws.append([x["matricule"], x["name"], x["filiere"],
+                       float(x["note"]) if x["note"] is not None else "", x["mention"]])
+        resp = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = 'attachment; filename="resultats_selection.xlsx"'
+        wb.save(resp)
+        return resp
+
+    return render(request, "core/admin_results_explorer.html", {
+        "rows": rows, "total": total, "par_filiere": par_filiere,
+        "filieres": FILIERES, "mentions": MENTIONS,
+        "sel_filiere": filiere, "sel_mention": mention, "sel_op": op,
+        "sel_note_min": request.GET.get("note_min", ""),
+        "sel_note_max": request.GET.get("note_max", ""),
+    })
+
+
+@login_required
+@role_required(["admin"])
 def admin_professors_jury_details(request):
     """Word : chaque enseignant avec les étudiants où il a siégé comme MEMBRE DE
     JURY (= qu'il a notés, évaluation envoyée), détails matricule/nom/filière +

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Explorateur des résultats{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Département de l'IUP</span>
+        <h1>Explorateur des résultats</h1>
+        <p class="text-muted" style="font-size:.9rem;">Filtrez par filière, mention ou note et consultez la liste des étudiants.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'admin_statistiques' %}?tab=resultats">Retour aux statistiques</a>
+</div>
+
+<!-- Filtres -->
+<section class="content-panel" style="margin-bottom:14px;">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label">Filière</label>
+            <select name="filiere" class="form-select">
+                <option value="">— Toutes —</option>
+                {% for f in filieres %}
+                    <option value="{{ f }}" {% if sel_filiere|upper == f %}selected{% endif %}>{{ f }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Mention</label>
+            <select name="mention" class="form-select">
+                <option value="">— Toutes —</option>
+                {% for m in mentions %}
+                    <option value="{{ m }}" {% if sel_mention == m %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Note</label>
+            <select name="op" class="form-select">
+                <option value="" {% if not sel_op %}selected{% endif %}>— Toute —</option>
+                <option value="gte" {% if sel_op == 'gte' %}selected{% endif %}>≥ (au moins)</option>
+                <option value="lte" {% if sel_op == 'lte' %}selected{% endif %}>≤ (au plus)</option>
+                <option value="between" {% if sel_op == 'between' %}selected{% endif %}>entre</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Min</label>
+            <input type="number" step="0.01" min="0" max="20" name="note_min" value="{{ sel_note_min }}" class="form-control" placeholder="ex : 10">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Max</label>
+            <input type="number" step="0.01" min="0" max="20" name="note_max" value="{{ sel_note_max }}" class="form-control" placeholder="ex : 20">
+        </div>
+        <div class="col-12 d-flex gap-2 mt-2">
+            <button type="submit" class="btn btn-primary">Filtrer</button>
+            <a class="btn btn-outline-secondary" href="{% url 'admin_results_explorer' %}">Réinitialiser</a>
+        </div>
+    </form>
+</section>
+
+<!-- Résumé -->
+<section class="content-panel" style="margin-bottom:14px;">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <strong style="font-size:1.1rem;">{{ total }}</strong> étudiant(s) correspondant(s).
+            <span class="text-muted" style="margin-left:10px;">Par filière :</span>
+            {% for fil, n in par_filiere %}
+                <span class="status-pill" style="background:rgba(13,148,136,.12);color:#0f5e59;">{{ fil }} : {{ n }}</span>
+            {% empty %}
+                <span class="text-muted">—</span>
+            {% endfor %}
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-primary" href="?{% for k,v in request.GET.items %}{% if k != 'format' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}format=word">Word</a>
+            <a class="btn btn-sm btn-outline-primary" href="?{% for k,v in request.GET.items %}{% if k != 'format' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}format=xlsx">Excel</a>
+        </div>
+    </div>
+</section>
+
+<!-- Liste -->
+<section class="content-panel">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr><th>Matricule</th><th>Nom &amp; Prénom</th><th>Filière</th><th>Note /20</th><th>Mention</th></tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                    <tr>
+                        <td>{{ r.matricule }}</td>
+                        <td>{{ r.name }}</td>
+                        <td>{{ r.filiere }}</td>
+                        <td style="font-weight:800;color:var(--orange);">{{ r.note }}</td>
+                        <td>{{ r.mention }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5"><div class="empty-state">Aucun étudiant pour cette sélection.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

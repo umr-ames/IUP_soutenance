@@ -32,6 +32,7 @@ urlpatterns = [
     path("admin-dashboard/statistiques/non-notes/", views.admin_stat_non_notes, name="admin_stat_non_notes"),
     path("admin-dashboard/statistiques/sans-demande/", views.admin_stat_sans_demande, name="admin_stat_sans_demande"),
     path("admin-dashboard/statistiques/rapport/", views.admin_stats_report, name="admin_stats_report"),
+    path("admin-dashboard/statistiques/resultats/explorer/", views.admin_results_explorer, name="admin_results_explorer"),
     path("admin-dashboard/professors/jurys-details/", views.admin_professors_jury_details, name="admin_professors_jury_details"),
     path("professor-dashboard/", views.professor_dashboard, name="professor_dashboard"),
     path("student-dashboard/", views.student_dashboard, name="student_dashboard"),
