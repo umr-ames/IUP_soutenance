@@ -209,11 +209,6 @@ if (typeof Chart === 'undefined') {
             <div class="kpi-value" style="color:#f59e0b">{{ restants_count }}</div>
             <div class="kpi-sub">{{ restants_pct }} % des inscrits · voir les acceptés (Word)</div>
         </a>
-        <a class="kpi-card" href="{% url 'admin_stat_non_notes' %}" style="text-decoration:none;">
-            <div class="kpi-eyebrow">Programmés, pas notés</div>
-            <div class="kpi-value" style="color:#2563eb">{{ non_notes_count }}</div>
-            <div class="kpi-sub">Moins de 3 notes · voir la liste (Word)</div>
-        </a>
         <a class="kpi-card" href="{% url 'admin_stat_sans_demande' %}" style="text-decoration:none;">
             <div class="kpi-eyebrow">Inscrits sans demande</div>
             <div class="kpi-value" style="color:#b45309">{{ sans_demande_count }}</div>
