@@ -789,7 +789,7 @@ def admin_stat_sans_demande(request):
 def admin_stats_report(request):
     """Rapport de la session de soutenances (Word) pour la direction : toutes
     les statistiques agrégées."""
-    from .views_stats import _compute_global
+    from .views_stats import _compute_global, FILIERES
     g = _compute_global()
     b = []
 
@@ -820,7 +820,102 @@ def admin_stats_report(request):
                  f"<td>{r['soutenus']}</td></tr>")
     b.append("</table>")
 
-    b.append("<h3>4. Professeurs</h3>")
+    # ── 4. Répartition des notes (tranches 10-12 … 18-20) ────────────────────
+    BRACKETS = ["10 – 12", "12 – 14", "14 – 16", "16 – 18", "18 – 20"]
+    COLORS = ["#fb923c", "#facc15", "#84cc16", "#22c55e", "#0d9488"]
+
+    def _bidx(avg):
+        a = float(avg)
+        if a >= 18:
+            return 4
+        if a >= 16:
+            return 3
+        if a >= 14:
+            return 2
+        if a >= 12:
+            return 1
+        if a >= 10:
+            return 0
+        return None  # < 10 : exclu (pas d'échec)
+
+    pub = (
+        Result.objects.filter(is_published=True, average__isnull=False)
+        .exclude(jury_student__pfe_soutenable_status='non_soutenable')
+        .select_related('jury_student__student')
+    )
+    global_counts = [0] * 5
+    per_fil = {}
+    for r in pub:
+        i = _bidx(r.average)
+        if i is None:
+            continue
+        global_counts[i] += 1
+        key = (r.jury_student.student.filiere or '—').strip().upper()
+        per_fil.setdefault(key, [0] * 5)[i] += 1
+    total_g = sum(global_counts)
+
+    b.append("<h3>4. Répartition des notes</h3>")
+    b.append("<table border='1' cellspacing='0' cellpadding='4'>"
+             "<tr><th>Tranche</th><th>Nombre</th><th>%</th></tr>")
+    for i, lab in enumerate(BRACKETS):
+        n = global_counts[i]
+        pct = round(n / total_g * 100, 1) if total_g else 0
+        b.append(f"<tr><td>{lab}</td><td>{n}</td><td>{pct} %</td></tr>")
+    b.append(f"<tr><td><b>Total</b></td><td><b>{total_g}</b></td><td>100 %</td></tr></table>")
+
+    # Graphe 1 : distribution globale (barres CSS).
+    maxn = max(global_counts) or 1
+    b.append("<p><b>Distribution des notes</b></p>")
+    b.append("<table cellspacing='0' cellpadding='3' style='width:100%;'>")
+    for i, lab in enumerate(BRACKETS):
+        n = global_counts[i]
+        pct = round(n / total_g * 100, 1) if total_g else 0
+        w = int(round(n / maxn * 320)) if n else 0
+        bar = (f"<table cellspacing='0' cellpadding='0'><tr>"
+               f"<td width='{w}' bgcolor='{COLORS[i]}'>&nbsp;</td></tr></table>") if n else "&nbsp;"
+        b.append(f"<tr><td style='width:70px;'>{lab}</td><td>{bar}</td>"
+                 f"<td style='width:120px;'>{n} ({pct} %)</td></tr>")
+    b.append("</table>")
+
+    # Tableau par filière + graphe empilé.
+    ordered = [f for f in FILIERES if f in per_fil] + [k for k in per_fil if k not in FILIERES]
+    b.append("<p><b>Répartition des notes par filière</b></p>")
+    b.append("<table border='1' cellspacing='0' cellpadding='4'><tr><th>Filière</th>")
+    b += [f"<th>{lab}</th>" for lab in BRACKETS]
+    b.append("<th>Total</th></tr>")
+    for key in ordered:
+        counts = per_fil[key]
+        tot = sum(counts)
+        b.append(f"<tr><td>{key}</td>")
+        for i in range(5):
+            nn = counts[i]
+            pp = round(nn / tot * 100) if tot else 0
+            b.append(f"<td>{nn} ({pp}%)</td>")
+        b.append(f"<td><b>{tot}</b></td></tr>")
+    b.append("</table>")
+
+    # Graphe 2 : barres empilées par filière (CSS).
+    b.append("<p><b>Répartition par filière (graphe)</b></p>")
+    b.append("<table cellspacing='0' cellpadding='3' style='width:100%;'>")
+    for key in ordered:
+        counts = per_fil[key]
+        tot = sum(counts)
+        if not tot:
+            continue
+        seg = ["<table cellspacing='0' cellpadding='0' width='320'><tr>"]
+        for i in range(5):
+            if counts[i]:
+                w = int(round(counts[i] / tot * 320))
+                seg.append(f"<td width='{w}' bgcolor='{COLORS[i]}'>&nbsp;</td>")
+        seg.append("</tr></table>")
+        b.append(f"<tr><td style='width:70px;'>{key}</td><td>{''.join(seg)}</td>"
+                 f"<td style='width:60px;'>{tot}</td></tr>")
+    b.append("</table>")
+    b.append("<p>Légende : " + " &nbsp; ".join(
+        f"<span style='background-color:{COLORS[i]};'>&nbsp;&nbsp;&nbsp;</span> {BRACKETS[i]}"
+        for i in range(5)) + "</p>")
+
+    b.append("<h3>5. Professeurs</h3>")
     b.append("<table border='1' cellspacing='0' cellpadding='4'>")
     b.append(f"<tr><td>Professeurs (encadrants officiels)</td><td>{g['prof_total']}</td></tr>")
     b.append(f"<tr><td>Professeurs inscrits</td><td>{g['prof_inscrits']}</td></tr>")
