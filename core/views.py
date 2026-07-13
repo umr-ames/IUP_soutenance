@@ -856,8 +856,7 @@ def admin_professors_jury_details(request):
     body = []
     for p in profs:
         students = graded.get(p.id, [])
-        body.append(f"<h4>{p.full_name} — {len(students)} étudiant(s) noté(s) "
-                    "comme membre de jury</h4>")
+        body.append(f"<h4>{p.full_name} — {len(students)} jurys</h4>")
         if students:
             body.append("<table border='1' cellspacing='0' cellpadding='4'>"
                         "<tr><th>Matricule</th><th>Nom &amp; Prénom</th><th>Filière</th></tr>")
@@ -866,10 +865,10 @@ def admin_professors_jury_details(request):
                             f"<td>{s.filiere or ''}</td></tr>")
             body.append("</table>")
         else:
-            body.append("<p>Aucun étudiant noté en tant que membre de jury.</p>")
+            body.append("<p>Aucun jury.</p>")
         body.append("<br>")
 
-    return _word_response("Enseignants — étudiants notés en jury",
+    return _word_response("Enseignants — jurys",
                           "".join(body), "enseignants_jurys_details.doc")
 
 
