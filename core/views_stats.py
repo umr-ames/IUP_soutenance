@@ -97,13 +97,25 @@ def _compute_global():
         {'label': 'Résultat publié',     'count': result_published, 'pct': round(result_published / base * 100, 1)},
     ]
 
+    # Soutenus par filière (résultats publiés), casse normalisée (FinTech = FINTECH).
+    soutenu_by_fil = {}
+    for fil in (
+        Result.objects.filter(is_published=True)
+        .values_list('jury_student__student__filiere', flat=True)
+    ):
+        key = (fil or '').strip().upper()
+        soutenu_by_fil[key] = soutenu_by_fil.get(key, 0) + 1
+
     filiere_stats = []
     for f in FILIERES:
-        off = StudentReference.objects.filter(filiere=f).count()
-        ins = StudentProfile.objects.filter(filiere=f).count()
-        sans = max(off - ins, 0)
+        off = StudentReference.objects.filter(filiere__iexact=f).count()
+        ins = StudentProfile.objects.filter(filiere__iexact=f).count()
+        sout = soutenu_by_fil.get(f.upper(), 0)
         taux = round(ins / off * 100, 1) if off > 0 else 0
-        filiere_stats.append({'filiere': f, 'officiels': off, 'inscrits': ins, 'sans_compte': sans, 'taux': taux})
+        filiere_stats.append({
+            'filiere': f, 'officiels': off, 'inscrits': ins,
+            'soutenus': sout, 'sans_compte': max(off - ins, 0), 'taux': taux,
+        })
 
     non_deposee = max(total_profiles - total_demandes, 0)
     pend_prof = PFERequest.objects.filter(status='pending_professor').count()
@@ -217,6 +229,9 @@ def _compute_global():
     soutenus_pct = round(soutenus_count / base_ins * 100, 1)
     restants_pct = round(restants_count / base_ins * 100, 1)
 
+    # Inscrits (compte créé) mais AUCUNE demande de soutenance.
+    sans_demande_count = StudentProfile.objects.filter(pfe_request__isnull=True).count()
+
     # Étudiants programmés (dans un jury) mais pas notés par les 3 membres,
     # en excluant ceux déjà soutenus (résultat publié, dont historiques).
     non_notes_count = (
@@ -239,6 +254,7 @@ def _compute_global():
         'restants_count': restants_count,
         'restants_pct': restants_pct,
         'non_notes_count': non_notes_count,
+        'sans_demande_count': sans_demande_count,
         'prof_total': prof_total,
         'prof_inscrits': prof_inscrits,
         'prof_restants': prof_restants,

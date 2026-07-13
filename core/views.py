@@ -758,6 +758,125 @@ def admin_stat_non_notes(request):
     })
 
 
+@login_required
+@role_required(["admin"])
+def admin_stat_sans_demande(request):
+    """Étudiants INSCRITS (compte créé) mais sans AUCUNE demande de soutenance."""
+    qs = (
+        StudentProfile.objects.filter(pfe_request__isnull=True)
+        .select_related("encadrant").order_by("filiere", "full_name")
+    )
+    headers = ["Matricule", "Nom & Prénom", "Filière", "Encadrant"]
+    rows = [
+        [s.matricule, s.full_name, s.filiere or "",
+         s.encadrant.full_name if s.encadrant else "-"]
+        for s in qs
+    ]
+    title = "Inscrits sans demande de soutenance"
+    if (request.GET.get("format") or "").strip() == "word":
+        return _stat_word(title, headers, rows, "inscrits_sans_demande.doc")
+    return render(request, "core/admin_stat_list.html", {
+        "title": title,
+        "subtitle": f"{len(rows)} étudiant(s) inscrit(s) n'ayant déposé aucune "
+                    "demande de soutenance.",
+        "headers": headers, "rows": rows,
+        "download_url_name": "admin_stat_sans_demande",
+    })
+
+
+@login_required
+@role_required(["admin"])
+def admin_stats_report(request):
+    """Rapport de la session de soutenances (Word) pour la direction : toutes
+    les statistiques agrégées."""
+    from .views_stats import _compute_global
+    g = _compute_global()
+    b = []
+
+    b.append("<h3>1. Effectifs</h3>")
+    b.append("<table border='1' cellspacing='0' cellpadding='4'>")
+    b.append(f"<tr><td>Effectif total (liste officielle)</td><td>{g['total_ref']}</td></tr>")
+    b.append(f"<tr><td>Étudiants inscrits (compte créé)</td><td>{g['total_profiles']}</td></tr>")
+    b.append(f"<tr><td>Pas encore inscrits</td><td>{g['total_sans_compte']}</td></tr>")
+    b.append(f"<tr><td>Inscrits sans demande de soutenance</td><td>{g['sans_demande_count']}</td></tr>")
+    b.append("</table>")
+
+    b.append("<h3>2. Demandes de soutenance</h3>")
+    b.append("<table border='1' cellspacing='0' cellpadding='4'>")
+    b.append(f"<tr><td>Total des demandes</td><td>{g['total_demandes']}</td></tr>")
+    b.append(f"<tr><td>Demandes acceptées</td><td>{g['total_acceptees']}</td></tr>")
+    b.append("</table>")
+
+    b.append("<h3>3. Soutenances</h3>")
+    b.append("<table border='1' cellspacing='0' cellpadding='4'>")
+    b.append(f"<tr><td>Étudiants soutenus</td><td>{g['soutenus_count']} "
+             f"({g['soutenus_pct']} % des inscrits)</td></tr>")
+    b.append(f"<tr><td>Restants à soutenir (acceptés non soutenus)</td>"
+             f"<td>{g['restants_count']}</td></tr>")
+    b.append(f"<tr><td>Programmés, pas notés</td><td>{g['non_notes_count']}</td></tr>")
+    b.append("</table>")
+
+    b.append("<h3>4. Répartition par filière</h3>")
+    b.append("<table border='1' cellspacing='0' cellpadding='4'>"
+             "<tr><th>Filière</th><th>Total</th><th>Inscrits</th><th>Soutenus</th></tr>")
+    for r in g['filiere_stats']:
+        b.append(f"<tr><td>{r['filiere']}</td><td>{r['officiels']}</td>"
+                 f"<td>{r['inscrits']}</td><td>{r['soutenus']}</td></tr>")
+    b.append("</table>")
+
+    b.append("<h3>5. Professeurs</h3>")
+    b.append("<table border='1' cellspacing='0' cellpadding='4'>")
+    b.append(f"<tr><td>Professeurs (encadrants officiels)</td><td>{g['prof_total']}</td></tr>")
+    b.append(f"<tr><td>Professeurs inscrits</td><td>{g['prof_inscrits']}</td></tr>")
+    b.append("</table>")
+
+    return _word_response("Rapport de la session de soutenances", "".join(b),
+                          "rapport_soutenances.doc")
+
+
+@login_required
+@role_required(["admin"])
+def admin_professors_jury_details(request):
+    """Word : chaque enseignant avec les étudiants où il a siégé comme MEMBRE DE
+    JURY (= qu'il a notés, évaluation envoyée), détails matricule/nom/filière +
+    nombre. Historiques inclus."""
+    profs = list(ProfessorProfile.objects.order_by("full_name"))
+    graded = {}
+    seen = set()
+    evs = (
+        Evaluation.objects.filter(is_submitted=True)
+        .select_related("jury_student__student")
+        .order_by("professor__full_name",
+                  "jury_student__student__filiere",
+                  "jury_student__student__full_name")
+    )
+    for e in evs:
+        key = (e.professor_id, e.jury_student.student_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        graded.setdefault(e.professor_id, []).append(e.jury_student.student)
+
+    body = []
+    for p in profs:
+        students = graded.get(p.id, [])
+        body.append(f"<h4>{p.full_name} — {len(students)} étudiant(s) noté(s) "
+                    "comme membre de jury</h4>")
+        if students:
+            body.append("<table border='1' cellspacing='0' cellpadding='4'>"
+                        "<tr><th>Matricule</th><th>Nom &amp; Prénom</th><th>Filière</th></tr>")
+            for s in students:
+                body.append(f"<tr><td>{s.matricule}</td><td>{s.full_name}</td>"
+                            f"<td>{s.filiere or ''}</td></tr>")
+            body.append("</table>")
+        else:
+            body.append("<p>Aucun étudiant noté en tant que membre de jury.</p>")
+        body.append("<br>")
+
+    return _word_response("Enseignants — étudiants notés en jury",
+                          "".join(body), "enseignants_jurys_details.doc")
+
+
 def _professors_recap_rows():
     """Une ligne par prof : nom, tél, email, nb encadrés, nb de jury (= nombre
     d'étudiants réellement notés par le prof dans un jury)."""

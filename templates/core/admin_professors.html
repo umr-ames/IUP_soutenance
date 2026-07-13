@@ -19,9 +19,11 @@
         <span class="text-muted" style="align-self:center; font-size:.85rem;">Récapitulatif (nom, tél, email, encadrés, nb de jury) :</span>
         <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_professors_recap' %}?format=xlsx">Excel</a>
         <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_professors_recap' %}?format=word">Word</a>
-        <span class="text-muted" style="align-self:center; font-size:.85rem; margin-left:10px;">Détails (profs + étudiants : nom, matricule, filière) :</span>
+        <span class="text-muted" style="align-self:center; font-size:.85rem; margin-left:10px;">Détails encadrés (profs + étudiants : nom, matricule, filière) :</span>
         <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professors_details' %}?format=xlsx">Excel</a>
         <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professors_details' %}?format=word">Word</a>
+        <span class="text-muted" style="align-self:center; font-size:.85rem; margin-left:10px;">Détails jurys (enseignant + étudiants notés en jury) :</span>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_professors_jury_details' %}">Word</a>
     </div>
 </section>
 

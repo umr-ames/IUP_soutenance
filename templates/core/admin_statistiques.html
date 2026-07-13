@@ -162,6 +162,7 @@ if (typeof Chart === 'undefined') {
                 {% endif %}
             </p>
         </div>
+        <a class="btn btn-primary" href="{% url 'admin_stats_report' %}">Rapport direction (Word)</a>
     </div>
     <div class="stats-tabs">
         <button class="stats-tab {% if active_tab == 'global' %}active{% endif %}" data-tab="global">Statistiques globales</button>
@@ -213,6 +214,11 @@ if (typeof Chart === 'undefined') {
             <div class="kpi-value" style="color:#2563eb">{{ non_notes_count }}</div>
             <div class="kpi-sub">Moins de 3 notes · voir la liste (Word)</div>
         </a>
+        <a class="kpi-card" href="{% url 'admin_stat_sans_demande' %}" style="text-decoration:none;">
+            <div class="kpi-eyebrow">Inscrits sans demande</div>
+            <div class="kpi-value" style="color:#b45309">{{ sans_demande_count }}</div>
+            <div class="kpi-sub">Compte créé, aucune demande · voir la liste (Word)</div>
+        </a>
     </div>
 
     <!-- KPI professeurs -->
@@ -262,8 +268,9 @@ if (typeof Chart === 'undefined') {
             <div style="overflow-x:auto;"><table class="stats-table">
                 <thead><tr>
                     <th>Filière</th>
-                    <th title="Nombre total d'étudiants L3">Total</th>
+                    <th title="Effectif total (liste officielle)">Total</th>
                     <th title="Étudiants inscrits (compte créé)">Inscrits</th>
+                    <th title="Étudiants soutenus (résultat publié)">Soutenus</th>
                     <th title="Étudiants pas encore inscrits">Non inscrits</th>
                     <th title="Taux d'inscription">Taux d'inscr.</th>
                 </tr></thead>
@@ -273,6 +280,7 @@ if (typeof Chart === 'undefined') {
                     <td><span class="badge-filiere badge-{{ r.filiere }}">{{ r.filiere }}</span></td>
                     <td>{{ r.officiels }}</td>
                     <td>{{ r.inscrits }}</td>
+                    <td style="font-weight:800;color:#16a34a;">{{ r.soutenus }}</td>
                     <td>{{ r.sans_compte }}</td>
                     <td>
                         <div style="display:flex;align-items:center;gap:5px;">
