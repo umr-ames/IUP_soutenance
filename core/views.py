@@ -1171,8 +1171,9 @@ def admin_professors_details(request):
 
 
 def _professor_fiche_word_response(professor, filename, students_title="Étudiants encadrés"):
-    """Fiche Word d'un professeur : nom, tél, email, nombre de jury (étudiants
-    notés), puis la liste de ses encadrements (matricule, nom, filière)."""
+    """Fiche Word d'un professeur : en-tête (nom, tél, email), puis le nombre
+    d'étudiants encadrés et le détail (matricule, nom, filière), et enfin le
+    nombre de jury de soutenances."""
     encadres = list(
         StudentProfile.objects.filter(encadrant=professor).order_by("filiere", "full_name")
     )
@@ -1184,16 +1185,15 @@ def _professor_fiche_word_response(professor, filename, students_title="Étudian
     email = (professor.user.email if professor.user else "") or ""
     body = [
         f"<p><b>Nom :</b> {professor.full_name}<br>"
-        f"<b>Téléphone :</b> {tel}<br><b>Email :</b> {email}<br>"
-        f"<b>Étudiants encadrés :</b> {len(encadres)}<br>"
-        f"<b>Nombre de jury (étudiants notés) :</b> {jury_graded}</p>",
-        f"<h4>{students_title}</h4>",
+        f"<b>Téléphone :</b> {tel}<br><b>Email :</b> {email}</p>",
+        f"<h4>{students_title} : {len(encadres)}</h4>",
         "<table border='1' cellspacing='0' cellpadding='4'>"
         "<tr><th>Matricule</th><th>Nom & Prénom</th><th>Filière</th></tr>",
     ]
     for s in encadres:
         body.append(f"<tr><td>{s.matricule}</td><td>{s.full_name}</td><td>{s.filiere or ''}</td></tr>")
     body.append("</table>")
+    body.append(f"<p><b>Nombre de jury de soutenances :</b> {jury_graded}</p>")
     return _word_response(f"Fiche — {professor.full_name}", "".join(body), filename)
 
 
@@ -1240,12 +1240,13 @@ def professor_my_recap(request):
     ws.append(["Nom", professor.full_name])
     ws.append(["Téléphone", tel])
     ws.append(["Email", email])
-    ws.append(["Étudiants encadrés", len(encadres)])
-    ws.append(["Nombre de jury (étudiants notés)", jury_graded])
     ws.append([])
+    ws.append(["Étudiants encadrés", len(encadres)])
     ws.append(["Matricule", "Nom & Prénom", "Filière"])
     for s in encadres:
         ws.append([s.matricule, s.full_name, s.filiere or ""])
+    ws.append([])
+    ws.append(["Nombre de jury de soutenances", jury_graded])
     from django.http import HttpResponse
     resp = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp["Content-Disposition"] = 'attachment; filename="ma_fiche.xlsx"'
