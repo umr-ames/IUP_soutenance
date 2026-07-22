@@ -39,6 +39,7 @@
                     <th>Étudiants encadrés</th>
                     <th>Nombre de jury</th>
                     <th>Disponibilités</th>
+                    <th title="Encadrement = 750 · 1 jury = 250 (3 jurys = 1 encadrement)">Montant à payer (UM)</th>
                 </tr>
             </thead>
             <tbody>
@@ -95,11 +96,18 @@
                         <td><a href="{% url 'admin_professor_students' %}?name={{ professor.full_name|urlencode }}">{{ professor.supervised_count }}</a></td>
                         <td>{{ professor.graded_count }}</td>
                         <td>{{ professor.availability_count }}</td>
+                        <td style="font-weight:800;">{{ professor.payment|floatformat:0 }}</td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="7"><div class="empty-state">Aucun professeur.</div></td></tr>
+                    <tr><td colspan="8"><div class="empty-state">Aucun professeur.</div></td></tr>
                 {% endfor %}
             </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="7" style="text-align:right; font-weight:800;">Total à payer :</td>
+                    <td style="font-weight:900; color:var(--orange);">{{ total_payment|floatformat:0 }} UM</td>
+                </tr>
+            </tfoot>
         </table>
     </div>
 </section>

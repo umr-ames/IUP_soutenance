@@ -599,6 +599,16 @@ def admin_rename_professor(request, pk):
     return redirect("admin_professor_list")
 
 
+# Barème de rémunération (réservé à l'admin) : encadrement d'un étudiant = 750 ;
+# 3 jurys = 1 encadrement, donc 1 jury = 750 / 3 = 250.
+PAY_ENCADREMENT = 750
+PAY_JURY = 250  # 750 / 3
+
+
+def _professor_payment(encadres, jurys):
+    return encadres * PAY_ENCADREMENT + jurys * PAY_JURY
+
+
 @login_required
 @role_required(["admin"])
 def admin_professor_list(request):
@@ -617,11 +627,15 @@ def admin_professor_list(request):
         .annotate(c=Count("jury_student__student_id", distinct=True))
     ):
         graded_counts[row["professor_id"]] = row["c"]
+    total_payment = 0
     for p in professors:
         p.graded_count = graded_counts.get(p.id, 0)
+        p.payment = _professor_payment(p.supervised_count, p.graded_count)
+        total_payment += p.payment
 
     return render(request, "core/admin_professors.html", {
         "professors": professors,
+        "total_payment": total_payment,
     })
 
 
@@ -1069,13 +1083,16 @@ def _professors_recap_rows():
     }
     rows = []
     for p in profs:
+        encadres = enc.get(p.id, 0)
+        jury = graded.get(p.id, 0)
         rows.append({
             "prof": p,
             "nom": p.full_name,
             "tel": (getattr(p.user, "phone_number", None) if p.user else None) or p.phone or "",
             "email": (p.user.email if p.user else "") or (p.user.username if p.user else ""),
-            "encadres": enc.get(p.id, 0),
-            "jury": graded.get(p.id, 0),
+            "encadres": encadres,
+            "jury": jury,
+            "payment": _professor_payment(encadres, jury),
         })
     return rows
 
@@ -1101,15 +1118,22 @@ def admin_professors_recap(request):
     rows = _professors_recap_rows()
     fmt = (request.GET.get("format") or "xlsx").strip()
 
+    total_payment = sum(r["payment"] for r in rows)
+
     if fmt == "word":
         body = ["<table border='1' cellspacing='0' cellpadding='4'>",
                 "<tr><th>Nom</th><th>Téléphone</th><th>Email</th>"
-                "<th>Étudiants encadrés</th><th>Nombre de jury</th></tr>"]
+                "<th>Étudiants encadrés</th><th>Nombre de jury</th>"
+                "<th>Montant à payer (UM)</th></tr>"]
         for r in rows:
             body.append(
                 f"<tr><td>{r['nom']}</td><td>{r['tel']}</td><td>{r['email']}</td>"
-                f"<td>{r['encadres']}</td><td>{r['jury']}</td></tr>"
+                f"<td>{r['encadres']}</td><td>{r['jury']}</td><td>{r['payment']}</td></tr>"
             )
+        body.append(
+            f"<tr><td colspan='5' align='right'><b>Total à payer :</b></td>"
+            f"<td><b>{total_payment} UM</b></td></tr>"
+        )
         body.append("</table>")
         return _word_response("Récapitulatif des professeurs", "".join(body),
                               "recap_professeurs.doc")
@@ -1119,9 +1143,11 @@ def admin_professors_recap(request):
     ws = wb.active
     ws.title = "Récap professeurs"
     ws.append([ISGI_L1]); ws.append([ISGI_L2]); ws.append(["Récapitulatif des professeurs"]); ws.append([])
-    ws.append(["Nom", "Téléphone", "Email", "Étudiants encadrés", "Nombre de jury"])
+    ws.append(["Nom", "Téléphone", "Email", "Étudiants encadrés", "Nombre de jury", "Montant à payer (UM)"])
     for r in rows:
-        ws.append([r["nom"], r["tel"], r["email"], r["encadres"], r["jury"]])
+        ws.append([r["nom"], r["tel"], r["email"], r["encadres"], r["jury"], r["payment"]])
+    ws.append([])
+    ws.append(["", "", "", "", "Total à payer (UM)", total_payment])
     from django.http import HttpResponse
     resp = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp["Content-Disposition"] = 'attachment; filename="recap_professeurs.xlsx"'
