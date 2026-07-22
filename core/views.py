@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.management import call_command
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.shortcuts import redirect, render
 
 from accounts.decorators import role_required
@@ -198,7 +198,7 @@ def professor_dashboard(request):
     # Étudiants où ce prof a été membre de jury ET les a NOTÉS (compte réel :
     # s'il a été remplacé avant de noter certains, ceux-là ne comptent pas).
     jury_graded_count = (
-        Evaluation.objects.filter(professor=professor, is_submitted=True)
+        _jury_graded_evals().filter(professor=professor)
         .values_list("jury_student__student_id", flat=True)
         .distinct()
         .count()
@@ -609,6 +609,15 @@ def _professor_payment(encadres, jurys):
     return encadres * PAY_ENCADREMENT + jurys * PAY_JURY
 
 
+def _jury_graded_evals():
+    """Évaluations envoyées comptant comme JURY : on EXCLUT les étudiants
+    encadrés par le prof lui-même (un encadrant qui note son propre encadré
+    relève de l'encadrement, pas d'un jury)."""
+    return Evaluation.objects.filter(is_submitted=True).exclude(
+        jury_student__student__encadrant=F("professor")
+    )
+
+
 @login_required
 @role_required(["admin"])
 def admin_professor_list(request):
@@ -622,7 +631,7 @@ def admin_professor_list(request):
     # évalué) — s'il a été remplacé avant de noter, ceux-là ne comptent pas.
     graded_counts = {}
     for row in (
-        Evaluation.objects.filter(is_submitted=True)
+        _jury_graded_evals()
         .values("professor_id")
         .annotate(c=Count("jury_student__student_id", distinct=True))
     ):
@@ -1034,7 +1043,7 @@ def admin_professors_jury_details(request):
     graded = {}
     seen = set()
     evs = (
-        Evaluation.objects.filter(is_submitted=True)
+        _jury_graded_evals()
         .select_related("jury_student__student")
         .order_by("professor__full_name",
                   "jury_student__student__filiere",
@@ -1072,7 +1081,7 @@ def _professors_recap_rows():
     profs = list(ProfessorProfile.objects.select_related("user").order_by("full_name"))
     graded = {
         r["professor_id"]: r["c"]
-        for r in Evaluation.objects.filter(is_submitted=True)
+        for r in _jury_graded_evals()
         .values("professor_id")
         .annotate(c=Count("jury_student__student_id", distinct=True))
     }
@@ -1204,7 +1213,7 @@ def _professor_fiche_word_response(professor, filename, students_title="Étudian
         StudentProfile.objects.filter(encadrant=professor).order_by("filiere", "full_name")
     )
     jury_graded = (
-        Evaluation.objects.filter(professor=professor, is_submitted=True)
+        _jury_graded_evals().filter(professor=professor)
         .values_list("jury_student__student_id", flat=True).distinct().count()
     )
     tel = (getattr(professor.user, "phone_number", None) if professor.user else None) or professor.phone or ""
@@ -1247,7 +1256,7 @@ def professor_my_recap(request):
         StudentProfile.objects.filter(encadrant=professor).order_by("filiere", "full_name")
     )
     jury_graded = (
-        Evaluation.objects.filter(professor=professor, is_submitted=True)
+        _jury_graded_evals().filter(professor=professor)
         .values_list("jury_student__student_id", flat=True).distinct().count()
     )
     tel = (getattr(professor.user, "phone_number", None) if professor.user else None) or professor.phone or ""
